@@ -25,6 +25,16 @@ export const signIn = async (email, password) => {
   return { data, error };
 };
 
+export const signInWithGoogle = async () => {
+  const { data, error } = await supabase.auth.signInWithOAuth({
+    provider: 'google',
+    options: {
+      redirectTo: `${window.location.origin}/`,
+    },
+  });
+  return { data, error };
+};
+
 export const signOut = async () => {
   try {
     const { error } = await supabase.auth.signOut();
