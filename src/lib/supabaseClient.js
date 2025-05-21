@@ -30,6 +30,9 @@ export const signInWithGoogle = async () => {
   console.log('Starting Google sign-in with redirect to:', redirectUrl);
   
   try {
+    // Log available methods for debugging
+    console.log('Available auth methods:', Object.keys(supabase.auth));
+    
     const { data, error } = await supabase.auth.signInWithOAuth({
       provider: 'google',
       options: {

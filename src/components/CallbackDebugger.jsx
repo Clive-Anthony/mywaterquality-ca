@@ -4,6 +4,7 @@
 
 import { useEffect } from 'react';
 import { useLocation } from 'react-router-dom';
+import { supabase } from '../lib/supabaseClient';
 
 export default function CallbackDebugger() {
   const location = useLocation();
@@ -39,7 +40,7 @@ export default function CallbackDebugger() {
       hashParts.forEach(part => {
         const [key, value] = part.split('=');
         if (key && value) {
-          hashParams[key] = decodeURIComponent(value);
+          hashParams[decodeURIComponent(key)] = decodeURIComponent(value);
         }
       });
       
@@ -58,6 +59,9 @@ export default function CallbackDebugger() {
       console.error('OAuth Error:', queryParams.error);
       console.error('Error Description:', queryParams.error_description || 'No description provided');
     }
+    
+    // Log Supabase version and methods available
+    console.log('Supabase auth methods:', Object.keys(supabase.auth).join(', '));
     
     // Log browser and environment info
     console.log('User Agent:', navigator.userAgent);

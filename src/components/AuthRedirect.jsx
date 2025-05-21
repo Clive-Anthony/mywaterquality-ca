@@ -27,39 +27,51 @@ export default function AuthRedirect() {
           throw new Error(`${errorCode}: ${errorDescription || 'Unknown error'}`);
         }
         
-        // Look for hash fragments which might contain tokens
-        if (window.location.hash) {
-          console.log('Found hash fragment, attempting to extract session...');
-        }
-        
-        // Try to get the session from URL (works with hash fragments)
-        const { data, error } = await supabase.auth.getSessionFromUrl();
-        
-        if (error) {
-          throw error;
-        }
-        
-        if (data?.session) {
-          console.log('Successfully extracted session from URL');
-          setProcessingState('success');
+        // Check if we have a hash fragment (which contains the access token)
+        if (window.location.hash && window.location.hash.includes('access_token')) {
+          console.log('Found hash fragment with access token, attempting to set session...');
           
-          // Short delay before redirecting to home page
-          setTimeout(() => {
-            navigate('/', { replace: true });
-          }, 1000);
-        } else {
-          // If we don't have a session but also don't have an error, check current session
-          const { data: { session } } = await supabase.auth.getSession();
-          
-          if (session) {
-            console.log('No session in URL, but user is already authenticated');
-            setProcessingState('success');
-            setTimeout(() => {
-              navigate('/', { replace: true });
-            }, 1000);
-          } else {
-            throw new Error('No authentication data found in URL and user is not authenticated');
+          try {
+            // For older Supabase versions, there might not be a getSessionFromUrl method
+            // Let's try to manually extract the token and set the session
+            
+            // Parse the hash fragment
+            const hashParams = new URLSearchParams(window.location.hash.substring(1));
+            const accessToken = hashParams.get('access_token');
+            const refreshToken = hashParams.get('refresh_token');
+            
+            if (accessToken) {
+              console.log('Extracted access token from URL hash');
+              
+              // Set the session with the extracted tokens
+              const { data, error } = await supabase.auth.setSession({
+                access_token: accessToken,
+                refresh_token: refreshToken
+              });
+              
+              if (error) throw error;
+              
+              console.log('Successfully set auth session from token');
+              setProcessingState('success');
+              
+              // Short delay before redirecting to home page
+              setTimeout(() => {
+                navigate('/', { replace: true });
+              }, 1000);
+            } else {
+              throw new Error('No access token found in URL hash');
+            }
+          } catch (tokenErr) {
+            console.error('Error processing token from URL:', tokenErr);
+            
+            // Alternative approach: let Supabase handle the redirect automatically
+            // This might work better for some Supabase versions
+            console.log('Falling back to checking current session...');
+            await checkCurrentSession();
           }
+        } else {
+          // No hash parameters, check if we're already authenticated
+          await checkCurrentSession();
         }
       } catch (err) {
         console.error('Error handling auth redirect:', err);
@@ -70,6 +82,21 @@ export default function AuthRedirect() {
         setTimeout(() => {
           navigate('/login', { replace: true });
         }, 3000);
+      }
+    };
+    
+    // Helper function to check current session
+    const checkCurrentSession = async () => {
+      const { data: { session } } = await supabase.auth.getSession();
+      
+      if (session) {
+        console.log('User is already authenticated, redirecting to home');
+        setProcessingState('success');
+        setTimeout(() => {
+          navigate('/', { replace: true });
+        }, 1000);
+      } else {
+        throw new Error('No authentication data found in URL and user is not authenticated');
       }
     };
 
