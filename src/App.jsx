@@ -2,6 +2,7 @@
 import { BrowserRouter as Router, Routes, Route, Navigate } from 'react-router-dom';
 import { AuthProvider } from './contexts/AuthContext';
 import ProtectedRoute from './components/ProtectedRoute';
+import AuthRedirect from './components/AuthRedirect';
 import SignupPage from './pages/SignupPage';
 import LoginPage from './pages/LoginPage';
 import HomePage from './pages/HomePage';
@@ -59,12 +60,10 @@ export default function App() {
           
           {/* Public routes */}
           <Route path="/signup" element={<SignupPage />} />
+          <Route path="/login" element={<LoginPage />} />
           
-          {/* Conditionally render the appropriate login page */}
-          <Route 
-            path="/login" 
-            element={<LoginPage />} />
-        
+          {/* Auth redirect handler */}
+          <Route path="/auth/callback" element={<AuthRedirect />} />
           
           {/* Redirect all other routes to home */}
           <Route path="*" element={<Navigate to="/" replace />} />

@@ -1,12 +1,9 @@
 // src/lib/supabaseClient.js
 import { createClient } from '@supabase/supabase-js';
-
-// Replace with your Supabase URL and anon key
-const supabaseUrl = import.meta.env.VITE_SUPABASE_URL;
-const supabaseAnonKey = import.meta.env.VITE_SUPABASE_ANON_KEY;
+import { config } from '../config';
 
 // Create a single supabase client for interacting with your database
-export const supabase = createClient(supabaseUrl, supabaseAnonKey);
+export const supabase = createClient(config.supabaseUrl, config.supabaseAnonKey);
 
 // Auth helper functions
 export const signUp = async (email, password) => {
@@ -26,10 +23,12 @@ export const signIn = async (email, password) => {
 };
 
 export const signInWithGoogle = async () => {
+  console.log('Redirecting to:', config.baseUrl); // Debug log
+  
   const { data, error } = await supabase.auth.signInWithOAuth({
     provider: 'google',
     options: {
-      redirectTo: `${window.location.origin}/`,
+      redirectTo: config.baseUrl,
     },
   });
   return { data, error };
