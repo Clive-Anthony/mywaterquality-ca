@@ -3,6 +3,7 @@ import { BrowserRouter as Router, Routes, Route, Navigate } from 'react-router-d
 import { AuthProvider } from './contexts/AuthContext';
 import ProtectedRoute from './components/ProtectedRoute';
 import AuthRedirect from './components/AuthRedirect';
+import CallbackDebugger from './components/CallbackDebugger';
 import SignupPage from './pages/SignupPage';
 import LoginPage from './pages/LoginPage';
 import HomePage from './pages/HomePage';
@@ -30,6 +31,9 @@ export default function App() {
   return (
     <AuthProvider>
       <Router>
+        {/* Add callback debugger (invisible component) */}
+        <CallbackDebugger />
+        
         {/* Add a simple visual indicator of Tailwind status */}
         {tailwindWorks !== null && (
           <div style={{ 
@@ -64,6 +68,9 @@ export default function App() {
           
           {/* Auth redirect handler */}
           <Route path="/auth/callback" element={<AuthRedirect />} />
+          
+          {/* Special fallback for access token callbacks */}
+          <Route path="/#access_token=*" element={<AuthRedirect />} />
           
           {/* Redirect all other routes to home */}
           <Route path="*" element={<Navigate to="/" replace />} />

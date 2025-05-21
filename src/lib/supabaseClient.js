@@ -23,15 +23,31 @@ export const signIn = async (email, password) => {
 };
 
 export const signInWithGoogle = async () => {
-  console.log('Redirecting to:', config.baseUrl); // Debug log
+  // Make absolutely sure we're using the correct redirect URL
+  // Force a specific callback URL (not the base URL) to ensure consistent handling
+  const redirectUrl = `${config.baseUrl}auth/callback`;
   
-  const { data, error } = await supabase.auth.signInWithOAuth({
-    provider: 'google',
-    options: {
-      redirectTo: config.baseUrl,
-    },
-  });
-  return { data, error };
+  console.log('Starting Google sign-in with redirect to:', redirectUrl);
+  
+  try {
+    const { data, error } = await supabase.auth.signInWithOAuth({
+      provider: 'google',
+      options: {
+        redirectTo: redirectUrl,
+        // Add a timestamp to prevent caching issues
+        queryParams: {
+          _t: Date.now()
+        }
+      }
+    });
+    
+    if (error) throw error;
+    
+    return { data, error: null };
+  } catch (err) {
+    console.error('Error initiating Google sign-in:', err);
+    return { data: null, error: err };
+  }
 };
 
 export const signOut = async () => {

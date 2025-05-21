@@ -1,20 +1,26 @@
 // src/config.js
 // Configuration values for different environments
 
-// Get the base URL for redirects
-const getBaseUrl = () => {
+// Normalize URL by ensuring it ends with a trailing slash
+const normalizeUrl = (url) => {
+    if (!url) return '';
+    return url.endsWith('/') ? url : `${url}/`;
+  };
+  
+  // Get the base URL for redirects
+  const getBaseUrl = () => {
     // If VITE_APP_URL is defined in environment, use that (set in Netlify)
     if (import.meta.env.VITE_APP_URL) {
-      return import.meta.env.VITE_APP_URL;
+      return normalizeUrl(import.meta.env.VITE_APP_URL);
     }
     
     // In development mode, use the local server
     if (import.meta.env.DEV) {
-      return window.location.origin;
+      return normalizeUrl(window.location.origin);
     }
     
     // Fallback for production (if VITE_APP_URL not set)
-    return 'https://mywaterqualityca.netlify.app/'; // Replace with your Netlify URL
+    return 'https://mywaterqualityca.netlify.app/'; // Make sure this matches your actual Netlify URL
   };
   
   export const config = {
