@@ -54,9 +54,9 @@ export default function AuthRedirect() {
               console.log('Successfully set auth session from token');
               setProcessingState('success');
               
-              // Short delay before redirecting to home page
+              // Short delay before redirecting to dashboard
               setTimeout(() => {
-                navigate('/', { replace: true });
+                navigate('/dashboard', { replace: true });
               }, 1000);
             } else {
               throw new Error('No access token found in URL hash');
@@ -90,10 +90,10 @@ export default function AuthRedirect() {
       const { data: { session } } = await supabase.auth.getSession();
       
       if (session) {
-        console.log('User is already authenticated, redirecting to home');
+        console.log('User is already authenticated, redirecting to dashboard');
         setProcessingState('success');
         setTimeout(() => {
-          navigate('/', { replace: true });
+          navigate('/dashboard', { replace: true });
         }, 1000);
       } else {
         throw new Error('No authentication data found in URL and user is not authenticated');

@@ -23,8 +23,8 @@ export default function LoginPage() {
         throw error;
       }
       
-      // Redirect to homepage on successful login
-      navigate('/');
+      // Redirect to dashboard on successful login
+      navigate('/dashboard');
     } catch (err) {
       setError(err.message || 'Failed to sign in');
     } finally {
@@ -67,7 +67,7 @@ export default function LoginPage() {
               Welcome back
             </h2>
             <p className="text-gray-500 mb-6">
-              Sign in to your MyWaterQuality.ca account
+              Sign in to your MyWaterQuality account
             </p>
             
             {error && (

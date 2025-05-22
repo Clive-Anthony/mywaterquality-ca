@@ -7,6 +7,7 @@ import CallbackDebugger from './components/CallbackDebugger';
 import SignupPage from './pages/SignupPage';
 import LoginPage from './pages/LoginPage';
 import HomePage from './pages/HomePage';
+import UserPage from './pages/UserPage';
 import { useState, useEffect } from 'react';
 
 export default function App() {
@@ -52,12 +53,15 @@ export default function App() {
         )}
         
         <Routes>
-          {/* Protected routes */}
+          {/* Public home page */}
+          <Route path="/" element={<HomePage />} />
+          
+          {/* Protected user dashboard */}
           <Route 
-            path="/" 
+            path="/dashboard" 
             element={
               <ProtectedRoute>
-                <HomePage />
+                <UserPage />
               </ProtectedRoute>
             } 
           />
