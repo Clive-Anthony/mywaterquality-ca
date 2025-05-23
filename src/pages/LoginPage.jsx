@@ -13,11 +13,15 @@ export default function LoginPage() {
   const [error, setError] = useState(null);
   const [successMessage, setSuccessMessage] = useState(null);
 
-  // Check for success message from navigation state (email verification)
+  // Check for success or error messages from navigation state (like email verification)
   useEffect(() => {
     if (location.state?.message) {
       setSuccessMessage(location.state.message);
       // Clear the message from navigation state
+      navigate(location.pathname, { replace: true, state: {} });
+    } else if (location.state?.error) {
+      setError(location.state.error);
+      // Clear the error from navigation state
       navigate(location.pathname, { replace: true, state: {} });
     }
   }, [location, navigate]);
@@ -37,6 +41,7 @@ export default function LoginPage() {
       // Redirect to dashboard on successful login
       navigate('/dashboard');
     } catch (err) {
+      console.error('Login error:', err);
       setError(err.message || 'Failed to sign in');
     } finally {
       setLoading(false);
@@ -56,6 +61,7 @@ export default function LoginPage() {
       
       // OAuth redirect will handle navigation
     } catch (err) {
+      console.error('Google sign-in error:', err);
       setError(err.message || 'Failed to sign in with Google');
       setGoogleLoading(false);
     }

@@ -9,62 +9,91 @@ export function AuthProvider({ children }) {
   const [session, setSession] = useState(null);
   const [loading, setLoading] = useState(true);
   const [isEmailVerified, setIsEmailVerified] = useState(false);
+  const [authError, setAuthError] = useState(null);
 
   useEffect(() => {
     // Check for active session on component mount
     const initializeAuth = async () => {
       setLoading(true);
+      setAuthError(null);
       
-      // Get current session
-      const currentSession = await getSession();
-      setSession(currentSession);
-      
-      if (currentSession) {
-        const currentUser = await getCurrentUser();
-        setUser(currentUser);
+      try {
+        console.log('Initializing auth context...');
         
-        // Check if email is verified (for email/password users)
-        // Email confirmed status can be found in the user object
-        if (currentUser) {
-          // For email/password logins, check email_confirmed_at field
-          // For OAuth logins (like Google), the email is always considered verified
-          setIsEmailVerified(
-            currentUser.app_metadata?.provider === 'google' || 
-            currentUser.email_confirmed_at !== null
-          );
+        // Check for URL hash with access token (for callback handling)
+        if (window.location.hash && window.location.hash.includes('access_token=')) {
+          console.log('Found access token in URL hash, will be processed by AuthRedirect component');
         }
-      } else {
-        // Ensure user is set to null when no session exists
-        setUser(null);
-        setIsEmailVerified(false);
-      }
-      
-      setLoading(false);
-      
-      // Set up auth state listener
-      const { data: authListener } = supabase.auth.onAuthStateChange(
-        async (event, currentSession) => {
-          console.log('Auth state changed:', event);
-          setSession(currentSession);
-          
-          if (currentSession) {
+        
+        // Get current session
+        const currentSession = await getSession();
+        console.log('Session check result:', !!currentSession);
+        
+        setSession(currentSession);
+        
+        if (currentSession) {
+          try {
             const currentUser = await getCurrentUser();
             setUser(currentUser);
             
-            // Update email verification status
+            // Check if email is verified (for email/password users)
+            // Email confirmed status can be found in the user object
             if (currentUser) {
-              setIsEmailVerified(
+              // For email/password logins, check email_confirmed_at field
+              // For OAuth logins (like Google), the email is always considered verified
+              const isVerified = 
                 currentUser.app_metadata?.provider === 'google' || 
-                currentUser.email_confirmed_at !== null
-              );
+                currentUser.email_confirmed_at !== null;
+              
+              setIsEmailVerified(isVerified);
+              console.log('Email verification status:', isVerified);
             }
-          } else {
-            // Explicitly set user to null on sign out
-            setUser(null);
-            setIsEmailVerified(false);
+          } catch (userError) {
+            console.error('Error getting current user:', userError);
+            setAuthError('Failed to retrieve user information');
           }
+        } else {
+          // Ensure user is set to null when no session exists
+          setUser(null);
+          setIsEmailVerified(false);
+        }
+      } catch (error) {
+        console.error('Auth initialization error:', error);
+        setAuthError(error.message || 'Authentication initialization failed');
+      } finally {
+        setLoading(false);
+      }
+      
+      // Set up auth state listener
+      const { data: authListener } = supabase.auth.onAuthStateChange(
+        async (event, newSession) => {
+          console.log('Auth state changed:', event);
           
-          setLoading(false);
+          try {
+            setSession(newSession);
+            
+            if (newSession) {
+              const currentUser = await getCurrentUser();
+              setUser(currentUser);
+              
+              // Update email verification status
+              if (currentUser) {
+                setIsEmailVerified(
+                  currentUser.app_metadata?.provider === 'google' || 
+                  currentUser.email_confirmed_at !== null
+                );
+              }
+            } else {
+              // Explicitly set user to null on sign out
+              setUser(null);
+              setIsEmailVerified(false);
+            }
+          } catch (listenerError) {
+            console.error('Auth state change error:', listenerError);
+            setAuthError('Error processing authentication change');
+          } finally {
+            setLoading(false);
+          }
         }
       );
       
@@ -79,11 +108,41 @@ export function AuthProvider({ children }) {
     initializeAuth();
   }, []);
 
+  // Provide auth state and error to components
   const value = {
     user,
     session,
     loading,
     isEmailVerified,
+    authError,
+    refreshAuth: async () => {
+      // Function to manually refresh auth state
+      setLoading(true);
+      try {
+        const currentSession = await getSession();
+        setSession(currentSession);
+        
+        if (currentSession) {
+          const currentUser = await getCurrentUser();
+          setUser(currentUser);
+          
+          if (currentUser) {
+            setIsEmailVerified(
+              currentUser.app_metadata?.provider === 'google' || 
+              currentUser.email_confirmed_at !== null
+            );
+          }
+        } else {
+          setUser(null);
+          setIsEmailVerified(false);
+        }
+      } catch (error) {
+        console.error('Auth refresh error:', error);
+        setAuthError(error.message || 'Failed to refresh authentication');
+      } finally {
+        setLoading(false);
+      }
+    }
   };
 
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;

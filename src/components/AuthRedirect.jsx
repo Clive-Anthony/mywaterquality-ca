@@ -1,10 +1,11 @@
 // src/components/AuthRedirect.jsx
 import { useEffect, useState } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate, useLocation } from 'react-router-dom';
 import { supabase, verifyEmailToken } from '../lib/supabaseClient';
 
 export default function AuthRedirect() {
   const navigate = useNavigate();
+  const location = useLocation();
   const [error, setError] = useState(null);
   const [processingState, setProcessingState] = useState('processing'); // 'processing', 'success', 'error'
 
@@ -52,45 +53,63 @@ export default function AuthRedirect() {
           return;
         }
         
-        // Check for OAuth callback (Google sign-in)
-        if (window.location.hash && window.location.hash.includes('access_token')) {
-          console.log('Processing OAuth callback...');
+        // Check for OAuth callback or hash fragment (access_token)
+        if (location.hash || window.location.hash) {
+          console.log('Processing OAuth or token callback...');
+          const hashValue = location.hash || window.location.hash;
           
-          try {
-            // Parse the hash fragment
-            const hashParams = new URLSearchParams(window.location.hash.substring(1));
-            const accessToken = hashParams.get('access_token');
-            const refreshToken = hashParams.get('refresh_token');
-            
-            if (accessToken) {
-              console.log('Setting session from OAuth tokens...');
+          // Special handling for URLs like /#access_token=...
+          if (hashValue.includes('access_token=')) {
+            try {
+              // Remove the # character and parse the fragment as query params
+              const hashParams = new URLSearchParams(hashValue.substring(1));
               
-              // Set the session with the extracted tokens
-              const { data, error } = await supabase.auth.setSession({
-                access_token: accessToken,
-                refresh_token: refreshToken
+              // Extract the tokens
+              const accessToken = hashParams.get('access_token');
+              const refreshToken = hashParams.get('refresh_token');
+              const tokenType = hashParams.get('token_type');
+              const expiresIn = hashParams.get('expires_in');
+              const expiresAt = hashParams.get('expires_at');
+              const authType = hashParams.get('type');
+              
+              console.log('Token data found:', {
+                tokenType,
+                expiresIn,
+                authType,
+                hasAccessToken: !!accessToken,
+                hasRefreshToken: !!refreshToken
               });
               
-              if (error) throw error;
-              
-              console.log('OAuth session set successfully');
-              setProcessingState('success');
-              
-              // Redirect to dashboard for OAuth users
-              setTimeout(() => {
-                navigate('/dashboard', { replace: true });
-              }, 1000);
-            } else {
-              throw new Error('No access token found in OAuth callback');
+              if (accessToken) {
+                console.log('Setting session from hash fragment tokens...');
+                
+                // Set the session with the extracted tokens
+                const { data, error } = await supabase.auth.setSession({
+                  access_token: accessToken,
+                  refresh_token: refreshToken
+                });
+                
+                if (error) throw error;
+                
+                console.log('Session set successfully from hash fragment');
+                setProcessingState('success');
+                
+                // Redirect to dashboard for newly authenticated users
+                setTimeout(() => {
+                  navigate('/dashboard', { replace: true });
+                }, 1000);
+                
+                return;
+              }
+            } catch (tokenErr) {
+              console.error('Error processing tokens from hash fragment:', tokenErr);
+              throw tokenErr;
             }
-          } catch (tokenErr) {
-            console.error('Error processing OAuth tokens:', tokenErr);
-            await checkCurrentSession();
           }
-        } else {
-          // No specific callback parameters, check current session
-          await checkCurrentSession();
         }
+        
+        // If no specific callback parameters are found, check current session
+        await checkCurrentSession();
       } catch (err) {
         console.error('Error handling auth redirect:', err);
         setError(err.message || 'Authentication failed');
@@ -98,28 +117,35 @@ export default function AuthRedirect() {
         
         // Redirect to login after error
         setTimeout(() => {
-          navigate('/login', { replace: true });
+          navigate('/login', { 
+            replace: true,
+            state: { error: err.message || 'Authentication failed. Please try again.' }
+          });
         }, 3000);
       }
     };
     
     // Helper function to check current session
     const checkCurrentSession = async () => {
-      const { data: { session } } = await supabase.auth.getSession();
-      
-      if (session) {
-        console.log('User is already authenticated, redirecting to dashboard');
-        setProcessingState('success');
-        setTimeout(() => {
-          navigate('/dashboard', { replace: true });
-        }, 1000);
-      } else {
-        throw new Error('No authentication data found');
+      try {
+        const { data: { session } } = await supabase.auth.getSession();
+        
+        if (session) {
+          console.log('User is already authenticated, redirecting to dashboard');
+          setProcessingState('success');
+          setTimeout(() => {
+            navigate('/dashboard', { replace: true });
+          }, 1000);
+        } else {
+          throw new Error('No authentication data found');
+        }
+      } catch (err) {
+        throw new Error('Session check failed: ' + (err.message || 'Unknown error'));
       }
     };
 
     handleRedirect();
-  }, [navigate]);
+  }, [navigate, location]);
 
   // Render different UI based on processing state
   if (processingState === 'processing') {
