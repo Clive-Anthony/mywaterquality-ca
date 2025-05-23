@@ -14,9 +14,11 @@ export const signUp = async (email, password, firstName = '', lastName = '') => 
       password,
       options: {
         data: {
-          firstName: firstName,
-          lastName: lastName,
-          full_name: `${firstName} ${lastName}`.trim()
+          // Include both formats - camelCase for existing app code and snake_case for Supabase trigger
+          firstName, 
+          lastName,
+          first_name: firstName, // Added for Supabase trigger function
+          last_name: lastName    // Added for Supabase trigger function
         },
         // Set the redirect URL for email verification
         emailRedirectTo: `${config.baseUrl}auth/callback`,
