@@ -3,6 +3,21 @@
   command = "npm run build"
   publish = "dist"
 
+# Special handling for hash fragments in URLs containing access_token
+# This is a critical fix for Supabase authentication redirects
+[[redirects]]
+  from = "/#access_token=*"
+  to = "/auth/callback#access_token=:splat"
+  status = 302
+  force = true
+
+# Special handling for URL-encoded hash fragments
+[[redirects]]
+  from = "/%23access_token=*"
+  to = "/auth/callback#access_token=:splat"
+  status = 302
+  force = true
+
 # Handle SPA routing
 [[redirects]]
   from = "/*"
@@ -22,3 +37,20 @@
   to = "/index.html"
   status = 200
   force = true
+
+# Make environment variables available to Netlify Functions
+[build.environment]
+  NODE_ENV = "production"
+
+# Configure Netlify Functions
+[functions]
+  node_bundler = "esbuild"
+  external_node_modules = ["@supabase/supabase-js"]
+
+# Configure function-specific environment variables
+[functions.environment]
+  # Allows VITE_ prefixed variables to be available in functions
+  SUPABASE_URL = "${VITE_SUPABASE_URL}"
+  SUPABASE_SERVICE_KEY = "${VITE_SUPABASE_SERVICE_KEY}"
+  LOOPS_API_KEY = "${VITE_LOOPS_API_KEY}"
+  APP_URL = "${VITE_APP_URL}"

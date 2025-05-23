@@ -1,4 +1,7 @@
 // src/main.jsx
+// Import the hash handler first to ensure it runs before anything else
+import './utils/hashHandler';
+
 import React from 'react';
 import ReactDOM from 'react-dom/client';
 import App from './App';
