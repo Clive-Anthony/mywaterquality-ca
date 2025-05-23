@@ -5,13 +5,59 @@ import { config } from '../config';
 // Create a single supabase client for interacting with your database
 export const supabase = createClient(config.supabaseUrl, config.supabaseAnonKey);
 
-// Auth helper functions
-export const signUp = async (email, password) => {
-  const { data, error } = await supabase.auth.signUp({
-    email,
-    password,
-  });
-  return { data, error };
+// Enhanced Auth helper functions with Loops email integration
+export const signUp = async (email, password, firstName = '', lastName = '') => {
+  try {
+    // Create user account with metadata
+    const { data, error } = await supabase.auth.signUp({
+      email,
+      password,
+      options: {
+        data: {
+          firstName: firstName,
+          lastName: lastName,
+          full_name: `${firstName} ${lastName}`.trim()
+        },
+        // Set the redirect URL for email verification
+        emailRedirectTo: `${config.baseUrl}auth/callback`,
+      }
+    });
+
+    if (error) throw error;
+
+    // If signup was successful and we have a user, trigger custom verification email
+    if (data?.user && !data?.user?.email_confirmed_at) {
+      // Call Netlify function to generate verification link and send email via Loops
+      try {
+        const response = await fetch('/.netlify/functions/generate-verification-link', {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+          },
+          body: JSON.stringify({
+            email: data.user.email,
+            firstName: firstName || 'Valued Customer'
+          }),
+        });
+
+        if (!response.ok) {
+          const errorData = await response.json();
+          console.error('Failed to send verification email:', errorData);
+          // Don't throw - user is still created, just email failed
+        } else {
+          console.log('Verification email sent successfully via Loops');
+        }
+      } catch (emailError) {
+        console.error('Error sending verification email:', emailError);
+        // Don't throw - user creation succeeded, email is secondary
+      }
+    }
+
+    return { data, error: null };
+  } catch (err) {
+    console.error('Error during sign up:', err);
+    return { data: null, error: err };
+  }
 };
 
 export const signIn = async (email, password) => {
@@ -23,23 +69,17 @@ export const signIn = async (email, password) => {
 };
 
 export const signInWithGoogle = async () => {
-  // Make absolutely sure we're using the correct redirect URL
-  // Force a specific callback URL (not the base URL) to ensure consistent handling
   const redirectUrl = `${config.baseUrl}auth/callback`;
   
   console.log('Starting Google sign-in with redirect to:', redirectUrl);
   
   try {
-    // Log available methods for debugging
-    console.log('Available auth methods:', Object.keys(supabase.auth));
-    
     const { data, error } = await supabase.auth.signInWithOAuth({
       provider: 'google',
       options: {
         redirectTo: redirectUrl,
-        // Add a timestamp to prevent caching issues
         queryParams: {
-          _t: Date.now()
+          _t: Date.now() // Prevent caching issues
         }
       }
     });
@@ -75,4 +115,46 @@ export const getCurrentUser = async () => {
 export const getSession = async () => {
   const { data: { session } } = await supabase.auth.getSession();
   return session;
+};
+
+// Function to verify email token and send welcome email
+export const verifyEmailToken = async (tokenHash) => {
+  try {
+    const { data, error } = await supabase.auth.verifyOtp({
+      token_hash: tokenHash,
+      type: 'email',
+    });
+    
+    if (error) throw error;
+    
+    // If verification was successful, send welcome email via Netlify function
+    if (data?.user) {
+      try {
+        const response = await fetch('/.netlify/functions/send-welcome-email', {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+          },
+          body: JSON.stringify({
+            email: data.user.email,
+            firstName: data.user.user_metadata?.firstName || 'Valued Customer'
+          }),
+        });
+        
+        if (!response.ok) {
+          console.error('Failed to send welcome email, but verification was successful');
+        } else {
+          console.log('Welcome email sent successfully');
+        }
+      } catch (emailError) {
+        console.error('Error sending welcome email:', emailError);
+        // Don't throw - verification succeeded, email is secondary
+      }
+    }
+    
+    return { data, error: null };
+  } catch (err) {
+    console.error('Error during email verification:', err);
+    return { data: null, error: err };
+  }
 };

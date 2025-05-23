@@ -8,3 +8,17 @@
   from = "/*"
   to = "/index.html"
   status = 200
+
+# Special redirect for hash fragments in auth callback
+[[redirects]]
+  from = "/auth/callback"
+  to = "/index.html"
+  status = 200
+  force = true
+
+# Ensure access tokens in URL fragments are preserved
+[[redirects]]
+  from = "/auth/callback#*"
+  to = "/index.html"
+  status = 200
+  force = true

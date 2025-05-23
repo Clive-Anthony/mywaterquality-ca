@@ -8,6 +8,7 @@ export function AuthProvider({ children }) {
   const [user, setUser] = useState(null);
   const [session, setSession] = useState(null);
   const [loading, setLoading] = useState(true);
+  const [isEmailVerified, setIsEmailVerified] = useState(false);
 
   useEffect(() => {
     // Check for active session on component mount
@@ -21,9 +22,21 @@ export function AuthProvider({ children }) {
       if (currentSession) {
         const currentUser = await getCurrentUser();
         setUser(currentUser);
+        
+        // Check if email is verified (for email/password users)
+        // Email confirmed status can be found in the user object
+        if (currentUser) {
+          // For email/password logins, check email_confirmed_at field
+          // For OAuth logins (like Google), the email is always considered verified
+          setIsEmailVerified(
+            currentUser.app_metadata?.provider === 'google' || 
+            currentUser.email_confirmed_at !== null
+          );
+        }
       } else {
         // Ensure user is set to null when no session exists
         setUser(null);
+        setIsEmailVerified(false);
       }
       
       setLoading(false);
@@ -37,9 +50,18 @@ export function AuthProvider({ children }) {
           if (currentSession) {
             const currentUser = await getCurrentUser();
             setUser(currentUser);
+            
+            // Update email verification status
+            if (currentUser) {
+              setIsEmailVerified(
+                currentUser.app_metadata?.provider === 'google' || 
+                currentUser.email_confirmed_at !== null
+              );
+            }
           } else {
             // Explicitly set user to null on sign out
             setUser(null);
+            setIsEmailVerified(false);
           }
           
           setLoading(false);
@@ -61,6 +83,7 @@ export function AuthProvider({ children }) {
     user,
     session,
     loading,
+    isEmailVerified,
   };
 
   return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;

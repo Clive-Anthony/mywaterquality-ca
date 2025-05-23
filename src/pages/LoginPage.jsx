@@ -1,15 +1,26 @@
 // src/pages/LoginPage.jsx
-import { useState } from 'react';
-import { Link, useNavigate } from 'react-router-dom';
+import { useState, useEffect } from 'react';
+import { Link, useNavigate, useLocation } from 'react-router-dom';
 import { signIn, signInWithGoogle } from '../lib/supabaseClient';
 
 export default function LoginPage() {
   const navigate = useNavigate();
+  const location = useLocation();
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [loading, setLoading] = useState(false);
   const [googleLoading, setGoogleLoading] = useState(false);
   const [error, setError] = useState(null);
+  const [successMessage, setSuccessMessage] = useState(null);
+
+  // Check for success message from navigation state (email verification)
+  useEffect(() => {
+    if (location.state?.message) {
+      setSuccessMessage(location.state.message);
+      // Clear the message from navigation state
+      navigate(location.pathname, { replace: true, state: {} });
+    }
+  }, [location, navigate]);
 
   const handleSubmit = async (e) => {
     e.preventDefault();
@@ -43,7 +54,7 @@ export default function LoginPage() {
         throw error;
       }
       
-      // No need to navigate, the OAuth redirect will handle it
+      // OAuth redirect will handle navigation
     } catch (err) {
       setError(err.message || 'Failed to sign in with Google');
       setGoogleLoading(false);
@@ -70,6 +81,19 @@ export default function LoginPage() {
               Sign in to your MyWaterQuality account
             </p>
             
+            {/* Success Message */}
+            {successMessage && (
+              <div className="mb-4 bg-green-50 border-l-4 border-green-500 p-4 rounded" role="alert">
+                <div className="flex items-center">
+                  <svg className="h-5 w-5 text-green-500 mr-2" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M5 13l4 4L19 7" />
+                  </svg>
+                  <span className="text-green-700">{successMessage}</span>
+                </div>
+              </div>
+            )}
+            
+            {/* Error Message */}
             {error && (
               <div className="mb-4 bg-red-50 border-l-4 border-red-500 p-4 rounded" role="alert">
                 <div className="flex items-center">

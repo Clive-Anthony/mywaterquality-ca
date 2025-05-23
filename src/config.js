@@ -16,7 +16,8 @@ const normalizeUrl = (url) => {
     
     // In development mode, use the local server
     if (import.meta.env.DEV) {
-      return normalizeUrl(window.location.origin);
+      // For netlify dev, use port 8888
+      return normalizeUrl('http://localhost:8888');
     }
     
     // Fallback for production (if VITE_APP_URL not set)

@@ -73,8 +73,8 @@ export default function App() {
           {/* Auth redirect handler */}
           <Route path="/auth/callback" element={<AuthRedirect />} />
           
-          {/* Special fallback for access token callbacks */}
-          <Route path="/#access_token=*" element={<AuthRedirect />} />
+          {/* Special fallback for access token callbacks - FIXED */}
+          <Route path="/#access_token=/*" element={<AuthRedirect />} />
           
           {/* Redirect all other routes to home */}
           <Route path="*" element={<Navigate to="/" replace />} />

@@ -7,14 +7,17 @@ yarn-error.log*
 pnpm-debug.log*
 lerna-debug.log*
 
+# Build outputs
 node_modules
 dist
 dist-ssr
 *.local
+build
 
 # Editor directories and files
 .vscode/*
 !.vscode/extensions.json
+!.vscode/settings.json
 .idea
 .DS_Store
 *.suo
@@ -22,4 +25,32 @@ dist-ssr
 *.njsproj
 *.sln
 *.sw?
+
+# Environment variables
 .env
+.env.*
+!.env.example
+
+# Netlify
+.netlify/functions-serve
+.netlify/server
+.netlify/.cache
+
+# Local Netlify folder
+.netlify
+
+# Netlify Function local testing files
+netlify/functions/.env
+netlify/functions/node_modules
+
+# Dependency lock files
+package-lock.json
+yarn.lock
+pnpm-lock.yaml
+
+# Testing
+coverage
+
+# Temporary files
+tmp
+temp
