@@ -1,6 +1,6 @@
 # netlify.toml
 [build]
-  command = "npm run build"
+  command = "CI= npm install && npm run build"
   publish = "dist"
 
 # Special handling for hash fragments in URLs containing access_token
@@ -40,7 +40,8 @@
 
 # Make environment variables available to Netlify Functions
 [build.environment]
-  NODE_ENV = "production"
+  # Override the NODE_ENV=production setting to ensure devDependencies are installed
+  NPM_FLAGS = "--production=false"
 
 # Configure Netlify Functions
 [functions]
