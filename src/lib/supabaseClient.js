@@ -119,42 +119,33 @@ export const getSession = async () => {
   return session;
 };
 
-// Password reset method - UPDATED TO USE AUTH CALLBACK
+// FIXED Password reset method - Use only custom Loops email, not Supabase default
 export const resetPassword = async (email) => {
   try {
-    // IMPORTANT: Redirect to auth callback first, then to update password page
-    const { data, error } = await supabase.auth.resetPasswordForEmail(email, {
-      redirectTo: `${config.baseUrl}auth/callback?next=/update-password`,
+    console.log('Initiating password reset for:', email);
+    
+    // Send custom password reset email via Netlify function only
+    // Don't call supabase.auth.resetPasswordForEmail to avoid conflicts
+    const response = await fetch('/.netlify/functions/send-password-reset-email', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({
+        email,
+        firstName: 'User' // We don't have the name at this point
+      }),
     });
-    
-    if (error) throw error;
-    
-    // If Supabase accepts the request, send custom email via Netlify function
-    try {
-      const response = await fetch('/.netlify/functions/send-password-reset-email', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({
-          email,
-          firstName: 'User' // We don't have the name at this point
-        }),
-      });
 
-      if (!response.ok) {
-        const errorData = await response.json();
-        console.error('Failed to send password reset email:', errorData);
-        // Don't throw - Supabase might have sent its default email
-      } else {
-        console.log('Password reset email sent successfully via Loops');
-      }
-    } catch (emailError) {
-      console.error('Error sending password reset email:', emailError);
-      // Don't throw - password reset was initiated, email is secondary
+    if (!response.ok) {
+      const errorData = await response.json();
+      console.error('Failed to send password reset email:', errorData);
+      throw new Error(errorData.message || 'Failed to send reset email');
     }
+
+    console.log('Password reset email sent successfully via Loops');
     
-    return { data, error: null };
+    return { data: { message: 'Password reset email sent' }, error: null };
   } catch (err) {
     console.error('Error during password reset:', err);
     return { data: null, error: err };

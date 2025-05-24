@@ -25,6 +25,9 @@ export default function AuthRedirect() {
         const nextUrl = urlParams.get('next'); // For password reset flow
         const type = urlParams.get('type'); // Check for recovery type
         
+        // Clear any redirect flags
+        sessionStorage.removeItem('auth_redirect_in_progress');
+        
         // Also check for errors in hash fragment
         let hashParams = {};
         if (location.hash) {
@@ -87,14 +90,21 @@ export default function AuthRedirect() {
           return;
         }
         
-        // Handle password recovery flow (URL params)
-        if (type === 'recovery') {
+        // Handle password recovery flow (URL params OR hash params)
+        if (type === 'recovery' || hashParams.type === 'recovery') {
           console.log('Processing password recovery callback...');
+          console.log('Recovery type found in:', type ? 'URL params' : 'hash params');
           setProcessingMessage('Setting up password recovery...');
           
           // For recovery, we expect the actual tokens to be in the hash fragment
           const accessToken = hashParams.access_token;
           const refreshToken = hashParams.refresh_token;
+          
+          console.log('Recovery tokens:', {
+            hasAccessToken: !!accessToken,
+            hasRefreshToken: !!refreshToken,
+            accessTokenStart: accessToken ? accessToken.substring(0, 10) + '...' : 'none'
+          });
           
           if (accessToken && refreshToken) {
             console.log('Setting recovery session...');
@@ -120,6 +130,7 @@ export default function AuthRedirect() {
             
             return;
           } else {
+            console.error('Missing recovery tokens:', { accessToken: !!accessToken, refreshToken: !!refreshToken });
             throw new Error('Invalid recovery link. Missing authentication tokens.');
           }
         }

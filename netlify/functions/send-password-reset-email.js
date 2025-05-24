@@ -110,14 +110,20 @@ exports.handler = async function(event, context) {
     
     console.log(`User found with email: ${email}`);
     
-    // Generate password reset link - UPDATED TO USE CORRECT REDIRECT
+    // Generate password reset link with FIXED redirect URL
     console.log('Generating password reset link...');
+    
+    // Get the base URL and ensure it's correct
+    const baseUrl = process.env.VITE_APP_URL || 'https://mywaterquality.netlify.app';
+    const redirectUrl = `${baseUrl}/auth/callback?type=recovery&next=/update-password`;
+    
+    console.log('Using redirect URL:', redirectUrl);
+    
     const { data, error } = await supabaseAdmin.auth.admin.generateLink({
       type: 'recovery',
       email,
       options: {
-        // Important: Redirect to auth callback first, then to update password
-        redirectTo: `${process.env.VITE_APP_URL || 'http://localhost:8888'}/auth/callback?next=/update-password`,
+        redirectTo: redirectUrl,
       }
     });
     
@@ -136,12 +142,12 @@ exports.handler = async function(event, context) {
     
     // Send password reset email via Loops
     await sendLoopsEmail({
-      transactionalId: 'cmb28rmz1and0430ibgyat1uw', // Replace with your actual Loops template ID
+      transactionalId: 'cmb28rmz1and0430ibgyat1uw', // Your Loops template ID for password reset
       to: email,
       variables: {
         firstName,
         resetLink,
-        websiteURL: process.env.VITE_APP_URL || 'http://localhost:8888',
+        websiteURL: baseUrl,
         // Optional: Add expiration time info
         expirationTime: '60 minutes'
       }

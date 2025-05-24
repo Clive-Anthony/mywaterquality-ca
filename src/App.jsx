@@ -15,9 +15,6 @@ import { useState, useEffect } from 'react';
 export default function App() {
   // Add a state to check if Tailwind is loaded
   const [tailwindWorks, setTailwindWorks] = useState(null);
-  
-  // State to handle hash fragment processing
-  const [processingHash, setProcessingHash] = useState(false);
 
   useEffect(() => {
     // Simple check to see if Tailwind styles are applied
@@ -32,57 +29,7 @@ export default function App() {
     document.body.removeChild(testElement);
     
     console.log('Tailwind CSS working?', computedStyle.display === 'none');
-    
-    // Handle hash fragments on initial page load
-    const handleHashFragment = () => {
-      // Check if URL has a hash fragment with auth tokens
-      if (window.location.hash && window.location.hash.includes('access_token=')) {
-        console.log('Found access token in hash fragment, redirecting to auth callback handler');
-        setProcessingHash(true);
-        
-        // Redirect to the auth callback route for proper processing
-        const callbackPath = '/auth/callback';
-        
-        // Check if we're already on the callback path
-        if (window.location.pathname !== callbackPath) {
-          console.log('Redirecting to callback handler with hash preserved');
-          
-          // Preserve the hash fragment
-          const currentHash = window.location.hash;
-          
-          // Set a session storage flag to avoid redirection loops
-          sessionStorage.setItem('redirecting_auth', 'true');
-          
-          // Using window.location to ensure hash is preserved
-          window.location.href = `${window.location.origin}${callbackPath}${currentHash}`;
-        } else {
-          console.log('Already on callback path, continuing with hash processing');
-          setProcessingHash(false);
-        }
-      }
-    };
-    
-    // Check if we should process hash or if we're already in a redirect
-    if (!sessionStorage.getItem('redirecting_auth')) {
-      handleHashFragment();
-    } else {
-      // Clear the redirect flag
-      sessionStorage.removeItem('redirecting_auth');
-    }
   }, []);
-
-  // If we're processing a hash redirect, show a loading state
-  if (processingHash) {
-    return (
-      <div className="min-h-screen flex flex-col items-center justify-center bg-gray-50">
-        <div className="p-6 rounded-lg shadow-lg bg-white max-w-md text-center">
-          <div className="animate-spin rounded-full h-12 w-12 border-t-2 border-b-2 border-blue-500 mx-auto mb-4"></div>
-          <h2 className="text-lg font-medium text-gray-800 mb-2">Processing authentication...</h2>
-          <p className="text-gray-500 text-sm">Please wait while we redirect you.</p>
-        </div>
-      </div>
-    );
-  }
 
   return (
     <AuthProvider>
@@ -130,7 +77,7 @@ export default function App() {
           {/* Auth redirect handler - This handles both URL parameters and hash fragments */}
           <Route path="/auth/callback" element={<AuthRedirect />} />
           
-          {/* Catch any routes with access_token fragments and redirect to callback handler */}
+          {/* Catch all other routes and redirect to home */}
           <Route path="*" element={<Navigate to="/" replace />} />
         </Routes>
       </Router>

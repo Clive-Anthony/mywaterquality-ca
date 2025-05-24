@@ -3,6 +3,12 @@
   command = "CI= npm install && npm run build"
   publish = "dist"
 
+# Handle SPA routing - MUST be first and most specific
+[[redirects]]
+  from = "/*"
+  to = "/index.html"
+  status = 200
+
 # Special handling for hash fragments in URLs containing access_token
 # This is a critical fix for Supabase authentication redirects
 [[redirects]]
