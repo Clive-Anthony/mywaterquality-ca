@@ -6,6 +6,8 @@ import AuthRedirect from './components/AuthRedirect';
 import CallbackDebugger from './components/CallbackDebugger';
 import SignupPage from './pages/SignupPage';
 import LoginPage from './pages/LoginPage';
+import ResetPasswordPage from './pages/ResetPasswordPage';
+import UpdatePasswordPage from './pages/UpdatePasswordPage';
 import HomePage from './pages/HomePage';
 import UserPage from './pages/UserPage';
 import { useState, useEffect } from 'react';
@@ -39,7 +41,6 @@ export default function App() {
         setProcessingHash(true);
         
         // Redirect to the auth callback route for proper processing
-        // This ensures the AuthRedirect component handles the tokens
         const callbackPath = '/auth/callback';
         
         // Check if we're already on the callback path

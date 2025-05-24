@@ -8,6 +8,7 @@ export default function AuthRedirect() {
   const location = useLocation();
   const [error, setError] = useState(null);
   const [processingState, setProcessingState] = useState('processing'); // 'processing', 'success', 'error'
+  const [processingMessage, setProcessingMessage] = useState('Processing authentication...');
 
   useEffect(() => {
     const handleRedirect = async () => {
@@ -19,6 +20,7 @@ export default function AuthRedirect() {
         const urlParams = new URLSearchParams(window.location.search);
         const errorCode = urlParams.get('error');
         const errorDescription = urlParams.get('error_description');
+        const nextUrl = urlParams.get('next'); // For password reset flow
         
         if (errorCode) {
           console.error('OAuth error in URL params:', errorCode, errorDescription);
@@ -32,6 +34,7 @@ export default function AuthRedirect() {
         // Handle email verification callback
         if (type === 'signup' && token) {
           console.log('Processing email verification token...');
+          setProcessingMessage('Verifying your email...');
           
           const { data, error } = await verifyEmailToken(token);
           
@@ -41,6 +44,7 @@ export default function AuthRedirect() {
           
           console.log('Email verified successfully');
           setProcessingState('success');
+          setProcessingMessage('Email verified successfully!');
           
           // Redirect to login page after successful verification
           setTimeout(() => {
@@ -64,7 +68,7 @@ export default function AuthRedirect() {
               // Remove the # character and parse the fragment as query params
               const hashParams = new URLSearchParams(hashValue.substring(1));
               
-              // Extract the tokens
+              // Extract the tokens and parameters
               const accessToken = hashParams.get('access_token');
               const refreshToken = hashParams.get('refresh_token');
               const tokenType = hashParams.get('token_type');
@@ -81,7 +85,35 @@ export default function AuthRedirect() {
               });
               
               if (accessToken) {
-                console.log('Setting session from hash fragment tokens...');
+                // Check if this is a password recovery session
+                if (authType === 'recovery') {
+                  console.log('Processing password recovery session...');
+                  setProcessingMessage('Setting up password recovery session...');
+                  
+                  // Set the session with the recovery tokens
+                  const { data, error } = await supabase.auth.setSession({
+                    access_token: accessToken,
+                    refresh_token: refreshToken
+                  });
+                  
+                  if (error) throw error;
+                  
+                  console.log('Password recovery session established');
+                  setProcessingState('success');
+                  setProcessingMessage('Ready to update your password!');
+                  
+                  // Redirect to update password page or the next URL specified
+                  const redirectUrl = nextUrl || '/update-password';
+                  setTimeout(() => {
+                    navigate(redirectUrl, { replace: true });
+                  }, 1000);
+                  
+                  return;
+                }
+                
+                // Regular OAuth sign-in
+                console.log('Setting session from OAuth tokens...');
+                setProcessingMessage('Completing sign-in...');
                 
                 // Set the session with the extracted tokens
                 const { data, error } = await supabase.auth.setSession({
@@ -93,6 +125,7 @@ export default function AuthRedirect() {
                 
                 console.log('Session set successfully from hash fragment');
                 setProcessingState('success');
+                setProcessingMessage('Sign-in successful!');
                 
                 // Redirect to dashboard for newly authenticated users
                 setTimeout(() => {
@@ -131,11 +164,25 @@ export default function AuthRedirect() {
         const { data: { session } } = await supabase.auth.getSession();
         
         if (session) {
-          console.log('User is already authenticated, redirecting to dashboard');
-          setProcessingState('success');
-          setTimeout(() => {
-            navigate('/dashboard', { replace: true });
-          }, 1000);
+          console.log('User is already authenticated');
+          
+          // Check if this is a recovery session
+          const user = session.user;
+          if (user && user.aud === 'authenticated' && user.recovery_sent_at) {
+            console.log('Detected recovery session, redirecting to update password');
+            setProcessingState('success');
+            setProcessingMessage('Ready to update your password!');
+            setTimeout(() => {
+              navigate('/update-password', { replace: true });
+            }, 1000);
+          } else {
+            console.log('Regular session, redirecting to dashboard');
+            setProcessingState('success');
+            setProcessingMessage('Sign-in successful!');
+            setTimeout(() => {
+              navigate('/dashboard', { replace: true });
+            }, 1000);
+          }
         } else {
           throw new Error('No authentication data found');
         }
@@ -153,7 +200,7 @@ export default function AuthRedirect() {
       <div className="min-h-screen flex flex-col items-center justify-center bg-gray-50">
         <div className="p-6 rounded-lg shadow-lg bg-white max-w-md text-center">
           <div className="animate-spin rounded-full h-12 w-12 border-t-2 border-b-2 border-blue-500 mx-auto mb-4"></div>
-          <h2 className="text-lg font-medium text-gray-800 mb-2">Processing authentication...</h2>
+          <h2 className="text-lg font-medium text-gray-800 mb-2">{processingMessage}</h2>
           <p className="text-gray-500 text-sm">Please wait while we complete your request.</p>
         </div>
       </div>
@@ -169,7 +216,7 @@ export default function AuthRedirect() {
               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M5 13l4 4L19 7" />
             </svg>
           </div>
-          <h2 className="text-lg font-medium text-gray-800 mb-2">Success!</h2>
+          <h2 className="text-lg font-medium text-gray-800 mb-2">{processingMessage}</h2>
           <p className="text-gray-500 text-sm">Redirecting you now...</p>
         </div>
       </div>

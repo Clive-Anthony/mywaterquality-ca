@@ -83,13 +83,41 @@ exports.handler = async function(event, context) {
       process.env.VITE_SUPABASE_SERVICE_KEY
     );
     
-    // Generate password reset link
+    // First, check if user exists with this email
+    console.log('Checking if user exists...');
+    const { data: existingUsers, error: userError } = await supabaseAdmin.auth.admin.listUsers();
+    
+    if (userError) {
+      console.error('Error checking users:', userError);
+      throw new Error('Failed to verify user');
+    }
+    
+    const userExists = existingUsers.users.some(user => user.email === email);
+    
+    if (!userExists) {
+      console.log(`No user found with email: ${email}`);
+      // For security, return success even if user doesn't exist
+      // This prevents email enumeration attacks
+      return {
+        statusCode: 200,
+        headers,
+        body: JSON.stringify({
+          success: true,
+          message: 'If an account with that email exists, you will receive a password reset email.'
+        })
+      };
+    }
+    
+    console.log(`User found with email: ${email}`);
+    
+    // Generate password reset link - UPDATED TO USE CORRECT REDIRECT
     console.log('Generating password reset link...');
     const { data, error } = await supabaseAdmin.auth.admin.generateLink({
       type: 'recovery',
       email,
       options: {
-        redirectTo: `${process.env.VITE_APP_URL || 'http://localhost:8888'}/update-password`,
+        // Important: Redirect to auth callback first, then to update password
+        redirectTo: `${process.env.VITE_APP_URL || 'http://localhost:8888'}/auth/callback?next=/update-password`,
       }
     });
     
@@ -104,12 +132,11 @@ exports.handler = async function(event, context) {
     }
     
     console.log('Reset link generated successfully');
+    console.log('Reset link (first 50 chars):', resetLink.substring(0, 50) + '...');
     
     // Send password reset email via Loops
-    // You'll need to create this template in Loops with ID: cmbXXXXXXXXXXXXXXXXXXXXXX
-    // For now, using a placeholder ID - replace with your actual template ID
     await sendLoopsEmail({
-      transactionalId: 'cmb28rmz1and0430ibgyat1uw', // Replace with actual Loops template ID
+      transactionalId: 'cmb28rmz1and0430ibgyat1uw', // Replace with your actual Loops template ID
       to: email,
       variables: {
         firstName,

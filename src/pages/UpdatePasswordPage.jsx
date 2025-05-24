@@ -13,40 +13,41 @@ export default function UpdatePasswordPage() {
   const [validatingToken, setValidatingToken] = useState(true);
 
   useEffect(() => {
-    // Check if we have a valid session from password reset link
-    const checkSession = async () => {
+    // Check if we have a valid recovery session
+    const checkRecoverySession = async () => {
       try {
         const { data: { session } } = await supabase.auth.getSession();
         
         if (!session) {
-          // No valid session, redirect to reset password page
+          // No session, redirect to reset password page
           navigate('/reset-password', { 
             state: { error: 'Invalid or expired reset link. Please request a new one.' }
           });
           return;
         }
         
-        // Check if this is a password recovery session
-        const urlParams = new URLSearchParams(location.search);
-        const type = urlParams.get('type');
+        // Check if user exists and session is valid
+        const { data: { user } } = await supabase.auth.getUser();
         
-        if (type !== 'recovery' && !location.hash.includes('type=recovery')) {
+        if (!user) {
           navigate('/reset-password', { 
-            state: { error: 'This page is only accessible via password reset link.' }
+            state: { error: 'Invalid session. Please request a new reset link.' }
           });
           return;
         }
         
+        console.log('Valid recovery session found for user:', user.email);
         setValidatingToken(false);
+        
       } catch (err) {
-        console.error('Session check error:', err);
+        console.error('Session validation error:', err);
         navigate('/reset-password', { 
-          state: { error: 'An error occurred. Please try again.' }
+          state: { error: 'An error occurred validating your session. Please try again.' }
         });
       }
     };
 
-    checkSession();
+    checkRecoverySession();
   }, [navigate, location]);
 
   const handleSubmit = async (e) => {
@@ -76,6 +77,8 @@ export default function UpdatePasswordPage() {
         throw error;
       }
       
+      console.log('Password updated successfully');
+      
       // Sign out to clear the recovery session
       await supabase.auth.signOut();
       
@@ -98,7 +101,7 @@ export default function UpdatePasswordPage() {
       <div className="min-h-screen flex flex-col items-center justify-center bg-gradient-to-br from-blue-50 to-cyan-100">
         <div className="p-6 bg-white rounded-lg shadow-lg max-w-md text-center">
           <div className="animate-spin rounded-full h-12 w-12 border-t-2 border-b-2 border-blue-500 mx-auto mb-4"></div>
-          <h2 className="text-lg font-medium text-gray-800 mb-2">Validating reset link...</h2>
+          <h2 className="text-lg font-medium text-gray-800 mb-2">Validating session...</h2>
           <p className="text-gray-500 text-sm">Please wait while we verify your request.</p>
         </div>
       </div>

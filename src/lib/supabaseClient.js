@@ -119,12 +119,12 @@ export const getSession = async () => {
   return session;
 };
 
-// Password reset method
+// Password reset method - UPDATED TO USE AUTH CALLBACK
 export const resetPassword = async (email) => {
   try {
-    // First, check if user exists by attempting password reset
+    // IMPORTANT: Redirect to auth callback first, then to update password page
     const { data, error } = await supabase.auth.resetPasswordForEmail(email, {
-      redirectTo: `${config.baseUrl}update-password`,
+      redirectTo: `${config.baseUrl}auth/callback?next=/update-password`,
     });
     
     if (error) throw error;
