@@ -15,20 +15,50 @@ export default function AuthRedirect() {
       try {
         console.log('AuthRedirect: Processing authentication callback');
         console.log('Current URL:', window.location.href);
+        console.log('Search params:', location.search);
+        console.log('Hash:', location.hash);
         
         // Check for error parameters in the URL
         const urlParams = new URLSearchParams(window.location.search);
         const errorCode = urlParams.get('error');
         const errorDescription = urlParams.get('error_description');
         const nextUrl = urlParams.get('next'); // For password reset flow
+        const type = urlParams.get('type'); // Check for recovery type
         
-        if (errorCode) {
-          console.error('OAuth error in URL params:', errorCode, errorDescription);
-          throw new Error(`${errorCode}: ${errorDescription || 'Unknown error'}`);
+        // Also check for errors in hash fragment
+        let hashParams = {};
+        if (location.hash) {
+          const hashString = location.hash.substring(1);
+          const hashPairs = hashString.split('&');
+          hashPairs.forEach(pair => {
+            const [key, value] = pair.split('=');
+            if (key && value) {
+              hashParams[decodeURIComponent(key)] = decodeURIComponent(value);
+            }
+          });
         }
         
-        // Check for email verification parameters
-        const type = urlParams.get('type');
+        // Check for errors in either location
+        const hashError = hashParams.error;
+        const hashErrorDescription = hashParams.error_description;
+        
+        if (errorCode || hashError) {
+          const finalError = errorCode || hashError;
+          const finalDescription = errorDescription || hashErrorDescription;
+          
+          console.error('OAuth error detected:', finalError, finalDescription);
+          
+          // Handle specific error cases
+          if (finalError === 'access_denied' && hashParams.error_code === 'otp_expired') {
+            throw new Error('The password reset link has expired. Please request a new one.');
+          } else if (finalError === 'access_denied') {
+            throw new Error('Access was denied. Please try again.');
+          } else {
+            throw new Error(`${finalError}: ${finalDescription || 'Authentication failed'}`);
+          }
+        }
+        
+        // Check for email verification parameters (URL params)
         const token = urlParams.get('token');
         
         // Handle email verification callback
@@ -57,7 +87,44 @@ export default function AuthRedirect() {
           return;
         }
         
-        // Check for OAuth callback or hash fragment (access_token)
+        // Handle password recovery flow (URL params)
+        if (type === 'recovery') {
+          console.log('Processing password recovery callback...');
+          setProcessingMessage('Setting up password recovery...');
+          
+          // For recovery, we expect the actual tokens to be in the hash fragment
+          const accessToken = hashParams.access_token;
+          const refreshToken = hashParams.refresh_token;
+          
+          if (accessToken && refreshToken) {
+            console.log('Setting recovery session...');
+            
+            const { data, error } = await supabase.auth.setSession({
+              access_token: accessToken,
+              refresh_token: refreshToken
+            });
+            
+            if (error) {
+              console.error('Failed to set recovery session:', error);
+              throw new Error(`Recovery session failed: ${error.message}`);
+            }
+            
+            console.log('Recovery session established successfully');
+            setProcessingState('success');
+            setProcessingMessage('Ready to update your password!');
+            
+            // Redirect to update password page
+            setTimeout(() => {
+              navigate('/update-password', { replace: true });
+            }, 1000);
+            
+            return;
+          } else {
+            throw new Error('Invalid recovery link. Missing authentication tokens.');
+          }
+        }
+        
+        // Check for OAuth callback or hash fragment (access_token) for regular sign-in
         if (location.hash || window.location.hash) {
           console.log('Processing OAuth or token callback...');
           const hashValue = location.hash || window.location.hash;
@@ -73,7 +140,6 @@ export default function AuthRedirect() {
               const refreshToken = hashParams.get('refresh_token');
               const tokenType = hashParams.get('token_type');
               const expiresIn = hashParams.get('expires_in');
-              const expiresAt = hashParams.get('expires_at');
               const authType = hashParams.get('type');
               
               console.log('Token data found:', {
@@ -87,7 +153,7 @@ export default function AuthRedirect() {
               if (accessToken) {
                 // Check if this is a password recovery session
                 if (authType === 'recovery') {
-                  console.log('Processing password recovery session...');
+                  console.log('Processing password recovery session from hash...');
                   setProcessingMessage('Setting up password recovery session...');
                   
                   // Set the session with the recovery tokens
@@ -148,13 +214,22 @@ export default function AuthRedirect() {
         setError(err.message || 'Authentication failed');
         setProcessingState('error');
         
-        // Redirect to login after error
-        setTimeout(() => {
-          navigate('/login', { 
-            replace: true,
-            state: { error: err.message || 'Authentication failed. Please try again.' }
-          });
-        }, 3000);
+        // Redirect based on error type
+        if (err.message && err.message.includes('expired')) {
+          setTimeout(() => {
+            navigate('/reset-password', { 
+              replace: true,
+              state: { error: err.message }
+            });
+          }, 3000);
+        } else {
+          setTimeout(() => {
+            navigate('/login', { 
+              replace: true,
+              state: { error: err.message || 'Authentication failed. Please try again.' }
+            });
+          }, 3000);
+        }
       }
     };
     
@@ -234,7 +309,7 @@ export default function AuthRedirect() {
           </div>
           <h2 className="text-lg font-medium mb-2 text-center">Authentication Error</h2>
           <p className="text-center text-sm mb-4">{error}</p>
-          <p className="text-xs text-center">Redirecting to login page...</p>
+          <p className="text-xs text-center">Redirecting you to try again...</p>
         </div>
       </div>
     );
