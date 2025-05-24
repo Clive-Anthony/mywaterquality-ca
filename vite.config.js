@@ -17,6 +17,7 @@ export default defineConfig({
   },
   // Ensure HMR works correctly
   server: {
+    port: 8888,
     hmr: true,
   },
 });

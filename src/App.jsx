@@ -123,6 +123,8 @@ export default function App() {
           {/* Public routes */}
           <Route path="/signup" element={<SignupPage />} />
           <Route path="/login" element={<LoginPage />} />
+          <Route path="/reset-password" element={<ResetPasswordPage />} />
+          <Route path="/update-password" element={<UpdatePasswordPage />} />
           
           {/* Auth redirect handler - This handles both URL parameters and hash fragments */}
           <Route path="/auth/callback" element={<AuthRedirect />} />

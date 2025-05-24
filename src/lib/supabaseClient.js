@@ -119,6 +119,48 @@ export const getSession = async () => {
   return session;
 };
 
+// Password reset method
+export const resetPassword = async (email) => {
+  try {
+    // First, check if user exists by attempting password reset
+    const { data, error } = await supabase.auth.resetPasswordForEmail(email, {
+      redirectTo: `${config.baseUrl}update-password`,
+    });
+    
+    if (error) throw error;
+    
+    // If Supabase accepts the request, send custom email via Netlify function
+    try {
+      const response = await fetch('/.netlify/functions/send-password-reset-email', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          email,
+          firstName: 'User' // We don't have the name at this point
+        }),
+      });
+
+      if (!response.ok) {
+        const errorData = await response.json();
+        console.error('Failed to send password reset email:', errorData);
+        // Don't throw - Supabase might have sent its default email
+      } else {
+        console.log('Password reset email sent successfully via Loops');
+      }
+    } catch (emailError) {
+      console.error('Error sending password reset email:', emailError);
+      // Don't throw - password reset was initiated, email is secondary
+    }
+    
+    return { data, error: null };
+  } catch (err) {
+    console.error('Error during password reset:', err);
+    return { data: null, error: err };
+  }
+};
+
 // Function to verify email token and send welcome email
 export const verifyEmailToken = async (tokenHash) => {
   try {
