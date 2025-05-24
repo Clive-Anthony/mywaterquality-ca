@@ -1,7 +1,7 @@
-// netlify/functions/send-password-reset-email.js
+// netlify/functions/send-password-reset-email.js - Updated with better error handling
 const { createClient } = require('@supabase/supabase-js');
 
-// Send email via Loops API
+// Send email via Loops API with better error handling
 async function sendLoopsEmail({ transactionalId, to, variables }) {
   try {
     const apiKey = process.env.VITE_LOOPS_API_KEY;
@@ -10,12 +10,15 @@ async function sendLoopsEmail({ transactionalId, to, variables }) {
     }
 
     console.log(`Sending password reset email to ${to}`);
+    console.log('Variables:', JSON.stringify(variables, null, 2));
 
     const requestBody = {
       transactionalId,
       email: to,
       dataVariables: variables
     };
+
+    console.log('Loops request body:', JSON.stringify(requestBody, null, 2));
 
     const response = await fetch('https://app.loops.so/api/v1/transactional', {
       method: 'POST',
@@ -26,12 +29,35 @@ async function sendLoopsEmail({ transactionalId, to, variables }) {
       body: JSON.stringify(requestBody)
     });
 
+    console.log('Loops response status:', response.status);
+    console.log('Loops response headers:', Object.fromEntries(response.headers.entries()));
+
+    // Get response text first to handle non-JSON responses
+    const responseText = await response.text();
+    console.log('Loops raw response:', responseText);
+
     if (!response.ok) {
-      const errorData = await response.json();
-      throw new Error(errorData.message || `HTTP ${response.status}`);
+      let errorData;
+      try {
+        errorData = JSON.parse(responseText);
+      } catch (e) {
+        errorData = { message: responseText || `HTTP ${response.status}` };
+      }
+      
+      throw new Error(`Loops API Error ${response.status}: ${errorData.message || responseText}`);
     }
 
-    return await response.json();
+    // Parse JSON response
+    let responseData;
+    try {
+      responseData = JSON.parse(responseText);
+    } catch (e) {
+      // If response isn't JSON but status is OK, assume success
+      responseData = { success: true };
+    }
+
+    console.log('Email sent successfully:', responseData);
+    return responseData;
   } catch (error) {
     console.error('Loops API error:', error);
     throw error;
@@ -61,7 +87,25 @@ exports.handler = async function(event, context) {
   }
 
   try {
-    const { email, firstName = 'Valued Customer' } = JSON.parse(event.body);
+    console.log('=== PASSWORD RESET EMAIL DEBUG ===');
+    console.log('Raw request body:', event.body);
+    
+    let parsedBody;
+    try {
+      parsedBody = JSON.parse(event.body);
+    } catch (parseError) {
+      console.error('Failed to parse request body:', parseError);
+      return {
+        statusCode: 400,
+        headers,
+        body: JSON.stringify({ error: 'Invalid JSON in request body' })
+      };
+    }
+
+    const { email, firstName = 'Valued Customer' } = parsedBody;
+    
+    console.log('Processing password reset for:', email);
+    console.log('First name:', firstName);
     
     if (!email) {
       return {
@@ -74,7 +118,21 @@ exports.handler = async function(event, context) {
     // Validate environment variables
     if (!process.env.VITE_SUPABASE_URL || !process.env.VITE_SUPABASE_SERVICE_KEY) {
       console.error('Missing Supabase configuration');
-      throw new Error('Supabase configuration missing');
+      return {
+        statusCode: 500,
+        headers,
+        body: JSON.stringify({ error: 'Server configuration error' })
+      };
+    }
+    
+    // Validate Loops API key
+    if (!process.env.VITE_LOOPS_API_KEY) {
+      console.error('Missing Loops API key');
+      return {
+        statusCode: 500,
+        headers,
+        body: JSON.stringify({ error: 'Email service not configured' })
+      };
     }
     
     // Create Supabase admin client
@@ -89,7 +147,11 @@ exports.handler = async function(event, context) {
     
     if (userError) {
       console.error('Error checking users:', userError);
-      throw new Error('Failed to verify user');
+      return {
+        statusCode: 500,
+        headers,
+        body: JSON.stringify({ error: 'Failed to verify user' })
+      };
     }
     
     const userExists = existingUsers.users.some(user => user.email === email);
@@ -114,7 +176,7 @@ exports.handler = async function(event, context) {
     console.log('Generating password reset link...');
     
     // Get the base URL and ensure it's correct
-    const baseUrl = process.env.VITE_APP_URL || 'https://mywaterquality.netlify.app';
+    const baseUrl = process.env.VITE_APP_URL || 'https://mywaterqualityca.netlify.app';
     const redirectUrl = `${baseUrl}/auth/callback?type=recovery&next=/update-password`;
     
     console.log('Using redirect URL:', redirectUrl);
@@ -129,12 +191,21 @@ exports.handler = async function(event, context) {
     
     if (error) {
       console.error('Supabase error:', error);
-      throw new Error(`Failed to generate reset link: ${error.message}`);
+      return {
+        statusCode: 500,
+        headers,
+        body: JSON.stringify({ error: `Failed to generate reset link: ${error.message}` })
+      };
     }
     
     const resetLink = data?.properties?.action_link;
     if (!resetLink) {
-      throw new Error('No reset link generated');
+      console.error('No reset link generated from Supabase');
+      return {
+        statusCode: 500,
+        headers,
+        body: JSON.stringify({ error: 'Failed to generate reset link' })
+      };
     }
     
     console.log('Reset link generated successfully');
@@ -167,12 +238,13 @@ exports.handler = async function(event, context) {
   } catch (error) {
     console.error('Function error:', error);
     
+    // Always return JSON, even for errors
     return {
       statusCode: 500,
       headers,
       body: JSON.stringify({ 
         error: 'Internal server error',
-        message: error.message
+        message: error.message || 'Unknown error occurred'
       })
     };
   }
