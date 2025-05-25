@@ -1,7 +1,6 @@
-// netlify/functions/send-password-reset-email.js - Updated with better error handling
+// netlify/functions/send-password-reset-email.js - FIXED VERSION
 const { createClient } = require('@supabase/supabase-js');
 
-// Send email via Loops API with better error handling
 async function sendLoopsEmail({ transactionalId, to, variables }) {
   try {
     const apiKey = process.env.VITE_LOOPS_API_KEY;
@@ -10,15 +9,12 @@ async function sendLoopsEmail({ transactionalId, to, variables }) {
     }
 
     console.log(`Sending password reset email to ${to}`);
-    console.log('Variables:', JSON.stringify(variables, null, 2));
 
     const requestBody = {
       transactionalId,
       email: to,
       dataVariables: variables
     };
-
-    console.log('Loops request body:', JSON.stringify(requestBody, null, 2));
 
     const response = await fetch('https://app.loops.so/api/v1/transactional', {
       method: 'POST',
@@ -29,12 +25,8 @@ async function sendLoopsEmail({ transactionalId, to, variables }) {
       body: JSON.stringify(requestBody)
     });
 
-    console.log('Loops response status:', response.status);
-    console.log('Loops response headers:', Object.fromEntries(response.headers.entries()));
-
-    // Get response text first to handle non-JSON responses
     const responseText = await response.text();
-    console.log('Loops raw response:', responseText);
+    console.log('Loops response:', response.status, responseText);
 
     if (!response.ok) {
       let errorData;
@@ -43,21 +35,10 @@ async function sendLoopsEmail({ transactionalId, to, variables }) {
       } catch (e) {
         errorData = { message: responseText || `HTTP ${response.status}` };
       }
-      
-      throw new Error(`Loops API Error ${response.status}: ${errorData.message || responseText}`);
+      throw new Error(`Loops API Error ${response.status}: ${errorData.message}`);
     }
 
-    // Parse JSON response
-    let responseData;
-    try {
-      responseData = JSON.parse(responseText);
-    } catch (e) {
-      // If response isn't JSON but status is OK, assume success
-      responseData = { success: true };
-    }
-
-    console.log('Email sent successfully:', responseData);
-    return responseData;
+    return { success: true };
   } catch (error) {
     console.error('Loops API error:', error);
     throw error;
@@ -65,19 +46,17 @@ async function sendLoopsEmail({ transactionalId, to, variables }) {
 }
 
 exports.handler = async function(event, context) {
-  // CORS headers
   const headers = {
     'Access-Control-Allow-Origin': '*',
     'Access-Control-Allow-Headers': 'Content-Type',
-    'Access-Control-Allow-Methods': 'POST, OPTIONS'
+    'Access-Control-Allow-Methods': 'POST, OPTIONS',
+    'Content-Type': 'application/json'
   };
 
-  // Handle preflight request
   if (event.httpMethod === 'OPTIONS') {
     return { statusCode: 200, headers, body: '' };
   }
 
-  // Only allow POST requests
   if (event.httpMethod !== 'POST') {
     return { 
       statusCode: 405, 
@@ -87,8 +66,15 @@ exports.handler = async function(event, context) {
   }
 
   try {
-    console.log('=== PASSWORD RESET EMAIL DEBUG ===');
-    console.log('Raw request body:', event.body);
+    console.log('=== PASSWORD RESET FUNCTION ===');
+    
+    // Log environment for debugging
+    console.log('Environment check:', {
+      hasSupabaseUrl: !!process.env.VITE_SUPABASE_URL,
+      hasSupabaseKey: !!process.env.VITE_SUPABASE_SERVICE_KEY,
+      hasLoopsKey: !!process.env.VITE_LOOPS_API_KEY,
+      appUrl: process.env.VITE_APP_URL
+    });
     
     let parsedBody;
     try {
@@ -102,10 +88,7 @@ exports.handler = async function(event, context) {
       };
     }
 
-    const { email, firstName = 'Valued Customer' } = parsedBody;
-    
-    console.log('Processing password reset for:', email);
-    console.log('First name:', firstName);
+    const { email, firstName = 'User' } = parsedBody;
     
     if (!email) {
       return {
@@ -125,23 +108,13 @@ exports.handler = async function(event, context) {
       };
     }
     
-    // Validate Loops API key
-    if (!process.env.VITE_LOOPS_API_KEY) {
-      console.error('Missing Loops API key');
-      return {
-        statusCode: 500,
-        headers,
-        body: JSON.stringify({ error: 'Email service not configured' })
-      };
-    }
-    
     // Create Supabase admin client
     const supabaseAdmin = createClient(
       process.env.VITE_SUPABASE_URL,
       process.env.VITE_SUPABASE_SERVICE_KEY
     );
     
-    // First, check if user exists with this email
+    // Check if user exists
     console.log('Checking if user exists...');
     const { data: existingUsers, error: userError } = await supabaseAdmin.auth.admin.listUsers();
     
@@ -158,8 +131,7 @@ exports.handler = async function(event, context) {
     
     if (!userExists) {
       console.log(`No user found with email: ${email}`);
-      // For security, return success even if user doesn't exist
-      // This prevents email enumeration attacks
+      // Return success anyway for security (prevent email enumeration)
       return {
         statusCode: 200,
         headers,
@@ -172,25 +144,26 @@ exports.handler = async function(event, context) {
     
     console.log(`User found with email: ${email}`);
     
-    // Generate password reset link with FIXED redirect URL
-    console.log('Generating password reset link...');
-    
-    // Get the base URL and ensure it's correct
+    // FIXED: Use the correct site URL with callback path
     const baseUrl = process.env.VITE_APP_URL || 'https://mywaterqualityca.netlify.app';
-    const redirectUrl = `${baseUrl}/auth/callback?type=recovery&next=/update-password`;
+    const redirectUrl = `${baseUrl}/auth/callback`;
     
     console.log('Using redirect URL:', redirectUrl);
     
+    // Generate password reset link with shorter expiration to avoid timeout issues
     const { data, error } = await supabaseAdmin.auth.admin.generateLink({
       type: 'recovery',
       email,
       options: {
         redirectTo: redirectUrl,
+        // Add explicit expiration time (default might be too long)
+        // Note: This is in seconds, 3600 = 1 hour
+        expiresIn: 3600
       }
     });
     
     if (error) {
-      console.error('Supabase error:', error);
+      console.error('Supabase generateLink error:', error);
       return {
         statusCode: 500,
         headers,
@@ -209,17 +182,17 @@ exports.handler = async function(event, context) {
     }
     
     console.log('Reset link generated successfully');
-    console.log('Reset link (first 50 chars):', resetLink.substring(0, 50) + '...');
+    console.log('Reset link domain:', new URL(resetLink).hostname);
+    console.log('Redirect URL in link:', new URL(resetLink).searchParams.get('redirect_to'));
     
     // Send password reset email via Loops
     await sendLoopsEmail({
-      transactionalId: 'cmb28rmz1and0430ibgyat1uw', // Your Loops template ID for password reset
+      transactionalId: 'cmb28rmz1and0430ibgyat1uw',
       to: email,
       variables: {
         firstName,
         resetLink,
         websiteURL: baseUrl,
-        // Optional: Add expiration time info
         expirationTime: '60 minutes'
       }
     });
@@ -238,7 +211,6 @@ exports.handler = async function(event, context) {
   } catch (error) {
     console.error('Function error:', error);
     
-    // Always return JSON, even for errors
     return {
       statusCode: 500,
       headers,

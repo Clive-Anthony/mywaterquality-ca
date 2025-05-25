@@ -1,4 +1,4 @@
-// src/components/AuthRedirect.jsx
+// src/components/AuthRedirect.jsx - Updated with better error handling
 import { useEffect, useState } from 'react';
 import { useNavigate, useLocation } from 'react-router-dom';
 import { supabase, verifyEmailToken } from '../lib/supabaseClient';
@@ -7,7 +7,7 @@ export default function AuthRedirect() {
   const navigate = useNavigate();
   const location = useLocation();
   const [error, setError] = useState(null);
-  const [processingState, setProcessingState] = useState('processing'); // 'processing', 'success', 'error'
+  const [processingState, setProcessingState] = useState('processing');
   const [processingMessage, setProcessingMessage] = useState('Processing authentication...');
 
   useEffect(() => {
@@ -18,17 +18,8 @@ export default function AuthRedirect() {
         console.log('Search params:', location.search);
         console.log('Hash:', location.hash);
         
-        // Check for error parameters in the URL
+        // Parse URL and hash parameters
         const urlParams = new URLSearchParams(window.location.search);
-        const errorCode = urlParams.get('error');
-        const errorDescription = urlParams.get('error_description');
-        const nextUrl = urlParams.get('next'); // For password reset flow
-        const type = urlParams.get('type'); // Check for recovery type
-        
-        // Clear any redirect flags
-        sessionStorage.removeItem('auth_redirect_in_progress');
-        
-        // Also check for errors in hash fragment
         let hashParams = {};
         if (location.hash) {
           const hashString = location.hash.substring(1);
@@ -41,30 +32,36 @@ export default function AuthRedirect() {
           });
         }
         
-        // Check for errors in either location
-        const hashError = hashParams.error;
-        const hashErrorDescription = hashParams.error_description;
+        console.log('URL params:', Object.fromEntries(urlParams));
+        console.log('Hash params:', hashParams);
         
-        if (errorCode || hashError) {
-          const finalError = errorCode || hashError;
-          const finalDescription = errorDescription || hashErrorDescription;
+        // Clear any redirect flags
+        sessionStorage.removeItem('auth_redirect_in_progress');
+        
+        // Check for errors in URL params or hash
+        const errorCode = urlParams.get('error') || hashParams.error;
+        const errorDescription = urlParams.get('error_description') || hashParams.error_description;
+        const errorCodeFromHash = hashParams.error_code;
+        
+        if (errorCode) {
+          console.error('OAuth error detected:', errorCode, errorDescription, errorCodeFromHash);
           
-          console.error('OAuth error detected:', finalError, finalDescription);
-          
-          // Handle specific error cases
-          if (finalError === 'access_denied' && hashParams.error_code === 'otp_expired') {
+          // Handle specific error cases with user-friendly messages
+          if (errorCode === 'access_denied' && errorCodeFromHash === 'otp_expired') {
             throw new Error('The password reset link has expired. Please request a new one.');
-          } else if (finalError === 'access_denied') {
-            throw new Error('Access was denied. Please try again.');
+          } else if (errorCode === 'access_denied') {
+            throw new Error('Access was denied. The link may be invalid or expired.');
+          } else if (errorCode === 'invalid_request') {
+            throw new Error('Invalid request. Please try requesting a new reset link.');
           } else {
-            throw new Error(`${finalError}: ${finalDescription || 'Authentication failed'}`);
+            throw new Error(`${errorCode}: ${errorDescription || 'Authentication failed'}`);
           }
         }
         
-        // Check for email verification parameters (URL params)
+        // Handle email verification (URL params with token)
         const token = urlParams.get('token');
+        const type = urlParams.get('type');
         
-        // Handle email verification callback
         if (type === 'signup' && token) {
           console.log('Processing email verification token...');
           setProcessingMessage('Verifying your email...');
@@ -79,7 +76,6 @@ export default function AuthRedirect() {
           setProcessingState('success');
           setProcessingMessage('Email verified successfully!');
           
-          // Redirect to login page after successful verification
           setTimeout(() => {
             navigate('/login', { 
               replace: true,
@@ -90,187 +86,123 @@ export default function AuthRedirect() {
           return;
         }
         
-        // Handle password recovery flow (URL params OR hash params)
-        if (type === 'recovery' || hashParams.type === 'recovery') {
-          console.log('Processing password recovery callback...');
-          console.log('Recovery type found in:', type ? 'URL params' : 'hash params');
+        // Handle password recovery - tokens should be in hash fragment
+        const recoveryType = urlParams.get('type') || hashParams.type;
+        const accessToken = hashParams.access_token;
+        const refreshToken = hashParams.refresh_token;
+        
+        console.log('Recovery check:', {
+          recoveryType,
+          hasAccessToken: !!accessToken,
+          hasRefreshToken: !!refreshToken,
+          urlType: urlParams.get('type'),
+          hashType: hashParams.type
+        });
+        
+        if (recoveryType === 'recovery' || (accessToken && refreshToken)) {
+          console.log('Processing password recovery...');
           setProcessingMessage('Setting up password recovery...');
           
-          // For recovery, we expect the actual tokens to be in the hash fragment
-          const accessToken = hashParams.access_token;
-          const refreshToken = hashParams.refresh_token;
+          if (!accessToken || !refreshToken) {
+            throw new Error('Invalid recovery link. Missing authentication tokens. Please request a new reset link.');
+          }
           
-          console.log('Recovery tokens:', {
-            hasAccessToken: !!accessToken,
-            hasRefreshToken: !!refreshToken,
-            accessTokenStart: accessToken ? accessToken.substring(0, 10) + '...' : 'none'
+          console.log('Setting recovery session with tokens...');
+          const { data, error } = await supabase.auth.setSession({
+            access_token: accessToken,
+            refresh_token: refreshToken
           });
           
-          if (accessToken && refreshToken) {
-            console.log('Setting recovery session...');
-            
-            const { data, error } = await supabase.auth.setSession({
-              access_token: accessToken,
-              refresh_token: refreshToken
-            });
-            
-            if (error) {
-              console.error('Failed to set recovery session:', error);
+          if (error) {
+            console.error('Failed to set recovery session:', error);
+            // Provide more specific error message for session failures
+            if (error.message.includes('expired')) {
+              throw new Error('The password reset link has expired. Please request a new one.');
+            } else {
               throw new Error(`Recovery session failed: ${error.message}`);
             }
-            
-            console.log('Recovery session established successfully');
-            setProcessingState('success');
-            setProcessingMessage('Ready to update your password!');
-            
-            // Redirect to update password page
-            setTimeout(() => {
-              navigate('/update-password', { replace: true });
-            }, 1000);
-            
-            return;
-          } else {
-            console.error('Missing recovery tokens:', { accessToken: !!accessToken, refreshToken: !!refreshToken });
-            throw new Error('Invalid recovery link. Missing authentication tokens.');
           }
+          
+          console.log('Recovery session established successfully');
+          
+          // Double-check that the session is actually set
+          const { data: { session } } = await supabase.auth.getSession();
+          if (!session) {
+            throw new Error('Failed to establish recovery session. Please request a new reset link.');
+          }
+          
+          console.log('Session verified, user can update password');
+          setProcessingState('success');
+          setProcessingMessage('Ready to update your password!');
+          
+          setTimeout(() => {
+            navigate('/update-password', { replace: true });
+          }, 1500);
+          
+          return;
         }
         
-        // Check for OAuth callback or hash fragment (access_token) for regular sign-in
-        if (location.hash || window.location.hash) {
-          console.log('Processing OAuth or token callback...');
-          const hashValue = location.hash || window.location.hash;
+        // Handle regular OAuth sign-in (access_token in hash without recovery type)
+        if (accessToken && !recoveryType) {
+          console.log('Processing OAuth sign-in...');
+          setProcessingMessage('Completing sign-in...');
           
-          // Special handling for URLs like /#access_token=...
-          if (hashValue.includes('access_token=')) {
-            try {
-              // Remove the # character and parse the fragment as query params
-              const hashParams = new URLSearchParams(hashValue.substring(1));
-              
-              // Extract the tokens and parameters
-              const accessToken = hashParams.get('access_token');
-              const refreshToken = hashParams.get('refresh_token');
-              const tokenType = hashParams.get('token_type');
-              const expiresIn = hashParams.get('expires_in');
-              const authType = hashParams.get('type');
-              
-              console.log('Token data found:', {
-                tokenType,
-                expiresIn,
-                authType,
-                hasAccessToken: !!accessToken,
-                hasRefreshToken: !!refreshToken
-              });
-              
-              if (accessToken) {
-                // Check if this is a password recovery session
-                if (authType === 'recovery') {
-                  console.log('Processing password recovery session from hash...');
-                  setProcessingMessage('Setting up password recovery session...');
-                  
-                  // Set the session with the recovery tokens
-                  const { data, error } = await supabase.auth.setSession({
-                    access_token: accessToken,
-                    refresh_token: refreshToken
-                  });
-                  
-                  if (error) throw error;
-                  
-                  console.log('Password recovery session established');
-                  setProcessingState('success');
-                  setProcessingMessage('Ready to update your password!');
-                  
-                  // Redirect to update password page or the next URL specified
-                  const redirectUrl = nextUrl || '/update-password';
-                  setTimeout(() => {
-                    navigate(redirectUrl, { replace: true });
-                  }, 1000);
-                  
-                  return;
-                }
-                
-                // Regular OAuth sign-in
-                console.log('Setting session from OAuth tokens...');
-                setProcessingMessage('Completing sign-in...');
-                
-                // Set the session with the extracted tokens
-                const { data, error } = await supabase.auth.setSession({
-                  access_token: accessToken,
-                  refresh_token: refreshToken
-                });
-                
-                if (error) throw error;
-                
-                console.log('Session set successfully from hash fragment');
-                setProcessingState('success');
-                setProcessingMessage('Sign-in successful!');
-                
-                // Redirect to dashboard for newly authenticated users
-                setTimeout(() => {
-                  navigate('/dashboard', { replace: true });
-                }, 1000);
-                
-                return;
-              }
-            } catch (tokenErr) {
-              console.error('Error processing tokens from hash fragment:', tokenErr);
-              throw tokenErr;
-            }
-          }
+          const { data, error } = await supabase.auth.setSession({
+            access_token: accessToken,
+            refresh_token: refreshToken
+          });
+          
+          if (error) throw error;
+          
+          setProcessingState('success');
+          setProcessingMessage('Sign-in successful!');
+          
+          setTimeout(() => {
+            navigate('/dashboard', { replace: true });
+          }, 1500);
+          
+          return;
         }
         
         // If no specific callback parameters are found, check current session
         await checkCurrentSession();
+        
       } catch (err) {
         console.error('Error handling auth redirect:', err);
         setError(err.message || 'Authentication failed');
         setProcessingState('error');
         
-        // Redirect based on error type
-        if (err.message && err.message.includes('expired')) {
-          setTimeout(() => {
+        // Redirect based on error type with appropriate delays
+        setTimeout(() => {
+          if (err.message && (err.message.includes('expired') || err.message.includes('invalid'))) {
             navigate('/reset-password', { 
               replace: true,
               state: { error: err.message }
             });
-          }, 3000);
-        } else {
-          setTimeout(() => {
+          } else {
             navigate('/login', { 
               replace: true,
               state: { error: err.message || 'Authentication failed. Please try again.' }
             });
-          }, 3000);
-        }
+          }
+        }, 3000);
       }
     };
     
-    // Helper function to check current session
     const checkCurrentSession = async () => {
       try {
         const { data: { session } } = await supabase.auth.getSession();
         
         if (session) {
           console.log('User is already authenticated');
+          setProcessingState('success');
+          setProcessingMessage('Redirecting to dashboard...');
           
-          // Check if this is a recovery session
-          const user = session.user;
-          if (user && user.aud === 'authenticated' && user.recovery_sent_at) {
-            console.log('Detected recovery session, redirecting to update password');
-            setProcessingState('success');
-            setProcessingMessage('Ready to update your password!');
-            setTimeout(() => {
-              navigate('/update-password', { replace: true });
-            }, 1000);
-          } else {
-            console.log('Regular session, redirecting to dashboard');
-            setProcessingState('success');
-            setProcessingMessage('Sign-in successful!');
-            setTimeout(() => {
-              navigate('/dashboard', { replace: true });
-            }, 1000);
-          }
+          setTimeout(() => {
+            navigate('/dashboard', { replace: true });
+          }, 1500);
         } else {
-          throw new Error('No authentication data found');
+          throw new Error('No authentication data found in the callback URL');
         }
       } catch (err) {
         throw new Error('Session check failed: ' + (err.message || 'Unknown error'));
@@ -320,7 +252,12 @@ export default function AuthRedirect() {
           </div>
           <h2 className="text-lg font-medium mb-2 text-center">Authentication Error</h2>
           <p className="text-center text-sm mb-4">{error}</p>
-          <p className="text-xs text-center">Redirecting you to try again...</p>
+          <p className="text-xs text-center">
+            {error && error.includes('expired') 
+              ? 'Redirecting you to request a new reset link...' 
+              : 'Redirecting you to try again...'
+            }
+          </p>
         </div>
       </div>
     );
