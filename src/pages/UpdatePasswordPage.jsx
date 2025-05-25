@@ -31,7 +31,6 @@ export default function UpdatePasswordPage() {
         
         if (!session) {
           console.log('No session found, redirecting to reset password');
-          // No session, redirect to reset password page
           navigate('/reset-password', { 
             state: { error: 'Invalid or expired reset link. Please request a new one.' }
           });
@@ -82,6 +81,7 @@ export default function UpdatePasswordPage() {
   const handleSubmit = async (e) => {
     e.preventDefault();
     setError(null);
+    setShowManualProceed(false);
     
     // Validation
     if (password !== confirmPassword) {
@@ -96,96 +96,127 @@ export default function UpdatePasswordPage() {
     
     setLoading(true);
     
-    // Show manual proceed option after 15 seconds if still loading
+    // Show manual proceed option after 20 seconds if still loading
     const manualProceedTimer = setTimeout(() => {
+      console.log('Password update taking longer than expected, showing manual proceed option');
       setShowManualProceed(true);
-    }, 15000);
+    }, 20000);
     
     try {
       console.log('Starting password update process...');
       
-      // Create a timeout promise to prevent hanging
-      const timeoutPromise = new Promise((_, reject) => {
-        setTimeout(() => reject(new Error('Password update timed out after 30 seconds')), 30000);
-      });
-      
-      // Update the password with timeout
+      // Update the password with a reasonable timeout
       console.log('Calling updateUser...');
+      
       const updatePromise = supabase.auth.updateUser({
         password: password
       });
       
-      const { data, error } = await Promise.race([updatePromise, timeoutPromise]);
+      // Set a 30-second timeout
+      const timeoutPromise = new Promise((_, reject) => {
+        setTimeout(() => {
+          console.error('Password update timed out after 30 seconds');
+          reject(new Error('Password update timed out. Please try again.'));
+        }, 30000);
+      });
       
-      console.log('UpdateUser response:', { data, error });
+      const result = await Promise.race([updatePromise, timeoutPromise]);
       
-      if (error) {
-        throw error;
+      console.log('UpdateUser result:', result);
+      
+      if (result.error) {
+        // Handle specific Supabase errors
+        if (result.error.message?.includes('same password') || 
+            result.error.message?.includes('different from the old password')) {
+          throw new Error('Please choose a different password than your current one.');
+        } else if (result.error.message?.includes('weak password')) {
+          throw new Error('Password is too weak. Please choose a stronger password.');
+        } else if (result.error.message?.includes('invalid')) {
+          throw new Error('Invalid session. Please request a new password reset link.');
+        }
+        throw result.error;
       }
       
-      console.log('Password updated successfully, user data:', data?.user?.email);
-      
-      // Small delay to ensure the update is processed
-      await new Promise(resolve => setTimeout(resolve, 1000));
-      
-      // Try to sign out to clear the recovery session (but don't let it block the flow)
-      console.log('Attempting to sign out...');
-      try {
-        const signOutPromise = supabase.auth.signOut();
-        const signOutTimeoutPromise = new Promise((_, reject) => {
-          setTimeout(() => reject(new Error('Sign out timed out')), 5000); // Shorter timeout
+      if (result.data?.user) {
+        console.log('Password updated successfully for user:', result.data.user.email);
+        
+        // Clear the timer since we succeeded
+        clearTimeout(manualProceedTimer);
+        
+        // Small delay to ensure the update is processed
+        await new Promise(resolve => setTimeout(resolve, 1500));
+        
+        // Attempt to sign out (but don't let it block the redirect)
+        console.log('Attempting to sign out to clear recovery session...');
+        try {
+          const signOutPromise = supabase.auth.signOut();
+          const signOutTimeout = new Promise((_, reject) => {
+            setTimeout(() => reject(new Error('Sign out timeout')), 3000);
+          });
+          
+          await Promise.race([signOutPromise, signOutTimeout]);
+          console.log('Sign out successful');
+        } catch (signOutError) {
+          console.warn('Sign out failed (proceeding with redirect anyway):', signOutError.message);
+        }
+        
+        console.log('Redirecting to login page...');
+        
+        // Force navigation to login with success message
+        navigate('/login', { 
+          replace: true,
+          state: { message: 'Password updated successfully! Please login with your new password.' }
         });
         
-        await Promise.race([signOutPromise, signOutTimeoutPromise]);
-        console.log('Sign out successful');
-      } catch (signOutError) {
-        console.warn('Sign out failed (proceeding anyway):', signOutError.message);
-        // Continue with redirect even if sign out fails
+        return; // Exit here on success
       }
       
-      // Always redirect to login regardless of sign out result
-      console.log('Redirecting to login...');
-      navigate('/login', { 
-        state: { message: 'Password updated successfully! Please login with your new password.' }
-      });
+      // If we get here, something unexpected happened
+      throw new Error('Password update completed but no user data returned. Please try logging in.');
       
     } catch (err) {
       console.error('Password update error:', err);
       
-      // Provide more specific error messages
+      // Clear the manual proceed timer
+      clearTimeout(manualProceedTimer);
+      
+      // Provide specific error messages
       let errorMessage = 'Failed to update password. Please try again.';
       
       if (err.message?.includes('timeout')) {
         errorMessage = 'The request timed out. Please check your internet connection and try again.';
-      } else if (err.message?.includes('expired')) {
+      } else if (err.message?.includes('same password') || err.message?.includes('different')) {
+        errorMessage = 'Please choose a different password than your current one.';
+      } else if (err.message?.includes('weak password')) {
+        errorMessage = 'Password is too weak. Please use at least 8 characters with a mix of letters, numbers, and symbols.';
+      } else if (err.message?.includes('expired') || err.message?.includes('invalid')) {
         errorMessage = 'Your reset link has expired. Please request a new password reset.';
-      } else if (err.message?.includes('invalid')) {
-        errorMessage = 'Invalid session. Please request a new password reset link.';
       } else if (err.message) {
         errorMessage = err.message;
       }
       
       setError(errorMessage);
       
-      // If the session is invalid, redirect to reset password page
+      // If the session is invalid, redirect to reset password page after showing error
       if (err.message?.includes('expired') || err.message?.includes('invalid')) {
         setTimeout(() => {
           navigate('/reset-password', { 
             state: { error: errorMessage }
           });
-        }, 3000);
+        }, 4000);
       }
     } finally {
-      clearTimeout(manualProceedTimer);
       setLoading(false);
       setShowManualProceed(false);
     }
   };
 
   const handleManualProceed = () => {
-    console.log('User chose to proceed manually');
+    console.log('User chose to proceed manually to login');
     setLoading(false);
+    setShowManualProceed(false);
     navigate('/login', { 
+      replace: true,
       state: { message: 'Password may have been updated. Please try logging in with your new password.' }
     });
   };
@@ -220,7 +251,7 @@ export default function UpdatePasswordPage() {
               Set new password
             </h2>
             <p className="text-gray-500 mb-6">
-              Your new password must be at least 6 characters long.
+              Choose a new password that's different from your current one.
             </p>
             
             {/* Error Message */}
@@ -247,10 +278,13 @@ export default function UpdatePasswordPage() {
                   autoComplete="new-password"
                   required
                   className="appearance-none block w-full px-3 py-3 border border-gray-300 rounded-lg shadow-sm placeholder-gray-400 focus:outline-none focus:ring-blue-500 focus:border-blue-500 sm:text-sm"
-                  placeholder="Enter new password"
+                  placeholder="Enter new password (different from current)"
                   value={password}
                   onChange={(e) => setPassword(e.target.value)}
                 />
+                <p className="mt-1 text-xs text-gray-500">
+                  Must be at least 6 characters and different from your current password
+                </p>
               </div>
               
               <div>
@@ -264,7 +298,7 @@ export default function UpdatePasswordPage() {
                   autoComplete="new-password"
                   required
                   className="appearance-none block w-full px-3 py-3 border border-gray-300 rounded-lg shadow-sm placeholder-gray-400 focus:outline-none focus:ring-blue-500 focus:border-blue-500 sm:text-sm"
-                  placeholder="Confirm new password"
+                  placeholder="Confirm your new password"
                   value={confirmPassword}
                   onChange={(e) => setConfirmPassword(e.target.value)}
                 />
@@ -291,14 +325,14 @@ export default function UpdatePasswordPage() {
                 
                 {/* Manual proceed option if stuck */}
                 {showManualProceed && loading && (
-                  <div className="mt-4 text-center">
-                    <p className="text-sm text-gray-600 mb-2">Taking longer than expected?</p>
+                  <div className="mt-4 p-3 bg-yellow-50 border border-yellow-200 rounded text-center">
+                    <p className="text-sm text-yellow-800 mb-2">This is taking longer than expected.</p>
                     <button
                       type="button"
                       onClick={handleManualProceed}
-                      className="text-sm text-blue-600 hover:text-blue-800 underline"
+                      className="text-sm text-blue-600 hover:text-blue-800 underline font-medium"
                     >
-                      Proceed to login anyway
+                      Continue to login page
                     </button>
                   </div>
                 )}
@@ -309,9 +343,12 @@ export default function UpdatePasswordPage() {
           <div className="px-6 py-4 bg-gray-50 border-t border-gray-100 sm:px-10">
             <p className="text-sm text-center text-gray-500">
               Having trouble?{' '}
-              <a href="#" className="font-medium text-blue-600 hover:text-blue-500 transition-colors duration-200">
-                Contact support
-              </a>
+              <button 
+                onClick={() => navigate('/reset-password')}
+                className="font-medium text-blue-600 hover:text-blue-500 transition-colors duration-200"
+              >
+                Request new reset link
+              </button>
             </p>
           </div>
         </div>
