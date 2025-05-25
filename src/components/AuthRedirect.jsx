@@ -1,4 +1,4 @@
-// src/components/AuthRedirect.jsx - Updated with better error handling
+// src/components/AuthRedirect.jsx - Fixed Google OAuth vs Password Recovery detection
 import { useEffect, useState } from 'react';
 import { useNavigate, useLocation } from 'react-router-dom';
 import { supabase, verifyEmailToken } from '../lib/supabaseClient';
@@ -86,7 +86,8 @@ export default function AuthRedirect() {
           return;
         }
         
-        // Handle password recovery - tokens should be in hash fragment
+        // FIXED: Handle password recovery - ONLY if explicitly marked as recovery
+        // Check for explicit recovery type in URL params or hash
         const recoveryType = urlParams.get('type') || hashParams.type;
         const accessToken = hashParams.access_token;
         const refreshToken = hashParams.refresh_token;
@@ -96,11 +97,14 @@ export default function AuthRedirect() {
           hasAccessToken: !!accessToken,
           hasRefreshToken: !!refreshToken,
           urlType: urlParams.get('type'),
-          hashType: hashParams.type
+          hashType: hashParams.type,
+          isExplicitRecovery: recoveryType === 'recovery'
         });
         
-        if (recoveryType === 'recovery' || (accessToken && refreshToken)) {
-          console.log('Processing password recovery...');
+        // FIXED: Only treat as password recovery if explicitly marked as 'recovery'
+        // Don't assume that having access_token + refresh_token means password recovery
+        if (recoveryType === 'recovery') {
+          console.log('Processing password recovery (explicit recovery type detected)...');
           setProcessingMessage('Setting up password recovery...');
           
           if (!accessToken || !refreshToken) {
@@ -142,9 +146,9 @@ export default function AuthRedirect() {
           return;
         }
         
-        // Handle regular OAuth sign-in (access_token in hash without recovery type)
-        if (accessToken && !recoveryType) {
-          console.log('Processing OAuth sign-in...');
+        // Handle regular OAuth sign-in (access_token in hash WITHOUT recovery type)
+        if (accessToken && refreshToken && recoveryType !== 'recovery') {
+          console.log('Processing OAuth sign-in (Google/regular OAuth)...');
           setProcessingMessage('Completing sign-in...');
           
           const { data, error } = await supabase.auth.setSession({
@@ -152,8 +156,12 @@ export default function AuthRedirect() {
             refresh_token: refreshToken
           });
           
-          if (error) throw error;
+          if (error) {
+            console.error('OAuth session error:', error);
+            throw error;
+          }
           
+          console.log('OAuth sign-in successful');
           setProcessingState('success');
           setProcessingMessage('Sign-in successful!');
           
