@@ -150,15 +150,14 @@ exports.handler = async function(event, context) {
     
     console.log('Using redirect URL:', redirectUrl);
     
-    // Generate password reset link with shorter expiration to avoid timeout issues
+    // Generate password reset link with proper configuration
     const { data, error } = await supabaseAdmin.auth.admin.generateLink({
       type: 'recovery',
       email,
       options: {
         redirectTo: redirectUrl,
-        // Add explicit expiration time (default might be too long)
-        // Note: This is in seconds, 3600 = 1 hour
-        expiresIn: 3600
+        // Set a longer expiration time to avoid timeout issues
+        expiresIn: 3600 // 1 hour in seconds
       }
     });
     
@@ -184,6 +183,14 @@ exports.handler = async function(event, context) {
     console.log('Reset link generated successfully');
     console.log('Reset link domain:', new URL(resetLink).hostname);
     console.log('Redirect URL in link:', new URL(resetLink).searchParams.get('redirect_to'));
+    
+    // Log the token hash to verify it's properly formatted (first 10 chars only for security)
+    const tokenMatch = resetLink.match(/token_hash=([^&]+)/);
+    if (tokenMatch) {
+      console.log('Token hash found (first 10 chars):', tokenMatch[1].substring(0, 10) + '...');
+    } else {
+      console.warn('No token_hash found in reset link');
+    }
     
     // Send password reset email via Loops
     await sendLoopsEmail({

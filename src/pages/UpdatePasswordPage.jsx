@@ -11,14 +11,26 @@ export default function UpdatePasswordPage() {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState(null);
   const [validatingToken, setValidatingToken] = useState(true);
+  const [showManualProceed, setShowManualProceed] = useState(false);
 
   useEffect(() => {
     // Check if we have a valid recovery session
     const checkRecoverySession = async () => {
       try {
-        const { data: { session } } = await supabase.auth.getSession();
+        console.log('Validating recovery session...');
+        
+        // Add timeout to prevent hanging
+        const timeoutPromise = new Promise((_, reject) => {
+          setTimeout(() => reject(new Error('Session validation timed out')), 15000);
+        });
+        
+        const sessionPromise = supabase.auth.getSession();
+        const { data: { session } } = await Promise.race([sessionPromise, timeoutPromise]);
+        
+        console.log('Session check result:', !!session);
         
         if (!session) {
+          console.log('No session found, redirecting to reset password');
           // No session, redirect to reset password page
           navigate('/reset-password', { 
             state: { error: 'Invalid or expired reset link. Please request a new one.' }
@@ -27,9 +39,20 @@ export default function UpdatePasswordPage() {
         }
         
         // Check if user exists and session is valid
-        const { data: { user } } = await supabase.auth.getUser();
+        console.log('Checking user data...');
+        const userPromise = supabase.auth.getUser();
+        const { data: { user }, error: userError } = await Promise.race([userPromise, timeoutPromise]);
+        
+        if (userError) {
+          console.error('User validation error:', userError);
+          navigate('/reset-password', { 
+            state: { error: 'Session validation failed. Please request a new reset link.' }
+          });
+          return;
+        }
         
         if (!user) {
+          console.log('No user found, redirecting to reset password');
           navigate('/reset-password', { 
             state: { error: 'Invalid session. Please request a new reset link.' }
           });
@@ -41,8 +64,14 @@ export default function UpdatePasswordPage() {
         
       } catch (err) {
         console.error('Session validation error:', err);
+        
+        let errorMessage = 'An error occurred validating your session. Please try again.';
+        if (err.message?.includes('timeout')) {
+          errorMessage = 'Session validation timed out. Please check your connection and try again.';
+        }
+        
         navigate('/reset-password', { 
-          state: { error: 'An error occurred validating your session. Please try again.' }
+          state: { error: errorMessage }
         });
       }
     };
@@ -67,32 +96,98 @@ export default function UpdatePasswordPage() {
     
     setLoading(true);
     
+    // Show manual proceed option after 15 seconds if still loading
+    const manualProceedTimer = setTimeout(() => {
+      setShowManualProceed(true);
+    }, 15000);
+    
     try {
-      // Update the password
-      const { error } = await supabase.auth.updateUser({
+      console.log('Starting password update process...');
+      
+      // Create a timeout promise to prevent hanging
+      const timeoutPromise = new Promise((_, reject) => {
+        setTimeout(() => reject(new Error('Password update timed out after 30 seconds')), 30000);
+      });
+      
+      // Update the password with timeout
+      console.log('Calling updateUser...');
+      const updatePromise = supabase.auth.updateUser({
         password: password
       });
+      
+      const { data, error } = await Promise.race([updatePromise, timeoutPromise]);
+      
+      console.log('UpdateUser response:', { data, error });
       
       if (error) {
         throw error;
       }
       
-      console.log('Password updated successfully');
+      console.log('Password updated successfully, user data:', data?.user?.email);
       
-      // Sign out to clear the recovery session
-      await supabase.auth.signOut();
+      // Small delay to ensure the update is processed
+      await new Promise(resolve => setTimeout(resolve, 1000));
       
-      // Redirect to login with success message
+      // Try to sign out to clear the recovery session (but don't let it block the flow)
+      console.log('Attempting to sign out...');
+      try {
+        const signOutPromise = supabase.auth.signOut();
+        const signOutTimeoutPromise = new Promise((_, reject) => {
+          setTimeout(() => reject(new Error('Sign out timed out')), 5000); // Shorter timeout
+        });
+        
+        await Promise.race([signOutPromise, signOutTimeoutPromise]);
+        console.log('Sign out successful');
+      } catch (signOutError) {
+        console.warn('Sign out failed (proceeding anyway):', signOutError.message);
+        // Continue with redirect even if sign out fails
+      }
+      
+      // Always redirect to login regardless of sign out result
+      console.log('Redirecting to login...');
       navigate('/login', { 
         state: { message: 'Password updated successfully! Please login with your new password.' }
       });
       
     } catch (err) {
       console.error('Password update error:', err);
-      setError(err.message || 'Failed to update password. Please try again.');
+      
+      // Provide more specific error messages
+      let errorMessage = 'Failed to update password. Please try again.';
+      
+      if (err.message?.includes('timeout')) {
+        errorMessage = 'The request timed out. Please check your internet connection and try again.';
+      } else if (err.message?.includes('expired')) {
+        errorMessage = 'Your reset link has expired. Please request a new password reset.';
+      } else if (err.message?.includes('invalid')) {
+        errorMessage = 'Invalid session. Please request a new password reset link.';
+      } else if (err.message) {
+        errorMessage = err.message;
+      }
+      
+      setError(errorMessage);
+      
+      // If the session is invalid, redirect to reset password page
+      if (err.message?.includes('expired') || err.message?.includes('invalid')) {
+        setTimeout(() => {
+          navigate('/reset-password', { 
+            state: { error: errorMessage }
+          });
+        }, 3000);
+      }
     } finally {
+      clearTimeout(manualProceedTimer);
       setLoading(false);
+      setShowManualProceed(false);
     }
+  };
+
+  const handleManualProceed = () => {
+    console.log('User chose to proceed manually');
+    setLoading(false);
+    navigate('/login', { 
+      state: { message: 'Password may have been updated. Please try logging in with your new password.' }
+    });
   };
 
   // Show loading while validating token
@@ -193,6 +288,20 @@ export default function UpdatePasswordPage() {
                     'Update Password'
                   )}
                 </button>
+                
+                {/* Manual proceed option if stuck */}
+                {showManualProceed && loading && (
+                  <div className="mt-4 text-center">
+                    <p className="text-sm text-gray-600 mb-2">Taking longer than expected?</p>
+                    <button
+                      type="button"
+                      onClick={handleManualProceed}
+                      className="text-sm text-blue-600 hover:text-blue-800 underline"
+                    >
+                      Proceed to login anyway
+                    </button>
+                  </div>
+                )}
               </div>
             </form>
           </div>
