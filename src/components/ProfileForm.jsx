@@ -156,15 +156,14 @@ export default function ProfileForm() {
         updated_at: new Date().toISOString()
       };
 
-      // Update profile in the profiles table
+      // Update profile in the profiles table - FIXED: Removed .single() which was causing issues
       const { data: profileResult, error: profileError } = await supabase
         .from('profiles')
         .upsert(profileData, { 
           onConflict: 'id',
           ignoreDuplicates: false 
         })
-        .select()
-        .single();
+        .select();
 
       if (profileError) {
         console.error('Profile update error:', profileError);
@@ -179,37 +178,48 @@ export default function ProfileForm() {
         }
       }
 
-      console.log('Profile updated successfully:', profileResult);
+      console.log('Profile updated successfully in database:', profileResult);
 
-      // Update user metadata in auth.users
-      const fullName = `${profileData.first_name} ${profileData.last_name}`.trim();
-      const { data: authResult, error: metadataError } = await supabase.auth.updateUser({
-        data: {
-          first_name: profileData.first_name,
-          last_name: profileData.last_name,
-          full_name: fullName,
-          firstName: profileData.first_name, // Keep both formats for compatibility
-          lastName: profileData.last_name
+      // Update user metadata in auth.users (non-blocking - don't let this fail the main operation)
+      try {
+        const fullName = `${profileData.first_name} ${profileData.last_name}`.trim();
+        const { data: authResult, error: metadataError } = await supabase.auth.updateUser({
+          data: {
+            first_name: profileData.first_name,
+            last_name: profileData.last_name,
+            full_name: fullName,
+            firstName: profileData.first_name, // Keep both formats for compatibility
+            lastName: profileData.last_name
+          }
+        });
+
+        if (metadataError) {
+          console.warn('Failed to update auth metadata (profile still saved successfully):', metadataError);
+        } else {
+          console.log('Auth metadata updated successfully:', authResult);
         }
-      });
-
-      if (metadataError) {
-        console.warn('Failed to update auth metadata (profile still saved):', metadataError);
-        // Don't throw here since the profile was updated successfully
-      } else {
-        console.log('Auth metadata updated successfully:', authResult);
+      } catch (metadataUpdateError) {
+        console.warn('Exception updating auth metadata (profile still saved successfully):', metadataUpdateError);
       }
 
-      // Refresh auth context to get updated user data
+      // Refresh auth context to get updated user data (non-blocking with timeout)
       if (refreshAuth) {
         try {
-          await refreshAuth();
-          console.log('Auth context refreshed');
+          // Set a timeout for refreshAuth to prevent hanging
+          const refreshPromise = refreshAuth();
+          const timeoutPromise = new Promise((_, reject) => {
+            setTimeout(() => reject(new Error('Auth refresh timeout')), 5000);
+          });
+          
+          await Promise.race([refreshPromise, timeoutPromise]);
+          console.log('Auth context refreshed successfully');
         } catch (refreshError) {
-          console.warn('Failed to refresh auth context:', refreshError);
+          console.warn('Failed to refresh auth context (profile still saved successfully):', refreshError.message);
         }
       }
 
+      // Show success message
+      console.log('Profile update completed successfully');
       setSuccess(true);
       
       // Clear success message after 5 seconds
@@ -221,6 +231,8 @@ export default function ProfileForm() {
       console.error('Error updating profile:', error);
       setError(error.message || 'Failed to update profile. Please try again.');
     } finally {
+      // CRITICAL: Always clear loading state
+      console.log('Setting loading to false');
       setLoading(false);
     }
   };
@@ -513,6 +525,26 @@ export default function ProfileForm() {
                   'Save Profile'
                 )}
               </button>
+              
+              {/* Debug button - remove this after fixing the issue */}
+              {process.env.NODE_ENV === 'development' && (
+                <button
+                  type="button"
+                  onClick={() => {
+                    console.log('Debug: Current state:', {
+                      loading,
+                      success,
+                      error,
+                      profile
+                    });
+                    // Force reset loading state
+                    setLoading(false);
+                  }}
+                  className="bg-yellow-500 py-2 px-4 border border-transparent rounded-md shadow-sm text-sm font-medium text-white hover:bg-yellow-600"
+                >
+                  Debug Reset
+                </button>
+              )}
             </div>
           </div>
         </form>
