@@ -1,11 +1,12 @@
 // src/components/TopNav.jsx
 import { useState } from 'react';
-import { Link, useNavigate } from 'react-router-dom';
+import { Link, useNavigate, useLocation } from 'react-router-dom';
 import { useAuth } from '../contexts/AuthContext';
 import { signOut } from '../lib/supabaseClient';
 
 export default function TopNav() {
   const navigate = useNavigate();
+  const location = useLocation();
   const { user } = useAuth();
   const [loading, setLoading] = useState(false);
   
@@ -25,6 +26,22 @@ export default function TopNav() {
       setLoading(false);
     }
   };
+
+  // Helper function to determine if a link is active
+  const isActivePage = (path) => {
+    return location.pathname === path;
+  };
+
+  // Helper function to get link styling based on active state
+  const getLinkClassName = (path, isUserOnly = false) => {
+    const baseClasses = "px-3 py-2 rounded-md text-sm font-medium transition-colors duration-200";
+    
+    if (isActivePage(path)) {
+      return `${baseClasses} text-blue-600 bg-blue-50`;
+    } else {
+      return `${baseClasses} text-gray-700 hover:text-blue-600 hover:bg-blue-50`;
+    }
+  };
   
   return (
     <header className="bg-white shadow-sm">
@@ -42,29 +59,32 @@ export default function TopNav() {
           
           {/* Navigation Links */}
           <div className="hidden md:flex items-center space-x-4 ml-6">
+            {/* Test Kits - Always visible */}
             <Link 
               to="/test-kits" 
-              className="px-3 py-2 rounded-md text-sm font-medium text-gray-700 hover:text-blue-600 hover:bg-blue-50 transition-colors duration-200"
+              className={getLinkClassName('/test-kits')}
             >
               Test Kits
             </Link>
+            
+            {/* User-only navigation links */}
             {user && (
               <>
                 <Link 
                   to="/dashboard" 
-                  className="px-3 py-2 rounded-md text-sm font-medium text-blue-600 hover:text-blue-800 hover:bg-blue-50 transition-colors duration-200"
+                  className={getLinkClassName('/dashboard', true)}
                 >
                   Dashboard
                 </Link>
                 <Link 
                   to="/results" 
-                  className="px-3 py-2 rounded-md text-sm font-medium text-gray-500 hover:text-blue-600 hover:bg-blue-50 transition-colors duration-200"
+                  className={getLinkClassName('/results', true)}
                 >
                   Results
                 </Link>
                 <Link 
                   to="/resources" 
-                  className="px-3 py-2 rounded-md text-sm font-medium text-gray-500 hover:text-blue-600 hover:bg-blue-50 transition-colors duration-200"
+                  className={getLinkClassName('/resources', true)}
                 >
                   Resources
                 </Link>
