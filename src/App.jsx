@@ -10,6 +10,7 @@ import ResetPasswordPage from './pages/ResetPasswordPage';
 import UpdatePasswordPage from './pages/UpdatePasswordPage';
 import HomePage from './pages/HomePage';
 import UserPage from './pages/UserPage';
+import TestKitsPage from './pages/TestKitsPage';
 import { useState, useEffect } from 'react';
 
 export default function App() {
@@ -57,6 +58,9 @@ export default function App() {
         <Routes>
           {/* Public home page */}
           <Route path="/" element={<HomePage />} />
+          
+          {/* Public test kits page */}
+          <Route path="/test-kits" element={<TestKitsPage />} />
           
           {/* Protected user dashboard */}
           <Route 

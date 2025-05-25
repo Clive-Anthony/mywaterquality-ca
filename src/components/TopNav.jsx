@@ -40,35 +40,37 @@ export default function TopNav() {
             </Link>
           </div>
           
-          {/* Navigation Links - Only show if user is authenticated */}
-          {user && (
-            <div className="hidden md:flex items-center space-x-4 ml-6">
-              <Link 
-                to="/dashboard" 
-                className="px-3 py-2 rounded-md text-sm font-medium text-blue-600 hover:text-blue-800 hover:bg-blue-50 transition-colors duration-200"
-              >
-                Dashboard
-              </Link>
-              <Link 
-                to="/test-kits" 
-                className="px-3 py-2 rounded-md text-sm font-medium text-gray-500 hover:text-blue-600 hover:bg-blue-50 transition-colors duration-200"
-              >
-                Test Kits
-              </Link>
-              <Link 
-                to="/results" 
-                className="px-3 py-2 rounded-md text-sm font-medium text-gray-500 hover:text-blue-600 hover:bg-blue-50 transition-colors duration-200"
-              >
-                Results
-              </Link>
-              <Link 
-                to="/resources" 
-                className="px-3 py-2 rounded-md text-sm font-medium text-gray-500 hover:text-blue-600 hover:bg-blue-50 transition-colors duration-200"
-              >
-                Resources
-              </Link>
-            </div>
-          )}
+          {/* Navigation Links */}
+          <div className="hidden md:flex items-center space-x-4 ml-6">
+            <Link 
+              to="/test-kits" 
+              className="px-3 py-2 rounded-md text-sm font-medium text-gray-700 hover:text-blue-600 hover:bg-blue-50 transition-colors duration-200"
+            >
+              Test Kits
+            </Link>
+            {user && (
+              <>
+                <Link 
+                  to="/dashboard" 
+                  className="px-3 py-2 rounded-md text-sm font-medium text-blue-600 hover:text-blue-800 hover:bg-blue-50 transition-colors duration-200"
+                >
+                  Dashboard
+                </Link>
+                <Link 
+                  to="/results" 
+                  className="px-3 py-2 rounded-md text-sm font-medium text-gray-500 hover:text-blue-600 hover:bg-blue-50 transition-colors duration-200"
+                >
+                  Results
+                </Link>
+                <Link 
+                  to="/resources" 
+                  className="px-3 py-2 rounded-md text-sm font-medium text-gray-500 hover:text-blue-600 hover:bg-blue-50 transition-colors duration-200"
+                >
+                  Resources
+                </Link>
+              </>
+            )}
+          </div>
           
           {/* Right section */}
           <div className="flex items-center space-x-4">

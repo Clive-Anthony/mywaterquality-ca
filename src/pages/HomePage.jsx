@@ -122,6 +122,14 @@ export default function HomePage() {
               <p className="mt-2 text-gray-600">
                 Choose your testing kit and we'll ship it directly to your home.
               </p>
+              <div className="mt-4">
+                <Link
+                  to="/test-kits"
+                  className="inline-flex items-center px-4 py-2 border border-transparent text-sm font-medium rounded-md text-blue-700 bg-blue-100 hover:bg-blue-200 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500 transition-colors duration-200"
+                >
+                  Browse Test Kits
+                </Link>
+              </div>
             </div>
 
             {/* Step 2 */}
@@ -162,10 +170,16 @@ export default function HomePage() {
           <p className="mt-4 text-xl text-blue-100">
             Join thousands of Canadians who trust MyWaterQuality for their water testing needs.
           </p>
-          <div className="mt-8">
+          <div className="mt-8 flex flex-col sm:flex-row gap-4 justify-center">
+            <Link
+              to="/test-kits"
+              className="inline-flex items-center px-8 py-3 border border-transparent text-base font-medium rounded-md text-blue-600 bg-white hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-white transition-colors duration-200"
+            >
+              Browse Test Kits
+            </Link>
             <Link
               to="/signup"
-              className="inline-flex items-center px-8 py-3 border border-transparent text-base font-medium rounded-md text-blue-600 bg-white hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-white transition-colors duration-200"
+              className="inline-flex items-center px-8 py-3 border border-white text-base font-medium rounded-md text-white bg-transparent hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-white transition-colors duration-200"
             >
               Get Started Today
             </Link>

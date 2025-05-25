@@ -1,5 +1,6 @@
 // src/pages/UserPage.jsx
 import { useState } from 'react';
+import { Link } from 'react-router-dom';
 import { useAuth } from '../contexts/AuthContext';
 import PageLayout from '../components/PageLayout';
 import ProfileForm from '../components/ProfileForm';
@@ -219,12 +220,12 @@ function DashboardContent() {
                   Purchase a comprehensive water testing kit for your home or business.
                 </p>
                 <div className="mt-4">
-                  <button
-                    type="button"
+                  <Link
+                    to="/test-kits"
                     className="inline-flex items-center px-4 py-2 border border-transparent text-sm font-medium rounded-md text-blue-700 bg-blue-100 hover:bg-blue-200 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500 transition-colors duration-200"
                   >
                     Browse Kits
-                  </button>
+                  </Link>
                 </div>
               </div>
             </div>
