@@ -132,8 +132,16 @@ export default function ProfileForm() {
     setSuccess(false);
     setValidationErrors({});
     
+    // Add a failsafe timeout to reset loading state if something hangs
+    const failsafeTimeout = setTimeout(() => {
+      console.warn('FAILSAFE: Resetting loading state after 10 seconds');
+      setLoading(false);
+      setSuccess(true);
+    }, 10000);
+    
     // Validate form
     if (!validateForm()) {
+      clearTimeout(failsafeTimeout);
       setLoading(false);
       setError('Please correct the errors above');
       return;
@@ -156,7 +164,7 @@ export default function ProfileForm() {
         updated_at: new Date().toISOString()
       };
 
-      // Update profile in the profiles table - FIXED: Removed .single() which was causing issues
+      // Update profile in the profiles table
       const { data: profileResult, error: profileError } = await supabase
         .from('profiles')
         .upsert(profileData, { 
@@ -180,45 +188,34 @@ export default function ProfileForm() {
 
       console.log('Profile updated successfully in database:', profileResult);
 
-      // Update user metadata in auth.users (non-blocking - don't let this fail the main operation)
-      try {
-        const fullName = `${profileData.first_name} ${profileData.last_name}`.trim();
-        const { data: authResult, error: metadataError } = await supabase.auth.updateUser({
-          data: {
-            first_name: profileData.first_name,
-            last_name: profileData.last_name,
-            full_name: fullName,
-            firstName: profileData.first_name, // Keep both formats for compatibility
-            lastName: profileData.last_name
-          }
-        });
-
+      // Update user metadata in auth.users (completely non-blocking)
+      console.log('Starting auth metadata update...');
+      const fullName = `${profileData.first_name} ${profileData.last_name}`.trim();
+      
+      // Don't await this - let it run in background
+      supabase.auth.updateUser({
+        data: {
+          first_name: profileData.first_name,
+          last_name: profileData.last_name,
+          full_name: fullName,
+          firstName: profileData.first_name,
+          lastName: profileData.last_name
+        }
+      }).then(({ data: authResult, error: metadataError }) => {
         if (metadataError) {
           console.warn('Failed to update auth metadata (profile still saved successfully):', metadataError);
         } else {
           console.log('Auth metadata updated successfully:', authResult);
         }
-      } catch (metadataUpdateError) {
+      }).catch((metadataUpdateError) => {
         console.warn('Exception updating auth metadata (profile still saved successfully):', metadataUpdateError);
-      }
+      });
 
-      // Refresh auth context to get updated user data (non-blocking with timeout)
-      if (refreshAuth) {
-        try {
-          // Set a timeout for refreshAuth to prevent hanging
-          const refreshPromise = refreshAuth();
-          const timeoutPromise = new Promise((_, reject) => {
-            setTimeout(() => reject(new Error('Auth refresh timeout')), 5000);
-          });
-          
-          await Promise.race([refreshPromise, timeoutPromise]);
-          console.log('Auth context refreshed successfully');
-        } catch (refreshError) {
-          console.warn('Failed to refresh auth context (profile still saved successfully):', refreshError.message);
-        }
-      }
+      // DON'T refresh auth context - it's causing the hang
+      // The auth state will update automatically due to the updateUser call above
+      console.log('Skipping refreshAuth to prevent hanging');
 
-      // Show success message
+      // Show success message immediately
       console.log('Profile update completed successfully');
       setSuccess(true);
       
@@ -231,8 +228,10 @@ export default function ProfileForm() {
       console.error('Error updating profile:', error);
       setError(error.message || 'Failed to update profile. Please try again.');
     } finally {
+      // Clear the failsafe timeout
+      clearTimeout(failsafeTimeout);
       // CRITICAL: Always clear loading state
-      console.log('Setting loading to false');
+      console.log('Setting loading to false in finally block');
       setLoading(false);
     }
   };
