@@ -1,4 +1,4 @@
-// src/pages/TestKitsPage.jsx
+// src/pages/TestKitsPage.jsx - Updated with quantity input functionality
 import { useState, useEffect } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import PageLayout from '../components/PageLayout';
@@ -18,6 +18,9 @@ export default function TestKitsPage() {
   const [successMessage, setSuccessMessage] = useState(null);
   const [showLoginPrompt, setShowLoginPrompt] = useState(false);
   const [selectedKit, setSelectedKit] = useState(null);
+  
+  // State to track quantities for each kit
+  const [quantities, setQuantities] = useState({});
 
   // Fetch test kits from Supabase
   useEffect(() => {
@@ -40,6 +43,14 @@ export default function TestKitsPage() {
 
         console.log('Test kits fetched successfully:', data);
         setTestKits(data || []);
+        
+        // Initialize quantities state with default value of 1 for each kit
+        const initialQuantities = {};
+        (data || []).forEach(kit => {
+          initialQuantities[kit.id] = 1;
+        });
+        setQuantities(initialQuantities);
+        
       } catch (err) {
         console.error('Exception fetching test kits:', err);
         setError(err.message || 'Failed to load test kits');
@@ -51,6 +62,20 @@ export default function TestKitsPage() {
     fetchTestKits();
   }, []);
 
+  // Handle quantity change for a specific kit
+  const handleQuantityChange = (kitId, newQuantity) => {
+    // Ensure quantity is at least 1 and no more than available stock
+    const kit = testKits.find(k => k.id === kitId);
+    const maxQuantity = kit ? kit.quantity : 1;
+    
+    const validQuantity = Math.max(1, Math.min(parseInt(newQuantity) || 1, maxQuantity));
+    
+    setQuantities(prev => ({
+      ...prev,
+      [kitId]: validQuantity
+    }));
+  };
+
   // Handle add to cart button click
   const handleAddToCart = async (kit) => {
     // Check if user is authenticated
@@ -60,9 +85,17 @@ export default function TestKitsPage() {
       return;
     }
 
+    // Get the quantity for this kit
+    const quantity = quantities[kit.id] || 1;
+
     // Check stock
     if (kit.quantity <= 0) {
       setError('This item is out of stock');
+      return;
+    }
+
+    if (quantity > kit.quantity) {
+      setError(`Only ${kit.quantity} items available in stock`);
       return;
     }
 
@@ -70,13 +103,13 @@ export default function TestKitsPage() {
     setError(null);
 
     try {
-      const { success, error: cartError } = await addToCart(kit.id, 1);
+      const { success, error: cartError } = await addToCart(kit.id, quantity);
       
       if (!success) {
         throw cartError;
       }
 
-      setSuccessMessage(`${kit.name} added to cart!`);
+      setSuccessMessage(`${quantity} x ${kit.name} added to cart!`);
       
       // Clear success message after 3 seconds
       setTimeout(() => {
@@ -157,6 +190,7 @@ export default function TestKitsPage() {
     const itemQuantity = getItemQuantity(kit.id);
     const isAdding = addingToCart[kit.id];
     const inCart = isInCart(kit.id);
+    const selectedQuantity = quantities[kit.id] || 1;
 
     if (!inStock) {
       return {
@@ -176,14 +210,14 @@ export default function TestKitsPage() {
 
     if (inCart) {
       return {
-        text: `Add Another (${itemQuantity} in cart)`,
+        text: `Add ${selectedQuantity} More (${itemQuantity} in cart)`,
         disabled: false,
         className: 'bg-green-600 text-white hover:bg-green-700 focus:ring-2 focus:ring-green-500 focus:ring-offset-2'
       };
     }
 
     return {
-      text: user ? 'Add to Cart' : 'Login to Add to Cart',
+      text: user ? `Add ${selectedQuantity} to Cart` : 'Login to Add to Cart',
       disabled: false,
       className: 'bg-blue-600 text-white hover:bg-blue-700 focus:ring-2 focus:ring-blue-500 focus:ring-offset-2'
     };
@@ -269,6 +303,7 @@ export default function TestKitsPage() {
               {testKits.map((kit) => {
                 const stockStatus = getStockStatus(kit.quantity);
                 const buttonProps = getAddToCartButton(kit);
+                const currentQuantity = quantities[kit.id] || 1;
                 
                 return (
                   <div 
@@ -310,6 +345,42 @@ export default function TestKitsPage() {
 
                     {/* Card Footer */}
                     <div className="px-6 pb-6">
+                      {/* Quantity Selector */}
+                      {isInStock(kit.quantity) && (
+                        <div className="mb-4">
+                          <label className="block text-sm font-medium text-gray-700 mb-2">
+                            Quantity
+                          </label>
+                          <div className="flex items-center">
+                            <button
+                              onClick={() => handleQuantityChange(kit.id, currentQuantity - 1)}
+                              disabled={currentQuantity <= 1}
+                              className="w-8 h-8 rounded-l border border-gray-300 bg-gray-50 flex items-center justify-center hover:bg-gray-100 disabled:opacity-50 disabled:cursor-not-allowed"
+                            >
+                              -
+                            </button>
+                            <input
+                              type="number"
+                              min="1"
+                              max={kit.quantity}
+                              value={currentQuantity}
+                              onChange={(e) => handleQuantityChange(kit.id, e.target.value)}
+                              className="w-16 h-8 text-center border-t border-b border-gray-300 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                            />
+                            <button
+                              onClick={() => handleQuantityChange(kit.id, currentQuantity + 1)}
+                              disabled={currentQuantity >= kit.quantity}
+                              className="w-8 h-8 rounded-r border border-gray-300 bg-gray-50 flex items-center justify-center hover:bg-gray-100 disabled:opacity-50 disabled:cursor-not-allowed"
+                            >
+                              +
+                            </button>
+                          </div>
+                          <p className="text-xs text-gray-500 mt-1">
+                            Max: {kit.quantity}
+                          </p>
+                        </div>
+                      )}
+                      
                       <button
                         onClick={() => handleAddToCart(kit)}
                         disabled={buttonProps.disabled}
@@ -350,7 +421,10 @@ export default function TestKitsPage() {
                     Selected: <span className="font-medium">{selectedKit.name}</span>
                   </p>
                   <p className="text-sm text-gray-600">
-                    Price: {formatPrice(selectedKit.price)}
+                    Quantity: {quantities[selectedKit.id] || 1}
+                  </p>
+                  <p className="text-sm text-gray-600">
+                    Price: {formatPrice(selectedKit.price * (quantities[selectedKit.id] || 1))}
                   </p>
                 </div>
               )}

@@ -1,4 +1,4 @@
-// src/components/TopNav.jsx
+// src/components/TopNav.jsx - Enhanced with interactive cart dropdown
 import { useState } from 'react';
 import { Link, useNavigate, useLocation } from 'react-router-dom';
 import { useAuth } from '../contexts/AuthContext';
@@ -9,9 +9,10 @@ export default function TopNav() {
   const navigate = useNavigate();
   const location = useLocation();
   const { user } = useAuth();
-  const { cartSummary, cartItems } = useCart();
+  const { cartSummary, cartItems, updateCartItemQuantity, removeFromCart } = useCart();
   const [loading, setLoading] = useState(false);
   const [showCartDropdown, setShowCartDropdown] = useState(false);
+  const [updatingItems, setUpdatingItems] = useState({}); // Track which items are being updated
   
   const handleSignOut = async () => {
     setLoading(true);
@@ -52,6 +53,36 @@ export default function TopNav() {
       style: 'currency',
       currency: 'CAD',
     }).format(price);
+  };
+
+  // Handle cart item quantity update
+  const handleCartItemUpdate = async (itemId, newQuantity) => {
+    setUpdatingItems(prev => ({ ...prev, [itemId]: true }));
+    
+    try {
+      if (newQuantity <= 0) {
+        await removeFromCart(itemId);
+      } else {
+        await updateCartItemQuantity(itemId, newQuantity);
+      }
+    } catch (error) {
+      console.error('Error updating cart item:', error);
+    } finally {
+      setUpdatingItems(prev => ({ ...prev, [itemId]: false }));
+    }
+  };
+
+  // Handle cart item removal
+  const handleCartItemRemove = async (itemId) => {
+    setUpdatingItems(prev => ({ ...prev, [itemId]: true }));
+    
+    try {
+      await removeFromCart(itemId);
+    } catch (error) {
+      console.error('Error removing cart item:', error);
+    } finally {
+      setUpdatingItems(prev => ({ ...prev, [itemId]: false }));
+    }
   };
 
   // Handle cart click
@@ -163,9 +194,9 @@ export default function TopNav() {
                 )}
               </button>
 
-              {/* Cart Dropdown */}
+              {/* Enhanced Cart Dropdown */}
               {showCartDropdown && user && (
-                <div className="absolute right-0 mt-2 w-80 bg-white rounded-lg shadow-lg border border-gray-200 z-50">
+                <div className="absolute right-0 mt-2 w-96 bg-white rounded-lg shadow-lg border border-gray-200 z-50">
                   <div className="p-4">
                     <div className="flex items-center justify-between mb-4">
                       <h3 className="text-lg font-medium text-gray-900">Shopping Cart</h3>
@@ -195,31 +226,73 @@ export default function TopNav() {
                       </div>
                     ) : (
                       <>
-                        {/* Cart Items */}
-                        <div className="max-h-60 overflow-y-auto">
-                          {cartItems.slice(0, 3).map((item) => (
-                            <div key={item.item_id} className="flex items-center py-3 border-b border-gray-100 last:border-b-0">
-                              <div className="flex-1 min-w-0">
-                                <p className="text-sm font-medium text-gray-900 truncate">
-                                  {item.test_kits.name}
-                                </p>
-                                <p className="text-xs text-gray-500">
-                                  Qty: {item.quantity} × {formatPrice(item.test_kits.price)}
-                                </p>
+                        {/* Enhanced Cart Items */}
+                        <div className="max-h-80 overflow-y-auto">
+                          {cartItems.map((item) => {
+                            const isUpdating = updatingItems[item.item_id];
+                            
+                            return (
+                              <div key={item.item_id} className="flex items-center py-4 border-b border-gray-100 last:border-b-0">
+                                <div className="flex-1 min-w-0 pr-4">
+                                  <p className="text-sm font-medium text-gray-900 truncate">
+                                    {item.test_kits.name}
+                                  </p>
+                                  <p className="text-xs text-gray-500 mt-1">
+                                    {formatPrice(item.test_kits.price)} each
+                                  </p>
+                                  
+                                  {/* Quantity Controls */}
+                                  <div className="flex items-center mt-2 space-x-2">
+                                    <button
+                                      onClick={() => handleCartItemUpdate(item.item_id, item.quantity - 1)}
+                                      disabled={isUpdating || item.quantity <= 1}
+                                      className="w-6 h-6 rounded-full border border-gray-300 bg-gray-50 flex items-center justify-center hover:bg-gray-100 disabled:opacity-50 disabled:cursor-not-allowed text-xs"
+                                    >
+                                      −
+                                    </button>
+                                    
+                                    <span className="w-8 text-center text-sm font-medium">
+                                      {isUpdating ? '...' : item.quantity}
+                                    </span>
+                                    
+                                    <button
+                                      onClick={() => handleCartItemUpdate(item.item_id, item.quantity + 1)}
+                                      disabled={isUpdating || item.quantity >= item.test_kits.quantity}
+                                      className="w-6 h-6 rounded-full border border-gray-300 bg-gray-50 flex items-center justify-center hover:bg-gray-100 disabled:opacity-50 disabled:cursor-not-allowed text-xs"
+                                    >
+                                      +
+                                    </button>
+                                    
+                                    {/* Remove Button */}
+                                    <button
+                                      onClick={() => handleCartItemRemove(item.item_id)}
+                                      disabled={isUpdating}
+                                      className="ml-2 text-red-600 hover:text-red-800 disabled:opacity-50 disabled:cursor-not-allowed"
+                                      title="Remove item"
+                                    >
+                                      <svg className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
+                                      </svg>
+                                    </button>
+                                  </div>
+                                  
+                                  {/* Stock Warning */}
+                                  {item.quantity >= item.test_kits.quantity && (
+                                    <p className="text-xs text-orange-600 mt-1">
+                                      Max quantity reached ({item.test_kits.quantity} available)
+                                    </p>
+                                  )}
+                                </div>
+                                
+                                {/* Item Total */}
+                                <div className="text-right">
+                                  <p className="text-sm font-medium text-gray-900">
+                                    {formatPrice(item.quantity * item.test_kits.price)}
+                                  </p>
+                                </div>
                               </div>
-                              <div className="text-sm font-medium text-gray-900">
-                                {formatPrice(item.quantity * item.test_kits.price)}
-                              </div>
-                            </div>
-                          ))}
-                          
-                          {cartItems.length > 3 && (
-                            <div className="py-2 text-center">
-                              <p className="text-xs text-gray-500">
-                                +{cartItems.length - 3} more items
-                              </p>
-                            </div>
-                          )}
+                            );
+                          })}
                         </div>
 
                         {/* Cart Summary */}
