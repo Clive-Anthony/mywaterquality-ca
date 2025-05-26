@@ -5,7 +5,7 @@ import { CartProvider } from './contexts/CartContext';
 import ProtectedRoute from './components/ProtectedRoute';
 import AuthRedirect from './components/AuthRedirect';
 import CallbackDebugger from './components/CallbackDebugger';
-import CartDebugger from './components/CartDebugger'; // ADD THIS LINE
+// import CartDebugger from './components/CartDebugger'; // ADD THIS LINE
 import SignupPage from './pages/SignupPage';
 import LoginPage from './pages/LoginPage';
 import ResetPasswordPage from './pages/ResetPasswordPage';
@@ -43,8 +43,8 @@ export default function App() {
           {/* Add callback debugger (invisible component) */}
           <CallbackDebugger />
           
-          {/* ADD THIS LINE - Cart Debugger */}
-          <CartDebugger />
+          {/* ADD THIS LINE - Cart Debugger
+          <CartDebugger /> */}
           
           {/* Add a simple visual indicator of Tailwind status */}
           {tailwindWorks !== null && (
