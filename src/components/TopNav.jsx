@@ -2,13 +2,16 @@
 import { useState } from 'react';
 import { Link, useNavigate, useLocation } from 'react-router-dom';
 import { useAuth } from '../contexts/AuthContext';
+import { useCart } from '../contexts/CartContext';
 import { signOut } from '../lib/supabaseClient';
 
 export default function TopNav() {
   const navigate = useNavigate();
   const location = useLocation();
   const { user } = useAuth();
+  const { cartSummary, cartItems } = useCart();
   const [loading, setLoading] = useState(false);
+  const [showCartDropdown, setShowCartDropdown] = useState(false);
   
   const handleSignOut = async () => {
     setLoading(true);
@@ -42,9 +45,34 @@ export default function TopNav() {
       return `${baseClasses} text-gray-700 hover:text-blue-600 hover:bg-blue-50`;
     }
   };
+
+  // Format price for display
+  const formatPrice = (price) => {
+    return new Intl.NumberFormat('en-CA', {
+      style: 'currency',
+      currency: 'CAD',
+    }).format(price);
+  };
+
+  // Handle cart click
+  const handleCartClick = () => {
+    if (!user) {
+      navigate('/login', { 
+        state: { message: 'Please log in to view your cart' }
+      });
+      return;
+    }
+
+    if (cartSummary.totalItems === 0) {
+      navigate('/test-kits');
+      return;
+    }
+
+    setShowCartDropdown(!showCartDropdown);
+  };
   
   return (
-    <header className="bg-white shadow-sm">
+    <header className="bg-white shadow-sm relative">
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
         <div className="flex justify-between items-center h-16">
           {/* Logo */}
@@ -95,10 +123,119 @@ export default function TopNav() {
           {/* Right section */}
           <div className="flex items-center space-x-4">
             {/* Cart Icon */}
-            <div className="text-gray-400 cursor-default">
-              <svg className="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M3 3h2l.4 2M7 13h10l4-8H5.4M7 13L5.4 5M7 13l-2.293 2.293c-.63.63-.184 1.707.707 1.707H17m0 0a2 2 0 100 4 2 2 0 000-4zm-8 2a2 2 0 11-4 0 2 2 0 014 0z" />
-              </svg>
+            <div className="relative">
+              <button
+                onClick={handleCartClick}
+                className="p-2 text-gray-600 hover:text-blue-600 transition-colors duration-200 relative"
+                title={user ? 
+                  (cartSummary.totalItems > 0 ? `Cart (${cartSummary.totalItems} items)` : 'Cart (empty)') :
+                  'Login to view cart'
+                }
+              >
+                <svg className="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M3 3h2l.4 2M7 13h10l4-8H5.4M7 13L5.4 5M7 13l-2.293 2.293c-.63.63-.184 1.707.707 1.707H17m0 0a2 2 0 100 4 2 2 0 000-4zm-8 2a2 2 0 11-4 0 2 2 0 014 0z" />
+                </svg>
+                
+                {/* Cart Badge */}
+                {user && cartSummary.totalItems > 0 && (
+                  <span className="absolute -top-1 -right-1 bg-blue-600 text-white text-xs rounded-full h-5 w-5 flex items-center justify-center">
+                    {cartSummary.totalItems > 99 ? '99+' : cartSummary.totalItems}
+                  </span>
+                )}
+              </button>
+
+              {/* Cart Dropdown */}
+              {showCartDropdown && user && (
+                <div className="absolute right-0 mt-2 w-80 bg-white rounded-lg shadow-lg border border-gray-200 z-50">
+                  <div className="p-4">
+                    <div className="flex items-center justify-between mb-4">
+                      <h3 className="text-lg font-medium text-gray-900">Shopping Cart</h3>
+                      <button
+                        onClick={() => setShowCartDropdown(false)}
+                        className="text-gray-400 hover:text-gray-600"
+                      >
+                        <svg className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M6 18L18 6M6 6l12 12" />
+                        </svg>
+                      </button>
+                    </div>
+
+                    {cartItems.length === 0 ? (
+                      <div className="text-center py-6">
+                        <svg className="h-12 w-12 text-gray-300 mx-auto mb-3" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="1" d="M3 3h2l.4 2M7 13h10l4-8H5.4M7 13L5.4 5M7 13l-2.293 2.293c-.63.63-.184 1.707.707 1.707H17m0 0a2 2 0 100 4 2 2 0 000-4zm-8 2a2 2 0 11-4 0 2 2 0 014 0z" />
+                        </svg>
+                        <p className="text-gray-500 text-sm mb-3">Your cart is empty</p>
+                        <Link
+                          to="/test-kits"
+                          onClick={() => setShowCartDropdown(false)}
+                          className="inline-flex items-center px-3 py-2 border border-transparent text-sm font-medium rounded-md text-blue-700 bg-blue-100 hover:bg-blue-200 transition-colors duration-200"
+                        >
+                          Browse Test Kits
+                        </Link>
+                      </div>
+                    ) : (
+                      <>
+                        {/* Cart Items */}
+                        <div className="max-h-60 overflow-y-auto">
+                          {cartItems.slice(0, 3).map((item) => (
+                            <div key={item.item_id} className="flex items-center py-3 border-b border-gray-100 last:border-b-0">
+                              <div className="flex-1 min-w-0">
+                                <p className="text-sm font-medium text-gray-900 truncate">
+                                  {item.test_kits.name}
+                                </p>
+                                <p className="text-xs text-gray-500">
+                                  Qty: {item.quantity} × {formatPrice(item.test_kits.price)}
+                                </p>
+                              </div>
+                              <div className="text-sm font-medium text-gray-900">
+                                {formatPrice(item.quantity * item.test_kits.price)}
+                              </div>
+                            </div>
+                          ))}
+                          
+                          {cartItems.length > 3 && (
+                            <div className="py-2 text-center">
+                              <p className="text-xs text-gray-500">
+                                +{cartItems.length - 3} more items
+                              </p>
+                            </div>
+                          )}
+                        </div>
+
+                        {/* Cart Summary */}
+                        <div className="mt-4 pt-4 border-t border-gray-200">
+                          <div className="flex justify-between items-center mb-3">
+                            <span className="text-base font-medium text-gray-900">Total:</span>
+                            <span className="text-lg font-bold text-blue-600">
+                              {formatPrice(cartSummary.totalPrice)}
+                            </span>
+                          </div>
+                          
+                          <button
+                            onClick={() => {
+                              setShowCartDropdown(false);
+                              // TODO: Navigate to checkout page when it's implemented
+                              alert('Checkout coming soon!');
+                            }}
+                            className="w-full bg-blue-600 text-white py-2 px-4 rounded-md hover:bg-blue-700 font-medium transition-colors duration-200"
+                          >
+                            Checkout ({cartSummary.totalItems} items)
+                          </button>
+                          
+                          <Link
+                            to="/test-kits"
+                            onClick={() => setShowCartDropdown(false)}
+                            className="block w-full text-center text-blue-600 hover:text-blue-800 text-sm mt-2 py-1"
+                          >
+                            Continue Shopping
+                          </Link>
+                        </div>
+                      </>
+                    )}
+                  </div>
+                </div>
+              )}
             </div>
             
             {/* User info if authenticated */}
@@ -153,6 +290,14 @@ export default function TopNav() {
           </div>
         </div>
       </div>
+
+      {/* Click outside to close dropdown */}
+      {showCartDropdown && (
+        <div 
+          className="fixed inset-0 z-40" 
+          onClick={() => setShowCartDropdown(false)}
+        />
+      )}
     </header>
   );
 }

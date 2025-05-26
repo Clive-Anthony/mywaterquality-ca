@@ -1,13 +1,23 @@
 // src/pages/TestKitsPage.jsx
 import { useState, useEffect } from 'react';
-import { Link } from 'react-router-dom';
+import { Link, useNavigate } from 'react-router-dom';
 import PageLayout from '../components/PageLayout';
 import { supabase } from '../lib/supabaseClient';
+import { useAuth } from '../contexts/AuthContext';
+import { useCart } from '../contexts/CartContext';
 
 export default function TestKitsPage() {
+  const navigate = useNavigate();
+  const { user } = useAuth();
+  const { addToCart, getItemQuantity, isInCart, loading: cartLoading } = useCart();
+  
   const [testKits, setTestKits] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
+  const [addingToCart, setAddingToCart] = useState({});
+  const [successMessage, setSuccessMessage] = useState(null);
+  const [showLoginPrompt, setShowLoginPrompt] = useState(false);
+  const [selectedKit, setSelectedKit] = useState(null);
 
   // Fetch test kits from Supabase
   useEffect(() => {
@@ -40,6 +50,67 @@ export default function TestKitsPage() {
 
     fetchTestKits();
   }, []);
+
+  // Handle add to cart button click
+  const handleAddToCart = async (kit) => {
+    // Check if user is authenticated
+    if (!user) {
+      setSelectedKit(kit);
+      setShowLoginPrompt(true);
+      return;
+    }
+
+    // Check stock
+    if (kit.quantity <= 0) {
+      setError('This item is out of stock');
+      return;
+    }
+
+    setAddingToCart(prev => ({ ...prev, [kit.id]: true }));
+    setError(null);
+
+    try {
+      const { success, error: cartError } = await addToCart(kit.id, 1);
+      
+      if (!success) {
+        throw cartError;
+      }
+
+      setSuccessMessage(`${kit.name} added to cart!`);
+      
+      // Clear success message after 3 seconds
+      setTimeout(() => {
+        setSuccessMessage(null);
+      }, 3000);
+
+    } catch (error) {
+      console.error('Error adding to cart:', error);
+      setError(error.message || 'Failed to add item to cart');
+    } finally {
+      setAddingToCart(prev => ({ ...prev, [kit.id]: false }));
+    }
+  };
+
+  // Handle login prompt actions
+  const handleLoginRedirect = () => {
+    setShowLoginPrompt(false);
+    navigate('/login', { 
+      state: { 
+        message: 'Please log in to add items to your cart',
+        returnTo: '/test-kits'
+      }
+    });
+  };
+
+  const handleSignupRedirect = () => {
+    setShowLoginPrompt(false);
+    navigate('/signup', { 
+      state: { 
+        message: 'Create an account to start shopping',
+        returnTo: '/test-kits'
+      }
+    });
+  };
 
   // Hero section for the test kits page
   const TestKitsHero = () => (
@@ -80,10 +151,60 @@ export default function TestKitsPage() {
     }
   };
 
+  // Get add to cart button content
+  const getAddToCartButton = (kit) => {
+    const inStock = isInStock(kit.quantity);
+    const itemQuantity = getItemQuantity(kit.id);
+    const isAdding = addingToCart[kit.id];
+    const inCart = isInCart(kit.id);
+
+    if (!inStock) {
+      return {
+        text: 'Out of Stock',
+        disabled: true,
+        className: 'bg-gray-100 text-gray-400 cursor-not-allowed'
+      };
+    }
+
+    if (isAdding) {
+      return {
+        text: 'Adding...',
+        disabled: true,
+        className: 'bg-blue-400 text-white cursor-not-allowed'
+      };
+    }
+
+    if (inCart) {
+      return {
+        text: `Add Another (${itemQuantity} in cart)`,
+        disabled: false,
+        className: 'bg-green-600 text-white hover:bg-green-700 focus:ring-2 focus:ring-green-500 focus:ring-offset-2'
+      };
+    }
+
+    return {
+      text: user ? 'Add to Cart' : 'Login to Add to Cart',
+      disabled: false,
+      className: 'bg-blue-600 text-white hover:bg-blue-700 focus:ring-2 focus:ring-blue-500 focus:ring-offset-2'
+    };
+  };
+
   return (
     <PageLayout hero={<TestKitsHero />}>
       <div className="max-w-7xl mx-auto py-12 px-4 sm:px-6 lg:px-8">
         
+        {/* Success Message */}
+        {successMessage && (
+          <div className="mb-8 bg-green-50 border-l-4 border-green-500 p-4 rounded">
+            <div className="flex items-center">
+              <svg className="h-5 w-5 text-green-500 mr-2" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M5 13l4 4L19 7" />
+              </svg>
+              <span className="text-green-700">{successMessage}</span>
+            </div>
+          </div>
+        )}
+
         {/* Loading State */}
         {loading && (
           <div className="flex justify-center items-center py-12">
@@ -126,12 +247,28 @@ export default function TestKitsPage() {
               <p className="text-gray-600">
                 All test kits include professional laboratory analysis and detailed results within 5-7 business days.
               </p>
+              {!user && (
+                <div className="mt-4 bg-blue-50 border border-blue-200 rounded-lg p-4">
+                  <div className="flex items-center">
+                    <svg className="h-5 w-5 text-blue-600 mr-2" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+                    </svg>
+                    <p className="text-blue-800">
+                      <Link to="/login" className="font-medium underline hover:text-blue-600">
+                        Log in
+                      </Link> or <Link to="/signup" className="font-medium underline hover:text-blue-600">
+                        create an account
+                      </Link> to add items to your cart and checkout.
+                    </p>
+                  </div>
+                </div>
+              )}
             </div>
 
             <div className="grid grid-cols-1 gap-8 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
               {testKits.map((kit) => {
                 const stockStatus = getStockStatus(kit.quantity);
-                const inStock = isInStock(kit.quantity);
+                const buttonProps = getAddToCartButton(kit);
                 
                 return (
                   <div 
@@ -174,14 +311,11 @@ export default function TestKitsPage() {
                     {/* Card Footer */}
                     <div className="px-6 pb-6">
                       <button
-                        disabled={!inStock}
-                        className={`w-full py-3 px-4 rounded-md font-medium transition-colors duration-200 ${
-                          inStock
-                            ? 'bg-blue-600 text-white hover:bg-blue-700 focus:ring-2 focus:ring-blue-500 focus:ring-offset-2'
-                            : 'bg-gray-100 text-gray-400 cursor-not-allowed'
-                        }`}
+                        onClick={() => handleAddToCart(kit)}
+                        disabled={buttonProps.disabled}
+                        className={`w-full py-3 px-4 rounded-md font-medium transition-colors duration-200 ${buttonProps.className}`}
                       >
-                        {inStock ? 'Add to Cart' : 'Out of Stock'}
+                        {buttonProps.text}
                       </button>
                       
                       <p className="text-xs text-gray-500 text-center mt-2">
@@ -193,6 +327,56 @@ export default function TestKitsPage() {
               })}
             </div>
           </>
+        )}
+
+        {/* Login Prompt Modal */}
+        {showLoginPrompt && (
+          <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center p-4 z-50">
+            <div className="bg-white rounded-lg max-w-md w-full p-6">
+              <div className="flex items-center mb-4">
+                <svg className="h-6 w-6 text-blue-600 mr-2" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M3 3h2l.4 2M7 13h10l4-8H5.4M7 13L5.4 5M7 13l-2.293 2.293c-.63.63-.184 1.707.707 1.707H17m0 0a2 2 0 100 4 2 2 0 000-4zm-8 2a2 2 0 11-4 0 2 2 0 014 0z" />
+                </svg>
+                <h3 className="text-lg font-medium text-gray-900">Login Required</h3>
+              </div>
+              
+              <p className="text-gray-600 mb-6">
+                You need to be logged in to add items to your cart. Please log in to your existing account or create a new one.
+              </p>
+              
+              {selectedKit && (
+                <div className="bg-gray-50 rounded-lg p-3 mb-6">
+                  <p className="text-sm text-gray-700">
+                    Selected: <span className="font-medium">{selectedKit.name}</span>
+                  </p>
+                  <p className="text-sm text-gray-600">
+                    Price: {formatPrice(selectedKit.price)}
+                  </p>
+                </div>
+              )}
+              
+              <div className="flex space-x-3">
+                <button
+                  onClick={handleLoginRedirect}
+                  className="flex-1 bg-blue-600 text-white px-4 py-2 rounded-md hover:bg-blue-700 font-medium transition-colors duration-200"
+                >
+                  Log In
+                </button>
+                <button
+                  onClick={handleSignupRedirect}
+                  className="flex-1 bg-gray-600 text-white px-4 py-2 rounded-md hover:bg-gray-700 font-medium transition-colors duration-200"
+                >
+                  Sign Up
+                </button>
+                <button
+                  onClick={() => setShowLoginPrompt(false)}
+                  className="px-4 py-2 border border-gray-300 text-gray-700 rounded-md hover:bg-gray-50 font-medium transition-colors duration-200"
+                >
+                  Cancel
+                </button>
+              </div>
+            </div>
+          </div>
         )}
 
         {/* Features Section */}
@@ -267,12 +451,21 @@ export default function TestKitsPage() {
             >
               Contact an Expert
             </Link>
-            <Link
-              to="/signup"
-              className="inline-flex items-center px-6 py-3 border border-transparent text-base font-medium rounded-md text-white bg-blue-600 hover:bg-blue-700 transition-colors duration-200"
-            >
-              Create Account & Order
-            </Link>
+            {!user ? (
+              <Link
+                to="/signup"
+                className="inline-flex items-center px-6 py-3 border border-transparent text-base font-medium rounded-md text-white bg-blue-600 hover:bg-blue-700 transition-colors duration-200"
+              >
+                Create Account & Order
+              </Link>
+            ) : (
+              <button
+                onClick={() => window.scrollTo({ top: 0, behavior: 'smooth' })}
+                className="inline-flex items-center px-6 py-3 border border-transparent text-base font-medium rounded-md text-white bg-blue-600 hover:bg-blue-700 transition-colors duration-200"
+              >
+                Browse Kits Above
+              </button>
+            )}
           </div>
         </div>
       </div>

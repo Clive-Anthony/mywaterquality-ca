@@ -1,6 +1,7 @@
 // src/App.jsx
 import { BrowserRouter as Router, Routes, Route, Navigate } from 'react-router-dom';
 import { AuthProvider } from './contexts/AuthContext';
+import { CartProvider } from './contexts/CartContext';
 import ProtectedRoute from './components/ProtectedRoute';
 import AuthRedirect from './components/AuthRedirect';
 import CallbackDebugger from './components/CallbackDebugger';
@@ -34,57 +35,59 @@ export default function App() {
 
   return (
     <AuthProvider>
-      <Router>
-        {/* Add callback debugger (invisible component) */}
-        <CallbackDebugger />
-        
-        {/* Add a simple visual indicator of Tailwind status */}
-        {tailwindWorks !== null && (
-          <div style={{ 
-            position: 'fixed', 
-            bottom: '10px', 
-            right: '10px', 
-            padding: '8px', 
-            backgroundColor: tailwindWorks ? '#10B981' : '#EF4444',
-            color: 'white',
-            borderRadius: '4px',
-            fontSize: '12px',
-            zIndex: 9999
-          }}>
-            Tailwind CSS: {tailwindWorks ? 'Working' : 'Not Working'}
-          </div>
-        )}
-        
-        <Routes>
-          {/* Public home page */}
-          <Route path="/" element={<HomePage />} />
+      <CartProvider>
+        <Router>
+          {/* Add callback debugger (invisible component) */}
+          <CallbackDebugger />
           
-          {/* Public test kits page */}
-          <Route path="/test-kits" element={<TestKitsPage />} />
+          {/* Add a simple visual indicator of Tailwind status */}
+          {tailwindWorks !== null && (
+            <div style={{ 
+              position: 'fixed', 
+              bottom: '10px', 
+              right: '10px', 
+              padding: '8px', 
+              backgroundColor: tailwindWorks ? '#10B981' : '#EF4444',
+              color: 'white',
+              borderRadius: '4px',
+              fontSize: '12px',
+              zIndex: 9999
+            }}>
+              Tailwind CSS: {tailwindWorks ? 'Working' : 'Not Working'}
+            </div>
+          )}
           
-          {/* Protected user dashboard */}
-          <Route 
-            path="/dashboard" 
-            element={
-              <ProtectedRoute>
-                <UserPage />
-              </ProtectedRoute>
-            } 
-          />
-          
-          {/* Public routes */}
-          <Route path="/signup" element={<SignupPage />} />
-          <Route path="/login" element={<LoginPage />} />
-          <Route path="/reset-password" element={<ResetPasswordPage />} />
-          <Route path="/update-password" element={<UpdatePasswordPage />} />
-          
-          {/* Auth redirect handler - This handles both URL parameters and hash fragments */}
-          <Route path="/auth/callback" element={<AuthRedirect />} />
-          
-          {/* Catch all other routes and redirect to home */}
-          <Route path="*" element={<Navigate to="/" replace />} />
-        </Routes>
-      </Router>
+          <Routes>
+            {/* Public home page */}
+            <Route path="/" element={<HomePage />} />
+            
+            {/* Public test kits page */}
+            <Route path="/test-kits" element={<TestKitsPage />} />
+            
+            {/* Protected user dashboard */}
+            <Route 
+              path="/dashboard" 
+              element={
+                <ProtectedRoute>
+                  <UserPage />
+                </ProtectedRoute>
+              } 
+            />
+            
+            {/* Public routes */}
+            <Route path="/signup" element={<SignupPage />} />
+            <Route path="/login" element={<LoginPage />} />
+            <Route path="/reset-password" element={<ResetPasswordPage />} />
+            <Route path="/update-password" element={<UpdatePasswordPage />} />
+            
+            {/* Auth redirect handler - This handles both URL parameters and hash fragments */}
+            <Route path="/auth/callback" element={<AuthRedirect />} />
+            
+            {/* Catch all other routes and redirect to home */}
+            <Route path="*" element={<Navigate to="/" replace />} />
+          </Routes>
+        </Router>
+      </CartProvider>
     </AuthProvider>
   );
 }
