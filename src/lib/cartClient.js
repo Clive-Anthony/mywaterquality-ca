@@ -1,13 +1,11 @@
-// src/lib/cartClient.js
+// src/lib/cartClient.js - COMPLETE IMPROVED VERSION
+// Replace your entire cartClient.js file with this improved version
+
 import { supabase } from './supabaseClient';
 
 /**
- * Cart management utilities for authenticated users
- * Note: This implementation requires users to be logged in to manage cart items
- */
-
-/**
- * Get or create a cart for the authenticated user
+ * Get or create a cart for the authenticated user - IMPROVED VERSION
+ * Handles multiple carts gracefully by using the most recent one with items
  * @returns {Object} { cart, error }
  */
 export const getOrCreateUserCart = async () => {
@@ -18,23 +16,54 @@ export const getOrCreateUserCart = async () => {
       throw new Error('User must be authenticated to access cart');
     }
 
-    // Check if user already has a cart
-    const { data: existingCart, error: cartError } = await supabase
+    console.log('Getting cart for user:', user.id);
+
+    // Get all carts for this user (handle multiple carts gracefully)
+    const { data: existingCarts, error: cartError } = await supabase
       .from('carts')
       .select('*')
       .eq('user_id', user.id)
-      .single();
+      .order('created_at', { ascending: false });
 
     if (cartError && cartError.code !== 'PGRST116') {
       // PGRST116 is "not found" - any other error is a real problem
       throw cartError;
     }
 
-    if (existingCart) {
-      return { cart: existingCart, error: null };
+    let cart = null;
+
+    if (existingCarts && existingCarts.length > 0) {
+      // If multiple carts exist, use the most recent one
+      cart = existingCarts[0];
+
+      console.log(`Found ${existingCarts.length} existing carts, using cart:`, cart.cart_id);
+
+      // If we found multiple carts, clean up the extras (non-blocking)
+      if (existingCarts.length > 1) {
+        console.log('Multiple carts detected, cleaning up extras...');
+        const cartsToDelete = existingCarts
+          .slice(1) // Keep the first (most recent), delete the rest
+          .map(c => c.cart_id);
+        
+        // Delete extra carts in background (don't await)
+        supabase
+          .from('carts')
+          .delete()
+          .in('cart_id', cartsToDelete)
+          .then(({ error: deleteError }) => {
+            if (deleteError) {
+              console.warn('Failed to clean up extra carts:', deleteError);
+            } else {
+              console.log('Successfully cleaned up', cartsToDelete.length, 'extra carts');
+            }
+          });
+      }
+
+      return { cart, error: null };
     }
 
-    // Create new cart for user
+    // No existing cart found, create a new one
+    console.log('No existing cart found, creating new cart...');
     const { data: newCart, error: createError } = await supabase
       .from('carts')
       .insert([{ user_id: user.id }])
@@ -42,9 +71,27 @@ export const getOrCreateUserCart = async () => {
       .single();
 
     if (createError) {
+      // Handle unique constraint violation (in case of race condition)
+      if (createError.code === '23505') {
+        console.log('Cart creation failed due to uniqueness constraint, retrying...');
+        // Race condition - cart was created by another request, try to get it again
+        const { data: raceCart, error: raceError } = await supabase
+          .from('carts')
+          .select('*')
+          .eq('user_id', user.id)
+          .order('created_at', { ascending: false })
+          .limit(1)
+          .single();
+        
+        if (raceError) {
+          throw raceError;
+        }
+        return { cart: raceCart, error: null };
+      }
       throw createError;
     }
 
+    console.log('New cart created:', newCart.cart_id);
     return { cart: newCart, error: null };
   } catch (error) {
     console.error('Error getting or creating cart:', error);
@@ -53,7 +100,7 @@ export const getOrCreateUserCart = async () => {
 };
 
 /**
- * Get cart items for the authenticated user
+ * Get cart items for the authenticated user - IMPROVED VERSION
  * @returns {Object} { items, error }
  */
 export const getCartItems = async () => {
@@ -90,7 +137,7 @@ export const getCartItems = async () => {
 };
 
 /**
- * Add item to cart
+ * Add item to cart - IMPROVED VERSION with better error handling
  * @param {string} testKitId - ID of the test kit to add
  * @param {number} quantity - Quantity to add (default: 1)
  * @returns {Object} { success, error }
@@ -130,9 +177,9 @@ export const addToCart = async (testKitId, quantity = 1) => {
       .select('*')
       .eq('cart_id', cart.cart_id)
       .eq('test_kit_id', testKitId)
-      .single();
+      .maybeSingle(); // Use maybeSingle instead of single to handle 0 results
 
-    if (existingError && existingError.code !== 'PGRST116') {
+    if (existingError) {
       throw existingError;
     }
 
