@@ -1,4 +1,4 @@
-// src/App.jsx - Add the debugger temporarily
+// src/App.jsx - Add the UpdatePasswordPage route
 import { BrowserRouter as Router, Routes, Route, Navigate } from 'react-router-dom';
 import { AuthProvider } from './contexts/AuthContext';
 import { CartProvider } from './contexts/CartContext';
@@ -9,7 +9,7 @@ import CallbackDebugger from './components/CallbackDebugger';
 import SignupPage from './pages/SignupPage';
 import LoginPage from './pages/LoginPage';
 import ResetPasswordPage from './pages/ResetPasswordPage';
-import UpdatePasswordPage from './pages/UpdatePasswordPage';
+import UpdatePasswordPage from './pages/UpdatePasswordPage'; // ADD THIS IMPORT
 import HomePage from './pages/HomePage';
 import UserPage from './pages/UserPage';
 import TestKitsPage from './pages/TestKitsPage';
@@ -104,6 +104,8 @@ export default function App() {
             <Route path="/signup" element={<SignupPage />} />
             <Route path="/login" element={<LoginPage />} />
             <Route path="/reset-password" element={<ResetPasswordPage />} />
+            
+            {/* ADD THIS ROUTE - Update Password Page */}
             <Route path="/update-password" element={<UpdatePasswordPage />} />
             
             {/* Auth redirect handler - This handles both URL parameters and hash fragments */}

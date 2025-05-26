@@ -1,4 +1,4 @@
-// src/pages/LoginPage.jsx
+// src/pages/LoginPage.jsx - UPDATED to handle password update success
 import { useState, useEffect } from 'react';
 import { Link, useNavigate, useLocation } from 'react-router-dom';
 import { signIn, signInWithGoogle } from '../lib/supabaseClient';
@@ -15,6 +15,22 @@ export default function LoginPage() {
 
   // Check for success or error messages from navigation state (like email verification)
   useEffect(() => {
+    // Check for password updated success in URL params
+    const urlParams = new URLSearchParams(location.search);
+    if (urlParams.get('password_updated') === 'true') {
+      setSuccessMessage('Password updated successfully! You can now log in with your new password.');
+      // Clear the URL parameter
+      navigate(location.pathname, { replace: true });
+      return;
+    }
+    
+    // Check localStorage for success message (backup method)
+    if (localStorage.getItem('password_update_success') === 'true') {
+      setSuccessMessage('Password updated successfully! You can now log in with your new password.');
+      localStorage.removeItem('password_update_success');
+      return;
+    }
+    
     if (location.state?.message) {
       setSuccessMessage(location.state.message);
       // Clear the message from navigation state
