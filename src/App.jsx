@@ -1,10 +1,11 @@
-// src/App.jsx
+// src/App.jsx - Add the debugger temporarily
 import { BrowserRouter as Router, Routes, Route, Navigate } from 'react-router-dom';
 import { AuthProvider } from './contexts/AuthContext';
 import { CartProvider } from './contexts/CartContext';
 import ProtectedRoute from './components/ProtectedRoute';
 import AuthRedirect from './components/AuthRedirect';
 import CallbackDebugger from './components/CallbackDebugger';
+import CartDebugger from './components/CartDebugger'; // ADD THIS LINE
 import SignupPage from './pages/SignupPage';
 import LoginPage from './pages/LoginPage';
 import ResetPasswordPage from './pages/ResetPasswordPage';
@@ -41,6 +42,9 @@ export default function App() {
         <Router>
           {/* Add callback debugger (invisible component) */}
           <CallbackDebugger />
+          
+          {/* ADD THIS LINE - Cart Debugger */}
+          <CartDebugger />
           
           {/* Add a simple visual indicator of Tailwind status */}
           {tailwindWorks !== null && (
