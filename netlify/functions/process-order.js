@@ -361,7 +361,7 @@ exports.handler = async function(event, context) {
         status: orderInsertData.status
       });
 
-      const { data: orderData, error: orderError } = await supabaseAdmin
+      const { data: createdOrder, error: orderError } = await supabaseAdmin
         .from('orders')
         .insert([orderInsertData])
         .select()
@@ -382,7 +382,7 @@ exports.handler = async function(event, context) {
         };
       }
 
-      order = orderData;
+      order = createdOrder;
       console.log('✅ Order created successfully:', order.order_number, 'with ID:', order.id);
     } catch (dbError) {
       console.error('❌ Exception creating order:', dbError);
