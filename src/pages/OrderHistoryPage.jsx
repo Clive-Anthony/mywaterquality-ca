@@ -27,7 +27,7 @@ export default function OrderHistoryPage() {
         const { data, error } = await supabase
           .from('orders')
           .select(`
-            order_id,
+            id,
             order_number,
             status,
             payment_status,
@@ -215,7 +215,7 @@ export default function OrderHistoryPage() {
               <div className="bg-white shadow overflow-hidden sm:rounded-md">
                 <ul className="divide-y divide-gray-200">
                   {orders.map((order) => (
-                    <li key={order.order_id} className="px-6 py-6">
+                    <li key={order.id} className="px-6 py-6">
                       <div className="flex items-center justify-between">
                         <div className="flex-1 min-w-0">
                           <div className="flex items-center justify-between">
