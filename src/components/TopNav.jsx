@@ -70,6 +70,25 @@ export default function TopNav() {
 
     setShowCartDropdown(!showCartDropdown);
   };
+
+  // Handle checkout navigation
+  const handleCheckout = () => {
+    setShowCartDropdown(false);
+    
+    if (!user) {
+      navigate('/login', { 
+        state: { message: 'Please log in to proceed to checkout' }
+      });
+      return;
+    }
+
+    if (cartSummary.totalItems === 0) {
+      navigate('/test-kits');
+      return;
+    }
+
+    navigate('/checkout');
+  };
   
   return (
     <header className="bg-white shadow-sm relative">
@@ -213,20 +232,16 @@ export default function TopNav() {
                           </div>
                           
                           <button
-                            onClick={() => {
-                              setShowCartDropdown(false);
-                              // TODO: Navigate to checkout page when it's implemented
-                              alert('Checkout coming soon!');
-                            }}
-                            className="w-full bg-blue-600 text-white py-2 px-4 rounded-md hover:bg-blue-700 font-medium transition-colors duration-200"
+                            onClick={handleCheckout}
+                            className="w-full bg-blue-600 text-white py-2 px-4 rounded-md hover:bg-blue-700 font-medium transition-colors duration-200 mb-2"
                           >
-                            Checkout ({cartSummary.totalItems} items)
+                            Proceed to Checkout ({cartSummary.totalItems} items)
                           </button>
                           
                           <Link
                             to="/test-kits"
                             onClick={() => setShowCartDropdown(false)}
-                            className="block w-full text-center text-blue-600 hover:text-blue-800 text-sm mt-2 py-1"
+                            className="block w-full text-center text-blue-600 hover:text-blue-800 text-sm py-1"
                           >
                             Continue Shopping
                           </Link>

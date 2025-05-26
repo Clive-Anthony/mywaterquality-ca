@@ -12,6 +12,8 @@ import UpdatePasswordPage from './pages/UpdatePasswordPage';
 import HomePage from './pages/HomePage';
 import UserPage from './pages/UserPage';
 import TestKitsPage from './pages/TestKitsPage';
+import CheckoutPage from './pages/CheckoutPage';
+import OrderHistoryPage from './pages/OrderHistoryPage';
 import { useState, useEffect } from 'react';
 
 export default function App() {
@@ -63,6 +65,26 @@ export default function App() {
             
             {/* Public test kits page */}
             <Route path="/test-kits" element={<TestKitsPage />} />
+            
+            {/* Protected checkout page */}
+            <Route 
+              path="/checkout" 
+              element={
+                <ProtectedRoute>
+                  <CheckoutPage />
+                </ProtectedRoute>
+              } 
+            />
+            
+            {/* Protected order history page */}
+            <Route 
+              path="/orders" 
+              element={
+                <ProtectedRoute>
+                  <OrderHistoryPage />
+                </ProtectedRoute>
+              } 
+            />
             
             {/* Protected user dashboard */}
             <Route 
