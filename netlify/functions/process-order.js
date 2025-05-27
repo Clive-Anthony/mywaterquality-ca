@@ -1,4 +1,4 @@
-// netlify/functions/process-order.js - ENHANCED WITH BETTER ERROR HANDLING & DEBUGGING
+// netlify/functions/process-order.js - UPDATED WITH CART CLEARING
 
 const { createClient } = require('@supabase/supabase-js');
 
@@ -36,6 +36,92 @@ function logCriticalError(error, context, requestId) {
   });
 }
 
+// CART CLEARING FUNCTION - IMPLEMENTATION WITH MULTIPLE FALLBACK METHODS
+async function clearUserCart(userId, supabaseAdmin, requestId) {
+  log('info', `🛒 Starting cart clearing for user ${userId} [${requestId}]`);
+  
+  // Method 1: Use the existing RPC function (preferred)
+  try {
+    log('info', 'Attempting cart clearing via RPC function...');
+    
+    const { data: deletedCount, error: rpcError } = await supabaseAdmin
+      .rpc('delete_user_cart_items', { target_user_id: userId });
+    
+    if (rpcError) {
+      throw new Error(`RPC function failed: ${rpcError.message}`);
+    }
+    
+    log('info', `✅ Cart cleared via RPC function: ${deletedCount} items deleted`);
+    return { success: true, method: 'rpc', itemsDeleted: deletedCount };
+    
+  } catch (rpcError) {
+    log('warn', `RPC cart clearing failed, trying fallback methods: ${rpcError.message}`);
+    
+    // Method 2: Direct cart_items deletion (fallback)
+    try {
+      log('info', 'Attempting direct cart_items deletion...');
+      
+      // First, get the user's cart IDs
+      const { data: userCarts, error: cartsError } = await supabaseAdmin
+        .from('carts')
+        .select('cart_id')
+        .eq('user_id', userId);
+      
+      if (cartsError) {
+        throw new Error(`Failed to get user carts: ${cartsError.message}`);
+      }
+      
+      if (!userCarts || userCarts.length === 0) {
+        log('info', 'No carts found for user, nothing to clear');
+        return { success: true, method: 'no-cart', itemsDeleted: 0 };
+      }
+      
+      const cartIds = userCarts.map(cart => cart.cart_id);
+      log('info', `Found ${cartIds.length} carts for user: ${cartIds.join(', ')}`);
+      
+      // Delete cart items
+      const { error: deleteItemsError } = await supabaseAdmin
+        .from('cart_items')
+        .delete()
+        .in('cart_id', cartIds);
+      
+      if (deleteItemsError) {
+        throw new Error(`Failed to delete cart items: ${deleteItemsError.message}`);
+      }
+      
+      log('info', '✅ Cart items cleared via direct deletion');
+      return { success: true, method: 'direct-items', cartsCleared: cartIds.length };
+      
+    } catch (directError) {
+      log('warn', `Direct cart items deletion failed: ${directError.message}`);
+      
+      // Method 3: Delete entire cart records (nuclear option)
+      try {
+        log('info', 'Attempting cart record deletion (nuclear option)...');
+        
+        const { error: deleteCartError } = await supabaseAdmin
+          .from('carts')
+          .delete()
+          .eq('user_id', userId);
+        
+        if (deleteCartError) {
+          throw new Error(`Failed to delete cart records: ${deleteCartError.message}`);
+        }
+        
+        log('info', '✅ Cart records deleted (nuclear option worked)');
+        return { success: true, method: 'nuclear', note: 'Entire cart records deleted' };
+        
+      } catch (nuclearError) {
+        log('error', `All cart clearing methods failed: ${nuclearError.message}`);
+        return { 
+          success: false, 
+          error: `All methods failed - RPC: ${rpcError.message}, Direct: ${directError.message}, Nuclear: ${nuclearError.message}` 
+        };
+      }
+    }
+  }
+}
+
 // Payment recovery mechanism - stores failed payment details for manual processing
 async function storeFailedPayment(paymentData, error, requestId) {
   try {
@@ -66,12 +152,6 @@ async function storeFailedPayment(paymentData, error, requestId) {
       },
       actionRequired: 'MANUAL_ORDER_CREATION_NEEDED'
     });
-    
-    // TODO: In production, you might want to:
-    // 1. Store in a separate "failed_payments" table
-    // 2. Send to external monitoring service
-    // 3. Create a support ticket automatically
-    // 4. Send alert email to admin
     
   } catch (recoveryError) {
     console.error('Failed to store payment recovery data:', recoveryError);
@@ -298,9 +378,23 @@ exports.handler = async function(event, context) {
     const processingTime = Date.now() - startTime;
     log('info', `✅ Order processing completed successfully in ${processingTime}ms [${requestId}]`);
 
-    // Start background tasks (non-blocking with error handling)
+    // CRITICAL: Clear cart immediately after successful order creation (blocking)
+    log('info', `🛒 Clearing cart for user ${user.id} after successful order [${requestId}]`);
+    const cartClearResult = await clearUserCart(user.id, supabaseAdmin, requestId);
+    
+    if (!cartClearResult.success) {
+      log('warn', `Cart clearing failed but order was successful: ${cartClearResult.error}`, {
+        orderId: orderResult.order.id,
+        orderNumber: orderResult.order.order_number
+      });
+      // Don't fail the request - order was created successfully
+    } else {
+      log('info', `✅ Cart cleared successfully: ${JSON.stringify(cartClearResult)}`);
+    }
+
+    // Start other background tasks (non-blocking with error handling)
     setImmediate(() => {
-      startBackgroundTasks(orderResult.order, orderData, user.id).catch(bgError => {
+      startBackgroundTasks(orderResult.order, orderData, user.id, supabaseAdmin).catch(bgError => {
         log('warn', 'Background task failed (non-critical)', { error: bgError.message });
       });
     });
@@ -322,7 +416,9 @@ exports.handler = async function(event, context) {
         },
         message: 'Order created successfully',
         processing_time_ms: processingTime,
-        request_id: requestId
+        request_id: requestId,
+        cart_cleared: cartClearResult.success,
+        cart_clear_method: cartClearResult.success ? cartClearResult.method : 'failed'
       })
     };
 
@@ -451,16 +547,16 @@ async function createOrderWithRetry(supabaseAdmin, orderData, user, requestId, m
   return { success: false, error: lastError };
 }
 
-// Background tasks with error handling
-async function startBackgroundTasks(order, orderData, userId) {
+// Background tasks with error handling - UPDATED TO REMOVE CART CLEARING (now done synchronously)
+async function startBackgroundTasks(order, orderData, userId, supabaseAdmin) {
   try {
     // Send confirmation email
     if (process.env.VITE_LOOPS_API_KEY) {
       await sendConfirmationEmail(order, orderData.shipping_address.email);
     }
     
-    // Clear user cart
-    await clearUserCart(userId);
+    // Cart clearing is now done synchronously after order creation
+    // No need to clear cart here anymore
     
   } catch (error) {
     log('warn', 'Background tasks completed with some errors', { error: error.message });

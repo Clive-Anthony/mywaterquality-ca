@@ -497,65 +497,33 @@ export default function CheckoutPage() {
       debugLog('RESPONSE', 'Response parsed successfully', { 
         success: responseData.success,
         hasOrder: !!responseData.order,
-        orderNumber: responseData.order?.order_number
+        orderNumber: responseData.order?.order_number,
+        cartCleared: responseData.cart_cleared,
+        cartClearMethod: responseData.cart_clear_method
       });
   
-      // Step 5: ENHANCED CART CLEARING - Now blocking and with retry logic
+      // Step 5: SIMPLIFIED CART CLEARING - Backend handles it, frontend just refreshes
       setProcessingStep(5);
-      setDebugInfo({ lastAction: 'Clearing cart...' });
-      debugLog('CART', 'Starting enhanced cart clearing process');
+      setDebugInfo({ lastAction: 'Refreshing cart state...' });
+      debugLog('CART', 'Backend cleared cart, refreshing frontend state');
   
-      // First, clear cart state immediately for UI responsiveness
-      const currentCartItems = [...cartItems]; // Store for potential rollback
-      const currentCartSummary = { ...cartSummary }; // Store for potential rollback
-      
-      // Attempt to clear cart with retry logic
-      let cartClearSuccess = false;
-      let cartClearAttempts = 0;
-      const maxCartClearAttempts = 3;
-      
-      while (!cartClearSuccess && cartClearAttempts < maxCartClearAttempts) {
-        cartClearAttempts++;
-        debugLog('CART', `Cart clearing attempt ${cartClearAttempts}/${maxCartClearAttempts}`);
-        
-        try {
-          const clearResult = await withTimeout(
-            clearCart(),
-            10000,
-            `Cart clearing timeout (attempt ${cartClearAttempts})`
-          );
-          
-          if (clearResult.error) {
-            throw new Error(clearResult.error.message || 'Cart clearing failed');
-          }
-          
-          cartClearSuccess = true;
-          debugLog('CART', `Cart cleared successfully on attempt ${cartClearAttempts}`);
-          
-        } catch (cartError) {
-          debugLog('CART', `Cart clearing failed on attempt ${cartClearAttempts}`, { 
-            error: cartError.message 
-          });
-          
-          if (cartClearAttempts >= maxCartClearAttempts) {
-            // Final attempt failed - log error but don't fail the whole process
-            // The backend will also clear the cart as a backup
-            debugLog('CART', 'All cart clearing attempts failed, relying on backend clearing', {
-              error: cartError.message,
-              attempts: cartClearAttempts
-            });
-            
-            // Show a warning to the user but continue
-            console.warn('Cart clearing failed on frontend, but your order was successful. The cart will be cleared automatically.');
-            break;
-          } else {
-            // Wait before retry
-            await new Promise(resolve => setTimeout(resolve, 1000 * cartClearAttempts));
-          }
-        }
+      // Simply refresh the cart state from the context
+      // The backend has already cleared the cart, so this should show empty cart
+      try {
+        await withTimeout(
+          cartContext.forceRefreshCart(),
+          5000,
+          'Cart refresh timeout'
+        );
+        debugLog('CART', 'Cart state refreshed successfully');
+      } catch (refreshError) {
+        debugLog('CART', 'Cart refresh failed, but backend cleared it', { 
+          error: refreshError.message 
+        });
+        // Don't fail the entire process for this
       }
   
-      // Step 6: Success - Navigate with cart cleared
+      // Success - Navigate to dashboard
       debugLog('SUCCESS', 'Order processing complete, navigating to dashboard');
       
       navigate('/dashboard', { 
@@ -564,8 +532,9 @@ export default function CheckoutPage() {
           orderSuccess: true,
           orderNumber: responseData.order.order_number,
           orderTotal: formatPrice(totals.total),
-          itemCount: currentCartItems.length, // Use stored count since cart is now cleared
-          cartCleared: cartClearSuccess,
+          itemCount: cartItems.length,
+          cartCleared: responseData.cart_cleared,
+          cartClearMethod: responseData.cart_clear_method,
           message: `🎉 Order #${responseData.order.order_number} confirmed! Your water testing kits will ship within 1-2 business days.`
         }
       });
@@ -585,7 +554,7 @@ export default function CheckoutPage() {
       });
       setIsProcessing(false);
     }
-  }, [totals, formData, cartItems, cartSummary, clearCart, user, session, processingStep, navigate, formatPrice]);
+  }, [totals, formData, cartItems, user, session, processingStep, navigate, formatPrice]);
 
   const handlePaymentError = useCallback((error) => {
     debugLog('PAYPAL_ERROR', 'PayPal error occurred', { error: error.message });
