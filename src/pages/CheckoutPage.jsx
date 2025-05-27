@@ -1,4 +1,4 @@
-// src/pages/CheckoutPage.jsx - FIXED VERSION with robust order processing
+// src/pages/CheckoutPage.jsx - DEBUG VERSION to find hanging point
 import React, { useState, useEffect, useMemo, useCallback } from 'react';
 import { useNavigate, Link } from 'react-router-dom';
 import { useAuth } from '../contexts/AuthContext';
@@ -7,14 +7,28 @@ import PageLayout from '../components/PageLayout';
 import PayPalPayment from '../components/PayPalPayment';
 import { supabase } from '../lib/supabaseClient';
 
+// DEBUG LOGGING FUNCTION
+const debugLog = (step, message, data = null) => {
+  const timestamp = new Date().toISOString();
+  const logMessage = `🔍 [${timestamp}] [${step}] ${message}`;
+  
+  if (data) {
+    console.log(logMessage, data);
+  } else {
+    console.log(logMessage);
+  }
+};
+
 // SIMPLIFIED LOADING OVERLAY
-const PaymentLoadingOverlay = ({ isVisible, step, error, onRetry, onCancel }) => {
+const PaymentLoadingOverlay = ({ isVisible, step, error, debugInfo }) => {
   if (!isVisible) return null;
 
   const steps = [
     'Processing PayPal payment...',
-    'Creating your order...',
-    'Finalizing details...',
+    'Getting authentication session...',
+    'Preparing order data...',
+    'Sending to backend...',
+    'Creating order...',
     'Order complete!'
   ];
 
@@ -30,20 +44,17 @@ const PaymentLoadingOverlay = ({ isVisible, step, error, onRetry, onCancel }) =>
             </div>
             <h3 className="text-lg font-medium text-gray-900 mb-2">Processing Failed</h3>
             <p className="text-sm text-gray-600 mb-4">{error}</p>
-            <div className="flex space-x-3">
-              <button
-                onClick={onRetry}
-                className="flex-1 bg-blue-600 text-white px-4 py-2 rounded-md hover:bg-blue-700"
-              >
-                Try Again
-              </button>
-              <button
-                onClick={onCancel}
-                className="flex-1 bg-gray-300 text-gray-700 px-4 py-2 rounded-md hover:bg-gray-400"
-              >
-                Cancel
-              </button>
-            </div>
+            {debugInfo && (
+              <div className="text-xs text-gray-500 bg-gray-100 p-2 rounded mb-4">
+                <pre>{JSON.stringify(debugInfo, null, 2)}</pre>
+              </div>
+            )}
+            <button
+              onClick={() => window.location.reload()}
+              className="bg-blue-600 text-white px-4 py-2 rounded-md hover:bg-blue-700"
+            >
+              Refresh Page
+            </button>
           </>
         ) : (
           <>
@@ -56,7 +67,12 @@ const PaymentLoadingOverlay = ({ isVisible, step, error, onRetry, onCancel }) =>
                 style={{ width: `${((step + 1) / steps.length) * 100}%` }}
               ></div>
             </div>
-            <p className="text-xs text-gray-500 mt-4">Please don't close this window...</p>
+            <p className="text-xs text-gray-500 mt-4">Debug: Step {step + 1} of {steps.length}</p>
+            {debugInfo && (
+              <div className="text-xs text-gray-500 bg-gray-100 p-2 rounded mt-2">
+                Last action: {debugInfo.lastAction}
+              </div>
+            )}
           </>
         )}
       </div>
@@ -88,50 +104,21 @@ const OrderSuccessNotification = ({ orderData, onDashboard }) => (
   </div>
 );
 
-// SIMPLIFIED STEP COMPONENTS (keeping the existing ones but with minimal changes)
-const ReviewStep = React.memo(({ cartItems, formatPrice, totals, onQuantityUpdate }) => (
+// STEP COMPONENTS (simplified for debugging)
+const ReviewStep = React.memo(({ cartItems, formatPrice, totals }) => (
   <div className="space-y-6">
     <h2 className="text-xl font-semibold text-gray-900">Review Your Order</h2>
-    
-    <div className="bg-white rounded-lg shadow overflow-hidden">
-      <div className="px-6 py-4 border-b border-gray-200">
-        <h3 className="text-lg font-medium text-gray-900">Items ({cartItems.length})</h3>
-      </div>
-      <div className="divide-y divide-gray-200">
-        {cartItems.map((item) => (
-          <div key={item.item_id} className="p-6 flex items-center justify-between">
-            <div className="flex-1">
-              <h4 className="text-sm font-medium text-gray-900">{item.test_kits.name}</h4>
-              <p className="text-sm text-gray-500 mt-1">{item.test_kits.description}</p>
-              <p className="text-sm text-gray-900 mt-1">{formatPrice(item.test_kits.price)} each</p>
-            </div>
-            <div className="flex items-center space-x-3">
-              <span className="text-sm">Qty: {item.quantity}</span>
-              <span className="text-sm font-medium">{formatPrice(item.quantity * item.test_kits.price)}</span>
-            </div>
+    <div className="bg-white rounded-lg shadow p-6">
+      <div className="space-y-2">
+        {cartItems.map(item => (
+          <div key={item.item_id} className="flex justify-between">
+            <span>{item.test_kits.name} x {item.quantity}</span>
+            <span>{formatPrice(item.quantity * item.test_kits.price)}</span>
           </div>
         ))}
-      </div>
-    </div>
-
-    <div className="bg-gray-50 rounded-lg p-6">
-      <h3 className="text-lg font-medium text-gray-900 mb-4">Order Summary</h3>
-      <div className="space-y-2">
-        <div className="flex justify-between">
-          <span>Subtotal</span>
-          <span>{formatPrice(totals.subtotal)}</span>
-        </div>
-        <div className="flex justify-between">
-          <span>Shipping</span>
-          <span>Free</span>
-        </div>
-        <div className="flex justify-between">
-          <span>Tax (HST)</span>
-          <span>{formatPrice(totals.tax)}</span>
-        </div>
-        <div className="border-t border-gray-200 pt-2">
-          <div className="flex justify-between font-semibold text-lg">
-            <span>Total</span>
+        <div className="border-t pt-2 font-semibold">
+          <div className="flex justify-between">
+            <span>Total (incl. tax)</span>
             <span>{formatPrice(totals.total)}</span>
           </div>
         </div>
@@ -143,86 +130,67 @@ const ReviewStep = React.memo(({ cartItems, formatPrice, totals, onQuantityUpdat
 const ShippingStep = React.memo(({ formData, onInputChange, provinces }) => (
   <div className="space-y-6">
     <h2 className="text-xl font-semibold text-gray-900">Shipping Information</h2>
-    
-    <div className="bg-white rounded-lg shadow p-6">
-      <div className="grid grid-cols-1 gap-6 sm:grid-cols-2">
-        <div>
-          <label className="block text-sm font-medium text-gray-700 mb-1">First Name *</label>
-          <input
-            type="text"
-            required
-            value={formData.shipping.firstName}
-            onChange={(e) => onInputChange('shipping', 'firstName', e.target.value)}
-            className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-blue-500 focus:border-blue-500"
-          />
-        </div>
-        <div>
-          <label className="block text-sm font-medium text-gray-700 mb-1">Last Name *</label>
-          <input
-            type="text"
-            required
-            value={formData.shipping.lastName}
-            onChange={(e) => onInputChange('shipping', 'lastName', e.target.value)}
-            className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-blue-500 focus:border-blue-500"
-          />
-        </div>
-        <div className="sm:col-span-2">
-          <label className="block text-sm font-medium text-gray-700 mb-1">Email Address *</label>
-          <input
-            type="email"
-            required
-            value={formData.shipping.email}
-            onChange={(e) => onInputChange('shipping', 'email', e.target.value)}
-            className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-blue-500 focus:border-blue-500"
-          />
-        </div>
-        <div className="sm:col-span-2">
-          <label className="block text-sm font-medium text-gray-700 mb-1">Street Address *</label>
-          <input
-            type="text"
-            required
-            value={formData.shipping.address}
-            onChange={(e) => onInputChange('shipping', 'address', e.target.value)}
-            className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-blue-500 focus:border-blue-500"
-          />
-        </div>
-        <div>
-          <label className="block text-sm font-medium text-gray-700 mb-1">City *</label>
-          <input
-            type="text"
-            required
-            value={formData.shipping.city}
-            onChange={(e) => onInputChange('shipping', 'city', e.target.value)}
-            className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-blue-500 focus:border-blue-500"
-          />
-        </div>
-        <div>
-          <label className="block text-sm font-medium text-gray-700 mb-1">Province *</label>
-          <select
-            required
-            value={formData.shipping.province}
-            onChange={(e) => onInputChange('shipping', 'province', e.target.value)}
-            className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-blue-500 focus:border-blue-500"
-          >
-            {provinces.map(province => (
-              <option key={province.value} value={province.value}>
-                {province.label}
-              </option>
-            ))}
-          </select>
-        </div>
-        <div>
-          <label className="block text-sm font-medium text-gray-700 mb-1">Postal Code *</label>
-          <input
-            type="text"
-            required
-            value={formData.shipping.postalCode}
-            onChange={(e) => onInputChange('shipping', 'postalCode', e.target.value)}
-            className="w-full px-3 py-2 border border-gray-300 rounded-md focus:outline-none focus:ring-blue-500 focus:border-blue-500"
-            placeholder="K1A 0A6"
-          />
-        </div>
-      </div>
+    <div className="bg-white rounded-lg shadow p-6 grid grid-cols-1 gap-4 sm:grid-cols-2">
+      <input
+        type="text"
+        placeholder="First Name *"
+        value={formData.shipping.firstName}
+        onChange={(e) => onInputChange('shipping', 'firstName', e.target.value)}
+        className="w-full px-3 py-2 border border-gray-300 rounded-md"
+        required
+      />
+      <input
+        type="text"
+        placeholder="Last Name *"
+        value={formData.shipping.lastName}
+        onChange={(e) => onInputChange('shipping', 'lastName', e.target.value)}
+        className="w-full px-3 py-2 border border-gray-300 rounded-md"
+        required
+      />
+      <input
+        type="email"
+        placeholder="Email *"
+        value={formData.shipping.email}
+        onChange={(e) => onInputChange('shipping', 'email', e.target.value)}
+        className="w-full px-3 py-2 border border-gray-300 rounded-md sm:col-span-2"
+        required
+      />
+      <input
+        type="text"
+        placeholder="Address *"
+        value={formData.shipping.address}
+        onChange={(e) => onInputChange('shipping', 'address', e.target.value)}
+        className="w-full px-3 py-2 border border-gray-300 rounded-md sm:col-span-2"
+        required
+      />
+      <input
+        type="text"
+        placeholder="City *"
+        value={formData.shipping.city}
+        onChange={(e) => onInputChange('shipping', 'city', e.target.value)}
+        className="w-full px-3 py-2 border border-gray-300 rounded-md"
+        required
+      />
+      <select
+        value={formData.shipping.province}
+        onChange={(e) => onInputChange('shipping', 'province', e.target.value)}
+        className="w-full px-3 py-2 border border-gray-300 rounded-md"
+        required
+      >
+        {provinces.map(province => (
+          <option key={province.value} value={province.value}>
+            {province.label}
+          </option>
+        ))}
+      </select>
+      <input
+        type="text"
+        placeholder="Postal Code *"
+        value={formData.shipping.postalCode}
+        onChange={(e) => onInputChange('shipping', 'postalCode', e.target.value)}
+        className="w-full px-3 py-2 border border-gray-300 rounded-md"
+        required
+      />
     </div>
   </div>
 ));
@@ -242,23 +210,9 @@ const PaymentStep = React.memo(({
     <div className="bg-white rounded-lg shadow p-6">
       <h3 className="text-lg font-medium text-gray-900 mb-4">Order Summary</h3>
       <div className="space-y-2 mb-6">
-        <div className="flex justify-between">
-          <span>Items ({cartItems.length})</span>
-          <span>{formatPrice(totals.subtotal)}</span>
-        </div>
-        <div className="flex justify-between">
-          <span>Shipping</span>
-          <span>Free</span>
-        </div>
-        <div className="flex justify-between">
-          <span>Tax</span>
-          <span>{formatPrice(totals.tax)}</span>
-        </div>
-        <div className="border-t border-gray-200 pt-2">
-          <div className="flex justify-between font-semibold text-lg">
-            <span>Total</span>
-            <span>{formatPrice(totals.total)}</span>
-          </div>
+        <div className="flex justify-between font-semibold text-lg">
+          <span>Total</span>
+          <span>{formatPrice(totals.total)}</span>
         </div>
       </div>
 
@@ -269,7 +223,7 @@ const PaymentStep = React.memo(({
           currency="CAD"
           onSuccess={onPaymentSuccess}
           onError={onPaymentError}
-          onCancel={() => console.log('Payment cancelled')}
+          onCancel={() => debugLog('PAYPAL', 'Payment cancelled by user')}
           disabled={isProcessing}
         />
       </div>
@@ -277,7 +231,7 @@ const PaymentStep = React.memo(({
   </div>
 ));
 
-// MAIN COMPONENT
+// MAIN COMPONENT WITH EXTENSIVE DEBUGGING
 export default function CheckoutPage() {
   const navigate = useNavigate();
   const { user } = useAuth();
@@ -287,6 +241,7 @@ export default function CheckoutPage() {
   const [isProcessing, setIsProcessing] = useState(false);
   const [processingStep, setProcessingStep] = useState(0);
   const [processingError, setProcessingError] = useState(null);
+  const [debugInfo, setDebugInfo] = useState({ lastAction: 'Initialized' });
   const [orderData, setOrderData] = useState(null);
   const [showSuccess, setShowSuccess] = useState(false);
   
@@ -302,7 +257,6 @@ export default function CheckoutPage() {
       postalCode: '',
       country: 'Canada'
     },
-    billing: { sameAsShipping: true },
     specialInstructions: ''
   });
 
@@ -339,24 +293,14 @@ export default function CheckoutPage() {
     { value: 'YT', label: 'Yukon' }
   ], []);
 
-  // REDIRECT CHECKS
-  useEffect(() => {
-    if (!user) {
-      navigate('/login');
-      return;
-    }
-    if (cartSummary.totalItems === 0) {
-      navigate('/test-kits');
-      return;
-    }
-  }, [user, cartSummary.totalItems, navigate]);
-
   // LOAD USER PROFILE
   useEffect(() => {
     const loadUserProfile = async () => {
       if (!user) return;
 
       try {
+        debugLog('PROFILE', 'Loading user profile', { userId: user.id });
+        
         const { data } = await supabase
           .from('profiles')
           .select('*')
@@ -364,6 +308,7 @@ export default function CheckoutPage() {
           .single();
 
         if (data) {
+          debugLog('PROFILE', 'Profile loaded successfully');
           setFormData(prev => ({
             ...prev,
             shipping: {
@@ -379,6 +324,7 @@ export default function CheckoutPage() {
             }
           }));
         } else {
+          debugLog('PROFILE', 'No profile found, using user metadata');
           setFormData(prev => ({
             ...prev,
             shipping: {
@@ -390,7 +336,7 @@ export default function CheckoutPage() {
           }));
         }
       } catch (error) {
-        console.error('Profile load error:', error);
+        debugLog('PROFILE', 'Profile load error', { error: error.message });
       }
     };
 
@@ -408,31 +354,74 @@ export default function CheckoutPage() {
     }));
   }, []);
 
-  // SIMPLIFIED VALIDATION
   const validateShipping = useCallback(() => {
     const required = ['firstName', 'lastName', 'email', 'address', 'city', 'province', 'postalCode'];
-    return required.every(field => formData.shipping[field]?.trim());
+    const isValid = required.every(field => formData.shipping[field]?.trim());
+    debugLog('VALIDATION', 'Shipping validation result', { 
+      isValid, 
+      missingFields: required.filter(field => !formData.shipping[field]?.trim())
+    });
+    return isValid;
   }, [formData.shipping]);
 
-  // NAVIGATION
   const goToStep = useCallback((step) => {
     if (step === 3 && !validateShipping()) {
       alert('Please complete all required shipping fields');
       return;
     }
     setCurrentStep(step);
+    debugLog('NAVIGATION', `Moved to step ${step}`);
   }, [validateShipping]);
 
-  // SIMPLIFIED PAYMENT SUCCESS HANDLER
+  // ENHANCED PAYMENT SUCCESS HANDLER WITH EXTENSIVE DEBUGGING
   const handlePaymentSuccess = useCallback(async (paymentDetails) => {
-    console.log('💳 Payment successful:', paymentDetails.paypalOrderId);
+    debugLog('PAYMENT', 'Payment successful', { paypalOrderId: paymentDetails.paypalOrderId });
     
     setIsProcessing(true);
     setProcessingError(null);
     setProcessingStep(0);
+    setDebugInfo({ lastAction: 'Payment successful' });
     
     try {
-      setProcessingStep(1); // Creating order
+      // Step 1: Get authentication session
+      setProcessingStep(1);
+      setDebugInfo({ lastAction: 'Getting authentication session' });
+      debugLog('AUTH', 'Getting authentication session...');
+
+      let session;
+      try {
+        const { data: sessionData, error: sessionError } = await supabase.auth.getSession();
+        
+        debugLog('AUTH', 'Session retrieval result', { 
+          hasSession: !!sessionData?.session,
+          hasError: !!sessionError,
+          errorMessage: sessionError?.message
+        });
+
+        if (sessionError) {
+          throw new Error(`Session error: ${sessionError.message}`);
+        }
+
+        if (!sessionData?.session) {
+          throw new Error('No active session found');
+        }
+
+        session = sessionData.session;
+        debugLog('AUTH', 'Session retrieved successfully', { 
+          userId: session.user?.id,
+          hasAccessToken: !!session.access_token,
+          tokenLength: session.access_token?.length
+        });
+
+      } catch (sessionError) {
+        debugLog('AUTH', 'Session retrieval failed', { error: sessionError.message });
+        throw new Error(`Authentication failed: ${sessionError.message}`);
+      }
+
+      // Step 2: Prepare order data
+      setProcessingStep(2);
+      setDebugInfo({ lastAction: 'Preparing order data' });
+      debugLog('ORDER', 'Preparing order data...');
 
       const orderRequestData = {
         subtotal: totals.subtotal,
@@ -442,7 +431,7 @@ export default function CheckoutPage() {
         payment_method: 'paypal',
         payment_reference: paymentDetails.paypalOrderId,
         shipping_address: formData.shipping,
-        billing_address: formData.shipping, // Same as shipping for now
+        billing_address: formData.shipping,
         special_instructions: formData.specialInstructions || null,
         items: cartItems.map(item => ({
           test_kit_id: item.test_kit_id,
@@ -453,16 +442,27 @@ export default function CheckoutPage() {
         }))
       };
 
-      console.log('📤 Sending order to backend...');
+      debugLog('ORDER', 'Order data prepared', { 
+        total: orderRequestData.total_amount,
+        itemCount: orderRequestData.items.length,
+        hasShippingAddress: !!orderRequestData.shipping_address,
+        shippingEmail: orderRequestData.shipping_address.email,
+        paymentReference: orderRequestData.payment_reference
+      });
 
-      const { data: { session } } = await supabase.auth.getSession();
-      if (!session) {
-        throw new Error('Authentication session expired');
-      }
+      // Step 3: Send to backend
+      setProcessingStep(3);
+      setDebugInfo({ lastAction: 'Sending request to backend' });
+      debugLog('BACKEND', 'Sending request to backend...');
 
-      setProcessingStep(2); // Finalizing
+      // Create timeout promise
+      const TIMEOUT_MS = 30000; // 30 seconds
+      const timeoutPromise = new Promise((_, reject) => {
+        setTimeout(() => reject(new Error('Request timeout after 30 seconds')), TIMEOUT_MS);
+      });
 
-      const response = await fetch('/.netlify/functions/process-order', {
+      // Create fetch promise
+      const fetchPromise = fetch('/.netlify/functions/process-order', {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
@@ -471,49 +471,112 @@ export default function CheckoutPage() {
         body: JSON.stringify(orderRequestData)
       });
 
-      const responseData = await response.json();
+      debugLog('BACKEND', 'Fetch request initiated', {
+        url: '/.netlify/functions/process-order',
+        hasAuthToken: !!session.access_token,
+        bodySize: JSON.stringify(orderRequestData).length
+      });
 
-      if (!response.ok) {
-        throw new Error(responseData.error || `Server error: ${response.status}`);
+      // Race between fetch and timeout
+      let response;
+      try {
+        response = await Promise.race([fetchPromise, timeoutPromise]);
+        debugLog('BACKEND', 'Response received', { 
+          status: response.status,
+          statusText: response.statusText,
+          ok: response.ok
+        });
+      } catch (fetchError) {
+        debugLog('BACKEND', 'Fetch failed', { error: fetchError.message });
+        throw new Error(`Network request failed: ${fetchError.message}`);
       }
 
-      console.log('✅ Order created:', responseData.order.order_number);
+      // Step 4: Process response
+      setProcessingStep(4);
+      setDebugInfo({ lastAction: 'Processing backend response' });
+      debugLog('RESPONSE', 'Processing response...');
+
+      let responseData;
+      try {
+        const responseText = await response.text();
+        debugLog('RESPONSE', 'Raw response received', { 
+          length: responseText.length,
+          preview: responseText.substring(0, 200)
+        });
+
+        if (!response.ok) {
+          debugLog('RESPONSE', 'Response not OK', { 
+            status: response.status,
+            responseText
+          });
+          
+          let errorData;
+          try {
+            errorData = JSON.parse(responseText);
+          } catch {
+            errorData = { error: responseText || `HTTP ${response.status}` };
+          }
+          
+          throw new Error(errorData.error || `Server error: ${response.status}`);
+        }
+
+        responseData = JSON.parse(responseText);
+        debugLog('RESPONSE', 'Response parsed successfully', { 
+          success: responseData.success,
+          hasOrder: !!responseData.order,
+          orderNumber: responseData.order?.order_number
+        });
+
+      } catch (parseError) {
+        debugLog('RESPONSE', 'Response parsing failed', { error: parseError.message });
+        throw new Error(`Response parsing failed: ${parseError.message}`);
+      }
+
+      // Step 5: Success
+      setProcessingStep(5);
+      setDebugInfo({ lastAction: 'Order completed successfully' });
+      debugLog('SUCCESS', 'Order created successfully', { 
+        orderNumber: responseData.order.order_number,
+        orderId: responseData.order.id
+      });
       
-      setProcessingStep(3); // Complete
       setOrderData(responseData.order);
       
-      // Clear cart and show success
-      await clearCart();
+      // Clear cart
+      try {
+        await clearCart();
+        debugLog('CART', 'Cart cleared successfully');
+      } catch (cartError) {
+        debugLog('CART', 'Cart clear failed (non-critical)', { error: cartError.message });
+      }
       
       setIsProcessing(false);
       setShowSuccess(true);
 
     } catch (error) {
-      console.error('❌ Order processing failed:', error);
+      debugLog('ERROR', 'Payment processing failed', { 
+        error: error.message,
+        stack: error.stack,
+        step: processingStep
+      });
+      
       setProcessingError(error.message);
+      setDebugInfo({ 
+        lastAction: 'Error occurred',
+        error: error.message,
+        step: processingStep
+      });
       setIsProcessing(false);
     }
-  }, [totals, formData, cartItems, clearCart]);
+  }, [totals, formData, cartItems, clearCart, processingStep]);
 
   const handlePaymentError = useCallback((error) => {
-    console.error('PayPal error:', error);
-    setProcessingError('Payment failed. Please try again.');
-  }, []);
-
-  // RETRY AND CANCEL
-  const handleRetry = useCallback(() => {
-    setIsProcessing(false);
-    setProcessingError(null);
-    setProcessingStep(0);
-  }, []);
-
-  const handleCancel = useCallback(() => {
-    setIsProcessing(false);
-    setProcessingError(null);
-    setProcessingStep(0);
+    debugLog('PAYPAL_ERROR', 'PayPal error occurred', { error: error.message });
+    setProcessingError(`PayPal error: ${error.message}`);
   }, []);
 
   const goToDashboard = useCallback(() => {
+    debugLog('NAVIGATION', 'Redirecting to dashboard');
     navigate('/dashboard', { 
       replace: true,
       state: { 
@@ -554,6 +617,16 @@ export default function CheckoutPage() {
   return (
     <PageLayout>
       <div className="max-w-4xl mx-auto py-8 px-4 sm:px-6 lg:px-8">
+        {/* Debug Info Panel */}
+        <div className="mb-4 bg-gray-100 p-4 rounded-lg text-sm">
+          <h4 className="font-semibold mb-2">Debug Info:</h4>
+          <p>Current Step: {currentStep}</p>
+          <p>Processing: {isProcessing ? 'Yes' : 'No'}</p>
+          <p>Processing Step: {processingStep}</p>
+          <p>Last Action: {debugInfo.lastAction}</p>
+          {processingError && <p className="text-red-600">Error: {processingError}</p>}
+        </div>
+
         {/* Progress Steps */}
         <div className="mb-8">
           <nav aria-label="Progress">
@@ -632,8 +705,7 @@ export default function CheckoutPage() {
         isVisible={isProcessing}
         step={processingStep}
         error={processingError}
-        onRetry={handleRetry}
-        onCancel={handleCancel}
+        debugInfo={debugInfo}
       />
       
       {showSuccess && orderData && (
