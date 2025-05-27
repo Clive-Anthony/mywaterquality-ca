@@ -1,13 +1,15 @@
-// src/pages/CheckoutPage.jsx - FIXED VERSION
+// src/pages/CheckoutPage.jsx - COMPLETE FILE WITH PAYPAL INTEGRATION
 import { useState, useEffect } from 'react';
 import { useNavigate, Link } from 'react-router-dom';
 import { useAuth } from '../contexts/AuthContext';
 import { useCart } from '../contexts/CartContext';
 import PageLayout from '../components/PageLayout';
+import PayPalPayment from '../components/PayPalPayment';
 import { supabase } from '../lib/supabaseClient';
 
-// MOVE STEP COMPONENTS OUTSIDE TO PREVENT RE-CREATION ON EVERY RENDER
-// Review Step Component - Moved outside
+// STEP COMPONENTS MOVED OUTSIDE TO PREVENT RE-CREATION ON EVERY RENDER
+
+// Review Step Component
 const ReviewStep = ({ 
   cartItems, 
   cartSummary, 
@@ -91,7 +93,7 @@ const ReviewStep = ({
   </div>
 );
 
-// Shipping Step Component - Moved outside
+// Shipping Step Component
 const ShippingStep = ({ formData, handleInputChange, provinces }) => (
   <div className="space-y-6">
     <h2 className="text-xl font-semibold text-gray-900">Shipping Information</h2>
@@ -208,7 +210,7 @@ const ShippingStep = ({ formData, handleInputChange, provinces }) => (
   </div>
 );
 
-// Payment Step Component - Moved outside
+// Payment Step Component - UPDATED WITH PAYPAL
 const PaymentStep = ({ 
   formData, 
   cartItems, 
@@ -216,25 +218,13 @@ const PaymentStep = ({
   formatPrice, 
   calculateShipping, 
   calculateTax, 
-  calculateTotal 
+  calculateTotal,
+  onPaymentSuccess,
+  paymentLoading
 }) => (
   <div className="space-y-6">
     <h2 className="text-xl font-semibold text-gray-900">Payment Information</h2>
     
-    <div className="bg-yellow-50 border border-yellow-200 rounded-lg p-4">
-      <div className="flex">
-        <svg className="h-5 w-5 text-yellow-600 mr-2" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" />
-        </svg>
-        <div>
-          <h3 className="text-sm font-medium text-yellow-800">Payment Integration Coming Soon</h3>
-          <p className="text-sm text-yellow-700 mt-1">
-            Stripe payment integration will be added in the next phase. For now, you can complete the order as a demo.
-          </p>
-        </div>
-      </div>
-    </div>
-
     {/* Order Summary */}
     <div className="bg-white rounded-lg shadow p-6">
       <h3 className="text-lg font-medium text-gray-900 mb-4">Final Order Summary</h3>
@@ -287,10 +277,85 @@ const PaymentStep = ({
         </div>
       </div>
     </div>
+
+    {/* Payment Methods */}
+    <div className="bg-white rounded-lg shadow p-6">
+      <h3 className="text-lg font-medium text-gray-900 mb-4">Choose Payment Method</h3>
+      
+      {/* PayPal Payment */}
+      <div className="mb-6">
+        <div className="flex items-center mb-3">
+          <svg className="h-6 w-6 text-blue-600 mr-2" viewBox="0 0 24 24" fill="currentColor">
+            <path d="M7.076 21.337H2.47a.641.641 0 0 1-.633-.74L4.944.901C5.026.382 5.474 0 5.998 0h7.46c2.57 0 4.578.543 5.69 1.81 1.01 1.15 1.304 2.42 1.012 4.287-.023.143-.047.288-.077.437-.983 5.05-4.349 6.797-8.647 6.797h-2.19c-.524 0-.968.382-1.05.9l-1.12 7.106zm14.146-14.42a3.35 3.35 0 0 0-.607-.541c-.013.076-.026.175-.041.254-.93 4.778-4.005 7.201-9.138 7.201h-2.190c-.524 0-.968.382-1.05.9l-1.12 7.106H9.59a.641.641 0 0 0 .633.74h3.445a.75.75 0 0 0 .741-.640l.969-6.149a.75.75 0 0 1 .741-.64h1.562c3.797 0 6.765-1.544 7.635-6.008.294-1.506.042-2.707-.594-3.563z"/>
+          </svg>
+          <h4 className="text-base font-medium text-gray-900">Pay with PayPal</h4>
+        </div>
+        
+        <div className="bg-blue-50 border border-blue-200 rounded-lg p-4 mb-4">
+          <div className="flex items-start">
+            <svg className="h-5 w-5 text-blue-600 mr-2 mt-0.5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
+            </svg>
+            <div>
+              <h5 className="text-sm font-medium text-blue-800">Secure Payment</h5>
+              <p className="text-sm text-blue-700 mt-1">
+                Pay securely with PayPal. You can use your PayPal balance, bank account, or credit card.
+              </p>
+            </div>
+          </div>
+        </div>
+
+        <PayPalPayment
+          amount={calculateTotal()}
+          currency="CAD"
+          onSuccess={onPaymentSuccess}
+          onError={(error) => {
+            console.error('PayPal payment error:', error);
+            alert('Payment failed. Please try again.');
+          }}
+          onCancel={() => {
+            console.log('Payment cancelled by user');
+          }}
+          disabled={paymentLoading}
+        />
+      </div>
+
+      {/* Alternative Payment Methods (Future) */}
+      <div className="border-t border-gray-200 pt-4">
+        <h4 className="text-sm font-medium text-gray-900 mb-2">Other Payment Methods</h4>
+        <div className="bg-gray-50 border border-gray-200 rounded-lg p-4">
+          <div className="flex items-center">
+            <svg className="h-5 w-5 text-gray-400 mr-2" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M12 15v2m-6 4h12a2 2 0 002-2v-6a2 2 0 00-2-2H6a2 2 0 00-2 2v6a2 2 0 002 2zm10-10V7a4 4 0 00-8 0v4h8z" />
+            </svg>
+            <div>
+              <p className="text-sm text-gray-600">
+                Credit card payments coming soon. Currently accepting PayPal only.
+              </p>
+            </div>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    {/* Security Notice */}
+    <div className="bg-green-50 border border-green-200 rounded-lg p-4">
+      <div className="flex items-start">
+        <svg className="h-5 w-5 text-green-600 mr-2 mt-0.5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M9 12l2 2 4-4m5.618-4.016A11.955 11.955 0 0112 2.944a11.955 11.955 0 01-8.618 3.04A12.02 12.02 0 003 9c0 5.591 3.824 10.29 9 11.622 5.176-1.332 9-6.03 9-11.622 0-1.042-.133-2.052-.382-3.016z" />
+        </svg>
+        <div>
+          <h5 className="text-sm font-medium text-green-800">Secure & Protected</h5>
+          <p className="text-sm text-green-700 mt-1">
+            Your payment information is encrypted and secure. We never store your payment details.
+          </p>
+        </div>
+      </div>
+    </div>
   </div>
 );
 
-// Confirmation Step Component - Moved outside
+// Confirmation Step Component
 const ConfirmationStep = ({ orderConfirmation, formatPrice }) => (
   <div className="space-y-6 text-center">
     <div className="mx-auto w-16 h-16 bg-green-100 rounded-full flex items-center justify-center">
@@ -312,6 +377,11 @@ const ConfirmationStep = ({ orderConfirmation, formatPrice }) => (
           <p className="text-sm text-blue-800">
             <strong>Total:</strong> {formatPrice(orderConfirmation.total_amount)}
           </p>
+          {orderConfirmation.payment_method === 'paypal' && (
+            <p className="text-sm text-blue-800">
+              <strong>Payment Method:</strong> PayPal
+            </p>
+          )}
         </div>
       )}
     </div>
@@ -343,7 +413,7 @@ const ConfirmationStep = ({ orderConfirmation, formatPrice }) => (
   </div>
 );
 
-// MAIN COMPONENT - Now step components are stable and won't cause re-renders
+// MAIN COMPONENT WITH PAYPAL INTEGRATION
 export default function CheckoutPage() {
   const navigate = useNavigate();
   const { user } = useAuth();
@@ -354,6 +424,11 @@ export default function CheckoutPage() {
   const [error, setError] = useState(null);
   const [userProfile, setUserProfile] = useState(null);
   const [orderConfirmation, setOrderConfirmation] = useState(null);
+  
+  // PAYPAL SPECIFIC STATE
+  const [paymentData, setPaymentData] = useState(null);
+  const [paymentLoading, setPaymentLoading] = useState(false);
+  
   const [formData, setFormData] = useState({
     shipping: {
       firstName: '',
@@ -492,7 +567,7 @@ export default function CheckoutPage() {
     return cartSummary.totalPrice + calculateShipping() + calculateTax();
   };
 
-  // Handle form input changes - FIXED to handle special instructions properly
+  // Handle form input changes
   const handleInputChange = (section, field, value) => {
     if (section === 'root') {
       // Handle root-level fields like specialInstructions
@@ -563,8 +638,24 @@ export default function CheckoutPage() {
     setCurrentStep(prev => Math.max(prev - 1, 1));
   };
 
-  // Process order through Netlify function
-  const processOrder = async () => {
+  // PAYPAL PAYMENT SUCCESS HANDLER
+  const handlePaymentSuccess = async (paymentDetails) => {
+    console.log('Payment successful:', paymentDetails);
+    setPaymentData(paymentDetails);
+    setPaymentLoading(true);
+    
+    try {
+      // Process the order with PayPal payment data
+      await processOrderWithPayment(paymentDetails);
+    } catch (error) {
+      console.error('Error processing order after payment:', error);
+      setError('Payment successful but order processing failed. Please contact support.');
+      setPaymentLoading(false);
+    }
+  };
+
+  // Process order with PayPal payment verification
+  const processOrderWithPayment = async (paymentDetails) => {
     setLoading(true);
     setError(null);
 
@@ -585,11 +676,12 @@ export default function CheckoutPage() {
         shipping_address: formData.shipping,
         billing_address: formData.billing.sameAsShipping ? formData.shipping : formData.billing,
         special_instructions: formData.specialInstructions,
-        payment_method: 'demo',
+        payment_method: 'paypal',
+        payment_data: paymentDetails, // Include PayPal payment details
         items: orderItems
       };
 
-      console.log('Processing order with data:', orderData);
+      console.log('Processing order with PayPal payment:', orderData);
 
       const { data: { session } } = await supabase.auth.getSession();
       if (!session) {
@@ -620,8 +712,14 @@ export default function CheckoutPage() {
     } catch (error) {
       console.error('Order processing error:', error);
       setError(error.message || 'Failed to process order. Please try again.');
+      
+      // If order processing fails after payment, we need to handle this carefully
+      if (paymentDetails) {
+        setError(`Payment successful (${paymentDetails.paypalOrderId}) but order processing failed. Please contact support with this reference number.`);
+      }
     } finally {
       setLoading(false);
+      setPaymentLoading(false);
     }
   };
 
@@ -658,6 +756,8 @@ export default function CheckoutPage() {
             calculateShipping={calculateShipping}
             calculateTax={calculateTax}
             calculateTotal={calculateTotal}
+            onPaymentSuccess={handlePaymentSuccess}
+            paymentLoading={paymentLoading}
           />
         );
       case 4:
@@ -767,14 +867,15 @@ export default function CheckoutPage() {
           {renderStepContent()}
         </div>
 
-        {/* Navigation Buttons */}
+        {/* Navigation Buttons - UPDATED FOR PAYPAL FLOW */}
         {currentStep < 4 && (
           <div className="flex justify-between">
             <div>
               {currentStep > 1 && (
                 <button
                   onClick={goToPreviousStep}
-                  className="inline-flex items-center px-6 py-3 border border-gray-300 text-base font-medium rounded-md text-gray-700 bg-white hover:bg-gray-50"
+                  disabled={paymentLoading}
+                  className="inline-flex items-center px-6 py-3 border border-gray-300 text-base font-medium rounded-md text-gray-700 bg-white hover:bg-gray-50 disabled:opacity-50"
                 >
                   ← Previous
                 </button>
@@ -789,23 +890,20 @@ export default function CheckoutPage() {
                   Continue →
                 </button>
               ) : (
-                <button
-                  onClick={processOrder}
-                  disabled={loading}
-                  className="inline-flex items-center px-6 py-3 border border-transparent text-base font-medium rounded-md text-white bg-green-600 hover:bg-green-700 disabled:opacity-50"
-                >
-                  {loading ? (
-                    <>
-                      <svg className="animate-spin -ml-1 mr-2 h-4 w-4 text-white" fill="none" viewBox="0 0 24 24">
+                // Step 3 (Payment) - PayPal handles the final submission
+                <div className="text-sm text-gray-500">
+                  {paymentLoading ? (
+                    <div className="flex items-center">
+                      <svg className="animate-spin -ml-1 mr-2 h-4 w-4 text-gray-500" fill="none" viewBox="0 0 24 24">
                         <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
                         <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
                       </svg>
-                      Processing...
-                    </>
+                      Processing payment...
+                    </div>
                   ) : (
-                    'Complete Order'
+                    'Complete payment above to finish your order'
                   )}
-                </button>
+                </div>
               )}
             </div>
           </div>

@@ -1,4 +1,4 @@
-// netlify/functions/process-order.js - FIXED to match your database schema
+// netlify/functions/process-order.js - UPDATED with minimal PayPal support
 const { createClient } = require('@supabase/supabase-js');
 
 // Send email via Loops API
@@ -151,36 +151,16 @@ exports.handler = async function(event, context) {
 
   try {
     console.log('=== ORDER PROCESSING FUNCTION START ===');
-    console.log('Environment check:', {
-      hasSupabaseUrl: !!process.env.VITE_SUPABASE_URL,
-      hasSupabaseServiceKey: !!process.env.VITE_SUPABASE_SERVICE_KEY,
-      hasLoopsKey: !!process.env.VITE_LOOPS_API_KEY,
-      nodeEnv: process.env.NODE_ENV,
-      supabaseUrlLength: process.env.VITE_SUPABASE_URL ? process.env.VITE_SUPABASE_URL.length : 0,
-      serviceKeyLength: process.env.VITE_SUPABASE_SERVICE_KEY ? process.env.VITE_SUPABASE_SERVICE_KEY.length : 0
-    });
     
     // Validate environment variables
-    if (!process.env.VITE_SUPABASE_URL) {
-      console.error('❌ Missing VITE_SUPABASE_URL environment variable');
+    if (!process.env.VITE_SUPABASE_URL || !process.env.VITE_SUPABASE_SERVICE_KEY) {
+      console.error('❌ Missing Supabase environment variables');
       return {
         statusCode: 500,
         headers,
         body: JSON.stringify({ 
-          error: 'Server configuration error', 
-          details: 'Missing Supabase URL - check Netlify environment variables'
-        })
-      };
-    }
-
-    if (!process.env.VITE_SUPABASE_SERVICE_KEY) {
-      console.error('❌ Missing VITE_SUPABASE_SERVICE_KEY environment variable');
-      return {
-        statusCode: 500,
-        headers,
-        body: JSON.stringify({ 
-          error: 'Server configuration error', 
-          details: 'Missing Supabase service key - check Netlify environment variables'
+          error: 'Server configuration error',
+          details: 'Missing database configuration'
         })
       };
     }
@@ -192,8 +172,9 @@ exports.handler = async function(event, context) {
     try {
       orderData = JSON.parse(event.body);
       console.log('✅ Order data parsed for:', orderData.shipping_address?.email);
+      console.log('Payment method:', orderData.payment_method);
+      console.log('Payment reference:', orderData.payment_reference);
       console.log('Order total:', orderData.total_amount);
-      console.log('Item count:', orderData.items?.length);
     } catch (parseError) {
       console.error('❌ Failed to parse request body:', parseError);
       return {
@@ -222,26 +203,13 @@ exports.handler = async function(event, context) {
     console.log('✅ Order data validated');
 
     // Create Supabase admin client
-    let supabaseAdmin;
-    try {
-      supabaseAdmin = createClient(
-        process.env.VITE_SUPABASE_URL,
-        process.env.VITE_SUPABASE_SERVICE_KEY
-      );
-      console.log('✅ Supabase admin client created');
-    } catch (supabaseError) {
-      console.error('❌ Failed to create Supabase client:', supabaseError);
-      return {
-        statusCode: 500,
-        headers,
-        body: JSON.stringify({ 
-          error: 'Database connection failed',
-          details: supabaseError.message
-        })
-      };
-    }
+    const supabaseAdmin = createClient(
+      process.env.VITE_SUPABASE_URL,
+      process.env.VITE_SUPABASE_SERVICE_KEY
+    );
+    console.log('✅ Supabase admin client created');
 
-    // Get user from authorization header
+    // Authenticate user
     const authHeader = event.headers.authorization;
     if (!authHeader || !authHeader.startsWith('Bearer ')) {
       console.error('❌ Missing or invalid authorization header');
@@ -249,8 +217,7 @@ exports.handler = async function(event, context) {
         statusCode: 401,
         headers,
         body: JSON.stringify({ 
-          error: 'Missing or invalid authorization header',
-          details: 'Please provide a valid Bearer token'
+          error: 'Missing or invalid authorization header'
         })
       };
     }
@@ -258,205 +225,110 @@ exports.handler = async function(event, context) {
     const token = authHeader.substring(7);
     console.log('🔍 Attempting to authenticate user...');
     
-    let user;
-    try {
-      const { data: userData, error: userError } = await supabaseAdmin.auth.getUser(token);
-      
-      if (userError) {
-        console.error('❌ User authentication failed:', userError);
-        return {
-          statusCode: 401,
-          headers,
-          body: JSON.stringify({ 
-            error: 'Authentication failed',
-            details: userError.message
-          })
-        };
-      }
-      
-      if (!userData?.user) {
-        console.error('❌ No user data returned from authentication');
-        return {
-          statusCode: 401,
-          headers,
-          body: JSON.stringify({ 
-            error: 'Authentication failed',
-            details: 'Invalid or expired token'
-          })
-        };
-      }
-      
-      user = userData.user;
-      console.log('✅ User authenticated:', user.email);
-    } catch (authError) {
-      console.error('❌ Authentication exception:', authError);
+    const { data: userData, error: userError } = await supabaseAdmin.auth.getUser(token);
+    
+    if (userError || !userData?.user) {
+      console.error('❌ User authentication failed:', userError);
       return {
         statusCode: 401,
         headers,
         body: JSON.stringify({ 
-          error: 'Authentication error',
-          details: authError.message
+          error: 'Authentication failed',
+          details: userError?.message || 'Invalid token'
         })
       };
     }
 
-    // Test database connection first
-    console.log('🔍 Testing database connection...');
-    try {
-      const { data: testData, error: testError } = await supabaseAdmin
-        .from('orders')
-        .select('id')
-        .limit(1);
-      
-      if (testError) {
-        console.error('❌ Database connection test failed:', testError);
-        return {
-          statusCode: 500,
-          headers,
-          body: JSON.stringify({ 
-            error: 'Database connection failed',
-            details: `Cannot access orders table: ${testError.message}`,
-            code: testError.code,
-            hint: testError.hint
-          })
-        };
-      }
-      console.log('✅ Database connection test passed');
-    } catch (dbTestError) {
-      console.error('❌ Database test exception:', dbTestError);
-      return {
-        statusCode: 500,
-        headers,
-        body: JSON.stringify({ 
-          error: 'Database test failed',
-          details: dbTestError.message
-        })
-      };
-    }
+    const user = userData.user;
+    console.log('✅ User authenticated:', user.email);
 
     // Create the order in database
     console.log('📝 Creating order in database...');
-    let order;
-    try {
-      // Note: Using your schema where primary key is 'id', not 'order_id'
-      const orderInsertData = {
-        user_id: user.id,
-        subtotal: orderData.subtotal,
-        shipping_cost: orderData.shipping_cost || 0,
-        tax_amount: orderData.tax_amount || 0,
-        total_amount: orderData.total_amount,
-        shipping_address: orderData.shipping_address,
-        billing_address: orderData.billing_address,
-        special_instructions: orderData.special_instructions || null,
-        payment_method: orderData.payment_method || 'demo',
-        status: 'confirmed', // Set to confirmed for demo
-        payment_status: 'paid', // Set to paid for demo
-        fulfillment_status: 'unfulfilled'
-        // order_number will be auto-generated by your trigger
-      };
+    const orderInsertData = {
+      user_id: user.id,
+      subtotal: orderData.subtotal,
+      shipping_cost: orderData.shipping_cost || 0,
+      tax_amount: orderData.tax_amount || 0,
+      total_amount: orderData.total_amount,
+      shipping_address: orderData.shipping_address,
+      billing_address: orderData.billing_address,
+      special_instructions: orderData.special_instructions || null,
+      payment_method: orderData.payment_method || 'demo',
+      payment_data: orderData.payment_reference ? { reference: orderData.payment_reference } : null,
+      status: 'confirmed',
+      payment_status: orderData.payment_method === 'paypal' ? 'paid' : 'pending',
+      fulfillment_status: 'unfulfilled'
+    };
 
-      console.log('📋 Order insert data prepared:', {
-        user_id: orderInsertData.user_id,
-        total_amount: orderInsertData.total_amount,
-        status: orderInsertData.status
-      });
+    console.log('📋 Order insert data prepared:', {
+      user_id: orderInsertData.user_id,
+      total_amount: orderInsertData.total_amount,
+      payment_method: orderInsertData.payment_method,
+      payment_status: orderInsertData.payment_status
+    });
 
-      const { data: createdOrder, error: orderError } = await supabaseAdmin
-        .from('orders')
-        .insert([orderInsertData])
-        .select()
-        .single();
+    const { data: createdOrder, error: orderError } = await supabaseAdmin
+      .from('orders')
+      .insert([orderInsertData])
+      .select()
+      .single();
 
-      if (orderError) {
-        console.error('❌ Database error creating order:', orderError);
-        return {
-          statusCode: 500,
-          headers,
-          body: JSON.stringify({ 
-            error: 'Failed to create order in database',
-            details: orderError.message,
-            code: orderError.code,
-            hint: orderError.hint,
-            postgresErrorCode: orderError.details
-          })
-        };
-      }
-
-      order = createdOrder;
-      console.log('✅ Order created successfully:', order.order_number, 'with ID:', order.id);
-    } catch (dbError) {
-      console.error('❌ Exception creating order:', dbError);
+    if (orderError) {
+      console.error('❌ Database error creating order:', orderError);
       return {
         statusCode: 500,
         headers,
         body: JSON.stringify({ 
-          error: 'Database operation failed',
-          details: dbError.message
+          error: 'Failed to create order in database',
+          details: orderError.message,
+          code: orderError.code,
+          hint: orderError.hint
         })
       };
     }
 
+    console.log('✅ Order created successfully:', createdOrder.order_number, 'with ID:', createdOrder.id);
+
     // Create order items
     console.log('📦 Creating order items...');
-    try {
-      const orderItems = orderData.items.map(item => ({
-        order_id: order.id, // Using 'id' from the created order (matches your schema)
-        test_kit_id: item.test_kit_id,
-        quantity: item.quantity,
-        unit_price: item.unit_price,
-        total_price: item.quantity * item.unit_price,
-        product_name: item.product_name,
-        product_description: item.product_description || null
-      }));
+    const orderItems = orderData.items.map(item => ({
+      order_id: createdOrder.id,
+      test_kit_id: item.test_kit_id,
+      quantity: item.quantity,
+      unit_price: item.unit_price,
+      total_price: item.quantity * item.unit_price,
+      product_name: item.product_name,
+      product_description: item.product_description || null
+    }));
 
-      console.log('📋 Order items prepared:', orderItems.length, 'items');
+    console.log('📋 Order items prepared:', orderItems.length, 'items');
 
-      const { data: createdItems, error: itemsError } = await supabaseAdmin
-        .from('order_items')
-        .insert(orderItems)
-        .select();
+    const { data: createdItems, error: itemsError } = await supabaseAdmin
+      .from('order_items')
+      .insert(orderItems)
+      .select();
 
-      if (itemsError) {
-        console.error('❌ Error creating order items:', itemsError);
-        
-        // Clean up - delete the order if items creation failed
-        console.log('🧹 Cleaning up failed order...');
-        await supabaseAdmin
-          .from('orders')
-          .delete()
-          .eq('id', order.id); // Using 'id' not 'order_id'
-        
-        return {
-          statusCode: 500,
-          headers,
-          body: JSON.stringify({ 
-            error: 'Failed to create order items',
-            details: itemsError.message,
-            code: itemsError.code,
-            hint: itemsError.hint
-          })
-        };
-      }
-
-      console.log('✅ Order items created successfully:', createdItems.length, 'items');
-    } catch (itemsException) {
-      console.error('❌ Exception creating order items:', itemsException);
+    if (itemsError) {
+      console.error('❌ Error creating order items:', itemsError);
       
-      // Clean up the order
+      // Clean up - delete the order if items creation failed
+      console.log('🧹 Cleaning up failed order...');
       await supabaseAdmin
         .from('orders')
         .delete()
-        .eq('id', order.id);
+        .eq('id', createdOrder.id);
       
       return {
         statusCode: 500,
         headers,
         body: JSON.stringify({ 
           error: 'Failed to create order items',
-          details: itemsException.message
+          details: itemsError.message
         })
       };
     }
+
+    console.log('✅ Order items created successfully:', createdItems.length, 'items');
 
     // Clear user's cart (non-blocking)
     console.log('🧹 Clearing user cart...');
@@ -467,13 +339,14 @@ exports.handler = async function(event, context) {
     // Send order confirmation email (non-blocking)
     console.log('📧 Sending order confirmation email...');
     sendLoopsEmail({
-      transactionalId: 'cmazp7ib41er0z60iagt7cw00', // Using existing welcome email template
+      transactionalId: 'cmazp7ib41er0z60iagt7cw00',
       to: orderData.shipping_address.email,
       variables: {
         firstName: orderData.shipping_address.firstName,
-        orderNumber: order.order_number,
-        orderTotal: formatPrice(order.total_amount),
+        orderNumber: createdOrder.order_number,
+        orderTotal: formatPrice(createdOrder.total_amount),
         itemCount: orderData.items.length,
+        paymentMethod: orderData.payment_method === 'paypal' ? 'PayPal' : 'Demo',
         dashboardLink: `${process.env.VITE_APP_URL || 'https://mywaterqualityca.netlify.app'}/dashboard`,
         websiteURL: process.env.VITE_APP_URL || 'https://mywaterqualityca.netlify.app'
       }
@@ -497,11 +370,13 @@ exports.handler = async function(event, context) {
       body: JSON.stringify({
         success: true,
         order: {
-          id: order.id,
-          order_number: order.order_number,
-          status: order.status,
-          total_amount: order.total_amount,
-          created_at: order.created_at
+          id: createdOrder.id,
+          order_number: createdOrder.order_number,
+          status: createdOrder.status,
+          payment_status: createdOrder.payment_status,
+          total_amount: createdOrder.total_amount,
+          created_at: createdOrder.created_at,
+          payment_method: createdOrder.payment_method
         },
         message: 'Order created successfully'
       })
@@ -515,8 +390,7 @@ exports.handler = async function(event, context) {
       headers,
       body: JSON.stringify({ 
         error: 'Internal server error',
-        message: error.message || 'Unknown error occurred',
-        stack: process.env.NODE_ENV === 'development' ? error.stack : undefined
+        message: error.message || 'Unknown error occurred'
       })
     };
   }
