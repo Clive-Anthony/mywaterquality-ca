@@ -99,7 +99,7 @@ async function sendLoopsEmail({ transactionalId, to, variables }) {
   
       // Send notification email via Loops
       await sendLoopsEmail({
-        transactionalId: 'YOUR_LOOPS_TEMPLATE_ID', // Replace with actual template ID
+        transactionalId: 'cmb6u4tcl1n8dz10inz2llfzt', // Replace with actual template ID
         to: 'david.phillips@bookerhq.ca',
         variables: {
           name: contactData.name || 'Not provided',
