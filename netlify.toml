@@ -1,7 +1,13 @@
-# netlify.toml
+# netlify.toml - FIXED VERSION
 [build]
   command = "CI= npm install && npm run build"
   publish = "dist"
+
+# FIXED: Tell Netlify Dev to use the correct port for Vite
+[dev]
+  targetPort = 8888
+  port = 3000
+  autoLaunch = true
 
 # Handle SPA routing - MUST be first and most specific
 [[redirects]]
@@ -51,6 +57,7 @@
 
 # Configure Netlify Functions
 [functions]
+  directory = "netlify/functions"
   node_bundler = "esbuild"
   external_node_modules = ["@supabase/supabase-js"]
 
