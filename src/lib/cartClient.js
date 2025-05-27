@@ -368,46 +368,159 @@ export const getCartSummary = async () => {
 };
 
 /**
- * Clear all items from user's cart
- * @returns {Object} { success, error }
+ * Enhanced clear cart function with retry logic and better error handling
+ * @returns {Object} { success, error, attempts }
  */
 export const clearCart = async () => {
-  try {
-    const { data: { user } } = await supabase.auth.getUser();
+    const maxAttempts = 3;
+    let lastError = null;
     
-    if (!user) {
-      throw new Error('User must be authenticated');
+    for (let attempt = 1; attempt <= maxAttempts; attempt++) {
+      try {
+        console.log(`🛒 Cart clearing attempt ${attempt}/${maxAttempts}`);
+        
+        const { data: { user } } = await supabase.auth.getUser();
+        
+        if (!user) {
+          throw new Error('User must be authenticated to clear cart');
+        }
+  
+        // Get user's cart with timeout
+        const { cart, error: cartError } = await Promise.race([
+          getOrCreateUserCart(),
+          new Promise((_, reject) => 
+            setTimeout(() => reject(new Error('Cart lookup timeout')), 5000)
+          )
+        ]);
+        
+        if (cartError || !cart) {
+          throw cartError || new Error('Failed to access user cart');
+        }
+  
+        console.log(`🛒 Found cart ${cart.cart_id}, clearing items...`);
+  
+        // Clear cart items with timeout
+        const { error: deleteError } = await Promise.race([
+          supabase
+            .from('cart_items')
+            .delete()
+            .eq('cart_id', cart.cart_id),
+          new Promise((_, reject) => 
+            setTimeout(() => reject(new Error('Cart clearing timeout')), 8000)
+          )
+        ]);
+  
+        if (deleteError) {
+          throw new Error(`Database delete failed: ${deleteError.message}`);
+        }
+  
+        console.log(`✅ Cart cleared successfully on attempt ${attempt}`);
+        return { success: true, error: null, attempts: attempt };
+        
+      } catch (error) {
+        lastError = error;
+        console.error(`❌ Cart clearing attempt ${attempt} failed:`, error.message);
+        
+        // If this isn't the last attempt, wait before retrying
+        if (attempt < maxAttempts) {
+          const delay = Math.min(1000 * attempt, 3000); // Progressive delay: 1s, 2s, 3s
+          console.log(`⏳ Waiting ${delay}ms before retry...`);
+          await new Promise(resolve => setTimeout(resolve, delay));
+        }
+      }
     }
-
-    const { cart, error: cartError } = await getOrCreateUserCart();
     
-    if (cartError || !cart) {
-      throw cartError || new Error('Failed to access cart');
+    // All attempts failed
+    console.error(`💥 All ${maxAttempts} cart clearing attempts failed. Last error:`, lastError?.message);
+    return { 
+      success: false, 
+      error: lastError || new Error('Cart clearing failed after multiple attempts'),
+      attempts: maxAttempts
+    };
+  };
+  
+  /**
+   * Alternative cart clearing method that clears via direct SQL
+   * This can be used as a fallback if the primary method fails
+   * @returns {Object} { success, error }
+   */
+  export const clearCartDirect = async () => {
+    try {
+      console.log('🛒 Attempting direct cart clearing...');
+      
+      const { data: { user } } = await supabase.auth.getUser();
+      
+      if (!user) {
+        throw new Error('User must be authenticated');
+      }
+  
+      // Direct deletion using user_id through the carts relationship
+      const { error: deleteError } = await supabase
+        .from('cart_items')
+        .delete()
+        .in('cart_id', 
+          supabase
+            .from('carts')
+            .select('cart_id')
+            .eq('user_id', user.id)
+        );
+  
+      if (deleteError) {
+        throw new Error(`Direct cart clear failed: ${deleteError.message}`);
+      }
+  
+      console.log('✅ Direct cart clearing successful');
+      return { success: true, error: null };
+      
+    } catch (error) {
+      console.error('❌ Direct cart clearing failed:', error.message);
+      return { success: false, error };
     }
-
-    const { error: deleteError } = await supabase
-      .from('cart_items')
-      .delete()
-      .eq('cart_id', cart.cart_id);
-
-    if (deleteError) {
-      throw deleteError;
+  };
+  
+  /**
+   * Comprehensive cart clearing that tries multiple methods
+   * @returns {Object} { success, error, method }
+   */
+  export const clearCartComprehensive = async () => {
+    console.log('🛒 Starting comprehensive cart clearing...');
+    
+    // Method 1: Standard clearing with retry
+    console.log('🛒 Trying Method 1: Standard clearing with retry...');
+    const standardResult = await clearCart();
+    
+    if (standardResult.success) {
+      return { ...standardResult, method: 'standard' };
     }
-
-    return { success: true, error: null };
-  } catch (error) {
-    console.error('Error clearing cart:', error);
-    return { success: false, error };
-  }
-};
-
-// Export all functions as default object for easier importing
-export default {
-  getOrCreateUserCart,
-  getCartItems,
-  addToCart,
-  updateCartItemQuantity,
-  removeFromCart,
-  getCartSummary,
-  clearCart
-};
+    
+    console.log('🛒 Method 1 failed, trying Method 2: Direct clearing...');
+    
+    // Method 2: Direct clearing as fallback
+    const directResult = await clearCartDirect();
+    
+    if (directResult.success) {
+      return { ...directResult, method: 'direct' };
+    }
+    
+    console.log('💥 All cart clearing methods failed');
+    
+    // Both methods failed
+    return {
+      success: false,
+      error: new Error(`All clearing methods failed. Standard: ${standardResult.error?.message}, Direct: ${directResult.error?.message}`),
+      method: 'none'
+    };
+  };
+  
+  // Update the default export to include the new functions
+  export default {
+    getOrCreateUserCart,
+    getCartItems,
+    addToCart,
+    updateCartItemQuantity,
+    removeFromCart,
+    getCartSummary,
+    clearCart,
+    clearCartDirect,
+    clearCartComprehensive
+  };

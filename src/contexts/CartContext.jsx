@@ -1,5 +1,7 @@
-// src/contexts/CartContext.jsx
-import { createContext, useState, useEffect, useContext } from 'react';
+// src/contexts/CartContext.jsx - ENHANCED VERSION
+// Replace the clearCart function and add better state management
+
+import { createContext, useState, useEffect, useContext, useCallback } from 'react';
 import { useAuth } from './AuthContext';
 import { 
   getCartItems, 
@@ -7,7 +9,7 @@ import {
   updateCartItemQuantity as updateQuantityAPI,
   removeFromCart as removeFromCartAPI,
   getCartSummary,
-  clearCart as clearCartAPI
+  clearCartComprehensive // Use the enhanced clearing function
 } from '../lib/cartClient';
 
 const CartContext = createContext();
@@ -31,7 +33,7 @@ export function CartProvider({ children }) {
   }, [user]);
 
   // Load cart items from database
-  const loadCartItems = async () => {
+  const loadCartItems = useCallback(async () => {
     if (!user) return;
 
     setLoading(true);
@@ -61,7 +63,7 @@ export function CartProvider({ children }) {
     } finally {
       setLoading(false);
     }
-  };
+  }, [user]);
 
   // Add item to cart
   const addToCart = async (testKitId, quantity = 1) => {
@@ -141,32 +143,66 @@ export function CartProvider({ children }) {
     }
   };
 
-  // Clear entire cart
-  const clearCart = async () => {
+  // ENHANCED Clear entire cart with comprehensive clearing and immediate state update
+  const clearCart = useCallback(async () => {
     if (!user) {
       throw new Error('Please log in to clear cart');
     }
 
+    console.log('🛒 CartContext: Starting cart clearing process...');
     setError(null);
 
+    // Immediately clear the UI state for better UX
+    const previousItems = [...cartItems];
+    const previousSummary = { ...cartSummary };
+    
+    console.log('🛒 CartContext: Clearing UI state immediately...');
+    setCartItems([]);
+    setCartSummary({ totalItems: 0, totalPrice: 0 });
+
     try {
-      const { success, error: clearError } = await clearCartAPI();
+      // Use the comprehensive clearing function
+      const { success, error: clearError, method } = await clearCartComprehensive();
       
       if (!success) {
+        // If clearing failed, restore the previous state
+        console.error('🛒 CartContext: Clearing failed, restoring previous state');
+        setCartItems(previousItems);
+        setCartSummary(previousSummary);
         throw clearError;
       }
 
-      // Update local state
+      console.log(`✅ CartContext: Cart cleared successfully using method: ${method}`);
+      
+      // Double-check by reloading cart items to ensure consistency
+      setTimeout(async () => {
+        try {
+          await loadCartItems();
+          console.log('🛒 CartContext: Cart state verified after clearing');
+        } catch (verifyError) {
+          console.warn('🛒 CartContext: Cart verification after clearing failed:', verifyError.message);
+        }
+      }, 1000);
+      
+      return { success: true, error: null, method };
+      
+    } catch (error) {
+      console.error('🛒 CartContext: Cart clearing failed:', error);
+      setError(error.message || 'Failed to clear cart');
+      return { success: false, error, method: 'none' };
+    }
+  }, [user, cartItems, cartSummary, loadCartItems]);
+
+  // Force refresh cart state (useful for debugging or error recovery)
+  const forceRefreshCart = useCallback(async () => {
+    console.log('🛒 CartContext: Force refreshing cart state...');
+    if (user) {
+      await loadCartItems();
+    } else {
       setCartItems([]);
       setCartSummary({ totalItems: 0, totalPrice: 0 });
-      
-      return { success: true, error: null };
-    } catch (error) {
-      console.error('Error clearing cart:', error);
-      setError(error.message || 'Failed to clear cart');
-      return { success: false, error };
     }
-  };
+  }, [user, loadCartItems]);
 
   // Get item quantity in cart
   const getItemQuantity = (testKitId) => {
@@ -197,8 +233,9 @@ export function CartProvider({ children }) {
     addToCart,
     updateCartItemQuantity,
     removeFromCart,
-    clearCart,
+    clearCart, // Enhanced version
     refreshCart,
+    forceRefreshCart, // New function for debugging/recovery
     
     // Helpers
     getItemQuantity,

@@ -372,7 +372,6 @@ export default function CheckoutPage() {
     debugLog('NAVIGATION', `Moved to step ${step}`);
   }, [validateShipping]);
 
-  // FIXED PAYMENT SUCCESS HANDLER - NO MORE SESSION HANGING
   const handlePaymentSuccess = useCallback(async (paymentDetails) => {
     debugLog('PAYPAL', 'Payment success received', { paymentDetails });
     
@@ -390,12 +389,12 @@ export default function CheckoutPage() {
         hasSession: !!session,
         userId: user?.id
       });
-
+  
       // Verify we have what we need
       if (!user) {
         throw new Error('User not authenticated');
       }
-
+  
       // Get access token from session
       let accessToken;
       if (session?.access_token) {
@@ -416,12 +415,12 @@ export default function CheckoutPage() {
           throw new Error('No access token available');
         }
       }
-
+  
       // Step 2: Prepare order data
       setProcessingStep(2);
       setDebugInfo({ lastAction: 'Preparing order data' });
       debugLog('ORDER', 'Preparing order data...');
-
+  
       const orderRequestData = {
         subtotal: totals.subtotal,
         shipping_cost: totals.shipping,
@@ -440,18 +439,18 @@ export default function CheckoutPage() {
           product_description: item.test_kits.description
         }))
       };
-
+  
       debugLog('ORDER', 'Order data prepared', { 
         total: orderRequestData.total_amount,
         itemCount: orderRequestData.items.length,
         paymentReference: orderRequestData.payment_reference
       });
-
+  
       // Step 3: Send to backend
       setProcessingStep(3);
       setDebugInfo({ lastAction: 'Sending request to backend' });
       debugLog('BACKEND', 'Sending request to backend...');
-
+  
       const response = await withTimeout(
         fetch('/.netlify/functions/process-order', {
           method: 'POST',
@@ -464,18 +463,18 @@ export default function CheckoutPage() {
         30000,
         'Backend request timed out'
       );
-
+  
       debugLog('BACKEND', 'Response received', { 
         status: response.status,
         statusText: response.statusText,
         ok: response.ok
       });
-
+  
       // Step 4: Process response
       setProcessingStep(4);
       setDebugInfo({ lastAction: 'Processing backend response' });
       debugLog('RESPONSE', 'Processing response...');
-
+  
       const responseText = await response.text();
       
       if (!response.ok) {
@@ -493,36 +492,84 @@ export default function CheckoutPage() {
         
         throw new Error(errorData.error || `Server error: ${response.status}`);
       }
-
+  
       const responseData = JSON.parse(responseText);
       debugLog('RESPONSE', 'Response parsed successfully', { 
         success: responseData.success,
         hasOrder: !!responseData.order,
         orderNumber: responseData.order?.order_number
       });
-
-      // Step 5: Success - Immediate redirect to dashboard
-      debugLog('SUCCESS', 'Order created, redirecting to dashboard');
+  
+      // Step 5: ENHANCED CART CLEARING - Now blocking and with retry logic
+      setProcessingStep(5);
+      setDebugInfo({ lastAction: 'Clearing cart...' });
+      debugLog('CART', 'Starting enhanced cart clearing process');
+  
+      // First, clear cart state immediately for UI responsiveness
+      const currentCartItems = [...cartItems]; // Store for potential rollback
+      const currentCartSummary = { ...cartSummary }; // Store for potential rollback
       
-      // Clear cart (non-blocking)
-      clearCart().then(() => {
-        debugLog('CART', 'Cart cleared successfully');
-      }).catch((cartError) => {
-        debugLog('CART', 'Cart clear failed (non-critical)', { error: cartError.message });
-      });
-
-      // Immediate redirect to dashboard with success message
+      // Attempt to clear cart with retry logic
+      let cartClearSuccess = false;
+      let cartClearAttempts = 0;
+      const maxCartClearAttempts = 3;
+      
+      while (!cartClearSuccess && cartClearAttempts < maxCartClearAttempts) {
+        cartClearAttempts++;
+        debugLog('CART', `Cart clearing attempt ${cartClearAttempts}/${maxCartClearAttempts}`);
+        
+        try {
+          const clearResult = await withTimeout(
+            clearCart(),
+            10000,
+            `Cart clearing timeout (attempt ${cartClearAttempts})`
+          );
+          
+          if (clearResult.error) {
+            throw new Error(clearResult.error.message || 'Cart clearing failed');
+          }
+          
+          cartClearSuccess = true;
+          debugLog('CART', `Cart cleared successfully on attempt ${cartClearAttempts}`);
+          
+        } catch (cartError) {
+          debugLog('CART', `Cart clearing failed on attempt ${cartClearAttempts}`, { 
+            error: cartError.message 
+          });
+          
+          if (cartClearAttempts >= maxCartClearAttempts) {
+            // Final attempt failed - log error but don't fail the whole process
+            // The backend will also clear the cart as a backup
+            debugLog('CART', 'All cart clearing attempts failed, relying on backend clearing', {
+              error: cartError.message,
+              attempts: cartClearAttempts
+            });
+            
+            // Show a warning to the user but continue
+            console.warn('Cart clearing failed on frontend, but your order was successful. The cart will be cleared automatically.');
+            break;
+          } else {
+            // Wait before retry
+            await new Promise(resolve => setTimeout(resolve, 1000 * cartClearAttempts));
+          }
+        }
+      }
+  
+      // Step 6: Success - Navigate with cart cleared
+      debugLog('SUCCESS', 'Order processing complete, navigating to dashboard');
+      
       navigate('/dashboard', { 
         replace: true,
         state: { 
           orderSuccess: true,
           orderNumber: responseData.order.order_number,
           orderTotal: formatPrice(totals.total),
-          itemCount: cartItems.length,
+          itemCount: currentCartItems.length, // Use stored count since cart is now cleared
+          cartCleared: cartClearSuccess,
           message: `🎉 Order #${responseData.order.order_number} confirmed! Your water testing kits will ship within 1-2 business days.`
         }
       });
-
+  
     } catch (error) {
       debugLog('ERROR', 'Payment processing failed', { 
         error: error.message,
@@ -538,7 +585,7 @@ export default function CheckoutPage() {
       });
       setIsProcessing(false);
     }
-  }, [totals, formData, cartItems, clearCart, user, session, processingStep, navigate, formatPrice]);
+  }, [totals, formData, cartItems, cartSummary, clearCart, user, session, processingStep, navigate, formatPrice]);
 
   const handlePaymentError = useCallback((error) => {
     debugLog('PAYPAL_ERROR', 'PayPal error occurred', { error: error.message });

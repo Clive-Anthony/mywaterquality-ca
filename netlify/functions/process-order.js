@@ -53,29 +53,150 @@ async function sendConfirmationEmailBackground(orderData, userEmail) {
   }, 100);
 }
 
-// Clear user cart (completely non-blocking)
-async function clearUserCartBackground(supabaseAdmin, userId) {
-  setTimeout(async () => {
-    try {
-      const { data: cart } = await supabaseAdmin
-        .from('carts')
-        .select('cart_id')
-        .eq('user_id', userId)
-        .single();
-
-      if (cart) {
-        await supabaseAdmin
+// Enhanced cart clearing with retry logic and multiple methods
+async function clearUserCartEnhanced(supabaseAdmin, userId) {
+    const maxAttempts = 3;
+    let lastError = null;
+    
+    log('info', `Starting enhanced cart clearing for user: ${userId}`);
+    
+    for (let attempt = 1; attempt <= maxAttempts; attempt++) {
+      try {
+        log('info', `Cart clearing attempt ${attempt}/${maxAttempts}`);
+        
+        // Method 1: Standard clearing via cart lookup
+        const { data: userCarts, error: cartError } = await supabaseAdmin
+          .from('carts')
+          .select('cart_id')
+          .eq('user_id', userId);
+  
+        if (cartError) {
+          throw new Error(`Cart lookup failed: ${cartError.message}`);
+        }
+  
+        if (!userCarts || userCarts.length === 0) {
+          log('info', 'No carts found for user - nothing to clear');
+          return { success: true, method: 'no-cart', attempts: attempt };
+        }
+  
+        // Clear all cart items for all user carts
+        const cartIds = userCarts.map(cart => cart.cart_id);
+        log('info', `Found ${cartIds.length} carts to clear: ${cartIds.join(', ')}`);
+        
+        const { error: deleteError } = await supabaseAdmin
           .from('cart_items')
           .delete()
-          .eq('cart_id', cart.cart_id);
+          .in('cart_id', cartIds);
+  
+        if (deleteError) {
+          throw new Error(`Cart items deletion failed: ${deleteError.message}`);
+        }
+  
+        // Verify clearing was successful
+        const { data: remainingItems, error: verifyError } = await supabaseAdmin
+          .from('cart_items')
+          .select('item_id')
+          .in('cart_id', cartIds);
+  
+        if (verifyError) {
+          log('warn', 'Could not verify cart clearing, but deletion appeared successful');
+        } else if (remainingItems && remainingItems.length > 0) {
+          throw new Error(`Cart clearing incomplete: ${remainingItems.length} items remain`);
+        }
+  
+        log('info', `Cart cleared successfully on attempt ${attempt}`);
+        return { success: true, method: 'standard', attempts: attempt };
         
-        log('info', 'User cart cleared successfully');
+      } catch (error) {
+        lastError = error;
+        log('warn', `Cart clearing attempt ${attempt} failed: ${error.message}`);
+        
+        // If this isn't the last attempt, wait before retrying
+        if (attempt < maxAttempts) {
+          const delay = Math.min(1000 * attempt, 3000);
+          log('info', `Waiting ${delay}ms before retry...`);
+          await new Promise(resolve => setTimeout(resolve, delay));
+        }
       }
-    } catch (error) {
-      log('warn', 'Cart clear error (non-critical)', { error: error.message });
     }
-  }, 50);
-}
+    
+    // If standard method failed, try direct deletion as last resort
+    try {
+      log('warn', 'Standard cart clearing failed, trying direct deletion method...');
+      
+      // Direct deletion using a subquery
+      const { error: directError } = await supabaseAdmin
+        .rpc('delete_user_cart_items', { target_user_id: userId });
+      
+      if (directError) {
+        // If RPC doesn't exist, try raw SQL approach
+        log('warn', 'RPC method failed, trying raw deletion...');
+        
+        const { error: rawError } = await supabaseAdmin
+          .from('cart_items')
+          .delete()
+          .in('cart_id', 
+            supabaseAdmin
+              .from('carts')
+              .select('cart_id')
+              .eq('user_id', userId)
+          );
+        
+        if (rawError) {
+          throw new Error(`Direct deletion failed: ${rawError.message}`);
+        }
+      }
+      
+      log('info', 'Cart cleared successfully using direct method');
+      return { success: true, method: 'direct', attempts: maxAttempts + 1 };
+      
+    } catch (directError) {
+      log('error', `All cart clearing methods failed. Last error: ${directError.message}`);
+      return { 
+        success: false, 
+        method: 'none', 
+        attempts: maxAttempts + 1,
+        error: `All methods failed. Standard: ${lastError?.message}, Direct: ${directError.message}`
+      };
+    }
+  }
+  
+  // Enhanced background cart clearing with comprehensive error handling
+  async function clearUserCartBackground(supabaseAdmin, userId) {
+    // Run with a slight delay to avoid race conditions with frontend clearing
+    setTimeout(async () => {
+      try {
+        log('info', `Background cart clearing starting for user: ${userId}`);
+        
+        const result = await clearUserCartEnhanced(supabaseAdmin, userId);
+        
+        if (result.success) {
+          log('info', `Background cart clearing successful using ${result.method} method after ${result.attempts} attempts`);
+        } else {
+          log('error', `Background cart clearing failed: ${result.error}`);
+          
+          // Could send an alert or notification here for manual cleanup
+          // For now, just log the failure
+        }
+        
+      } catch (error) {
+        log('error', 'Background cart clearing exception:', { 
+          error: error.message,
+          stack: error.stack
+        });
+      }
+    }, 200); // Small delay to let frontend clearing attempt first
+  }
+  
+  // Add this function to be called in the main order processing
+  // Replace the existing call to clearUserCartBackground with this enhanced version
+  // At the end of the main exports.handler function:
+  
+  // Start background tasks (non-blocking) - ENHANCED VERSION
+  log('info', 'Starting background tasks...');
+  sendConfirmationEmailBackground(createdOrder, orderData.shipping_address.email);
+  clearUserCartBackground(supabaseAdmin, user.id); // This now uses the enhanced version
+  
 
 // Validate order data with detailed error reporting
 function validateOrderData(orderData) {
