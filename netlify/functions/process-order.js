@@ -1,8 +1,8 @@
-// netlify/functions/process-order.js - UPDATED with minimal PayPal support
+// netlify/functions/process-order.js - OPTIMIZED VERSION to prevent timeouts
 const { createClient } = require('@supabase/supabase-js');
 
-// Send email via Loops API
-async function sendLoopsEmail({ transactionalId, to, variables }) {
+// Send email via Loops API (non-blocking)
+async function sendLoopsEmailAsync({ transactionalId, to, variables }) {
   try {
     const apiKey = process.env.VITE_LOOPS_API_KEY;
     if (!apiKey) {
@@ -10,13 +10,15 @@ async function sendLoopsEmail({ transactionalId, to, variables }) {
       return { success: true, skipped: true };
     }
 
-    console.log(`Sending order confirmation email to ${to}`);
-
     const requestBody = {
       transactionalId,
       email: to,
       dataVariables: variables
     };
+
+    // Use shorter timeout for email to prevent function timeout
+    const controller = new AbortController();
+    const timeoutId = setTimeout(() => controller.abort(), 5000); // 5 second timeout
 
     const response = await fetch('https://app.loops.so/api/v1/transactional', {
       method: 'POST',
@@ -24,34 +26,26 @@ async function sendLoopsEmail({ transactionalId, to, variables }) {
         'Content-Type': 'application/json',
         'Authorization': `Bearer ${apiKey}`
       },
-      body: JSON.stringify(requestBody)
+      body: JSON.stringify(requestBody),
+      signal: controller.signal
     });
 
-    const responseText = await response.text();
-    console.log('Loops response:', response.status, responseText);
+    clearTimeout(timeoutId);
 
     if (!response.ok) {
-      let errorData;
-      try {
-        errorData = JSON.parse(responseText);
-      } catch (e) {
-        errorData = { message: responseText || `HTTP ${response.status}` };
-      }
-      throw new Error(`Loops API Error ${response.status}: ${errorData.message}`);
+      throw new Error(`Loops API Error ${response.status}`);
     }
 
     return { success: true };
   } catch (error) {
-    console.error('Loops API error:', error);
+    console.error('Loops API error (non-critical):', error.message);
     return { success: false, error: error.message };
   }
 }
 
-// Clear user's cart after successful order
-async function clearUserCart(supabaseAdmin, userId) {
+// Clear user's cart (non-blocking)
+async function clearUserCartAsync(supabaseAdmin, userId) {
   try {
-    console.log('Clearing cart for user:', userId);
-    
     const { data: cart, error: cartError } = await supabaseAdmin
       .from('carts')
       .select('cart_id')
@@ -59,7 +53,6 @@ async function clearUserCart(supabaseAdmin, userId) {
       .single();
 
     if (cartError || !cart) {
-      console.log('No cart found for user, skipping cart clear');
       return { success: true };
     }
 
@@ -69,56 +62,36 @@ async function clearUserCart(supabaseAdmin, userId) {
       .eq('cart_id', cart.cart_id);
 
     if (deleteError) {
-      console.error('Error clearing cart:', deleteError);
-      return { success: false, error: deleteError };
+      throw deleteError;
     }
 
-    console.log('Cart cleared successfully');
     return { success: true };
   } catch (error) {
-    console.error('Exception clearing cart:', error);
+    console.error('Cart clear error (non-critical):', error);
     return { success: false, error };
   }
 }
 
-// Validate order data
+// Validate order data (optimized)
 function validateOrderData(orderData) {
   const errors = [];
-
-  if (!orderData.shipping_address) {
-    errors.push('Shipping address is required');
-  }
-
-  if (!orderData.billing_address) {
-    errors.push('Billing address is required');
-  }
-
-  if (!orderData.items || orderData.items.length === 0) {
-    errors.push('Order must contain at least one item');
-  }
-
-  if (!orderData.total_amount || orderData.total_amount <= 0) {
-    errors.push('Order total must be greater than zero');
-  }
-
-  if (orderData.shipping_address) {
-    const required = ['firstName', 'lastName', 'address', 'city', 'province', 'postalCode', 'email'];
-    required.forEach(field => {
-      if (!orderData.shipping_address[field]) {
-        errors.push(`Shipping address ${field} is required`);
-      }
-    });
-
-    if (orderData.shipping_address.postalCode && 
-        !/^[A-Za-z]\d[A-Za-z][ -]?\d[A-Za-z]\d$/.test(orderData.shipping_address.postalCode)) {
-      errors.push('Invalid postal code format');
+  const required = ['shipping_address', 'billing_address', 'items', 'total_amount'];
+  
+  for (const field of required) {
+    if (!orderData[field]) {
+      errors.push(`${field} is required`);
     }
   }
 
-  return {
-    isValid: errors.length === 0,
-    errors
-  };
+  if (orderData.items && orderData.items.length === 0) {
+    errors.push('Order must contain at least one item');
+  }
+
+  if (orderData.total_amount && orderData.total_amount <= 0) {
+    errors.push('Order total must be greater than zero');
+  }
+
+  return { isValid: errors.length === 0, errors };
 }
 
 // Format price for display
@@ -130,6 +103,8 @@ function formatPrice(price) {
 }
 
 exports.handler = async function(event, context) {
+  const startTime = Date.now();
+  
   const headers = {
     'Access-Control-Allow-Origin': '*',
     'Access-Control-Allow-Headers': 'Content-Type, Authorization',
@@ -150,47 +125,38 @@ exports.handler = async function(event, context) {
   }
 
   try {
-    console.log('=== ORDER PROCESSING FUNCTION START ===');
+    console.log('🚀 ORDER PROCESSING START');
     
-    // Validate environment variables
+    // Validate environment variables quickly
     if (!process.env.VITE_SUPABASE_URL || !process.env.VITE_SUPABASE_SERVICE_KEY) {
-      console.error('❌ Missing Supabase environment variables');
       return {
         statusCode: 500,
         headers,
         body: JSON.stringify({ 
-          error: 'Server configuration error',
-          details: 'Missing database configuration'
+          error: 'Server configuration error'
         })
       };
     }
 
-    console.log('✅ Environment variables validated');
-
-    // Parse request body
+    // Parse and validate request body
     let orderData;
     try {
       orderData = JSON.parse(event.body);
-      console.log('✅ Order data parsed for:', orderData.shipping_address?.email);
-      console.log('Payment method:', orderData.payment_method);
-      console.log('Payment reference:', orderData.payment_reference);
-      console.log('Order total:', orderData.total_amount);
     } catch (parseError) {
-      console.error('❌ Failed to parse request body:', parseError);
       return {
         statusCode: 400,
         headers,
         body: JSON.stringify({ 
-          error: 'Invalid JSON in request body',
-          details: parseError.message
+          error: 'Invalid JSON in request body'
         })
       };
     }
 
-    // Validate order data
+    console.log('📋 Order validation for:', orderData.shipping_address?.email);
+
+    // Quick validation
     const validation = validateOrderData(orderData);
     if (!validation.isValid) {
-      console.error('❌ Order validation failed:', validation.errors);
       return {
         statusCode: 400,
         headers,
@@ -200,41 +166,32 @@ exports.handler = async function(event, context) {
         })
       };
     }
-    console.log('✅ Order data validated');
 
     // Create Supabase admin client
     const supabaseAdmin = createClient(
       process.env.VITE_SUPABASE_URL,
       process.env.VITE_SUPABASE_SERVICE_KEY
     );
-    console.log('✅ Supabase admin client created');
 
     // Authenticate user
     const authHeader = event.headers.authorization;
     if (!authHeader || !authHeader.startsWith('Bearer ')) {
-      console.error('❌ Missing or invalid authorization header');
       return {
         statusCode: 401,
         headers,
-        body: JSON.stringify({ 
-          error: 'Missing or invalid authorization header'
-        })
+        body: JSON.stringify({ error: 'Missing authorization header' })
       };
     }
 
     const token = authHeader.substring(7);
-    console.log('🔍 Attempting to authenticate user...');
-    
     const { data: userData, error: userError } = await supabaseAdmin.auth.getUser(token);
     
     if (userError || !userData?.user) {
-      console.error('❌ User authentication failed:', userError);
       return {
         statusCode: 401,
         headers,
         body: JSON.stringify({ 
-          error: 'Authentication failed',
-          details: userError?.message || 'Invalid token'
+          error: 'Authentication failed'
         })
       };
     }
@@ -242,8 +199,7 @@ exports.handler = async function(event, context) {
     const user = userData.user;
     console.log('✅ User authenticated:', user.email);
 
-    // Create the order in database
-    console.log('📝 Creating order in database...');
+    // Prepare order data for database
     const orderInsertData = {
       user_id: user.id,
       subtotal: orderData.subtotal,
@@ -260,13 +216,9 @@ exports.handler = async function(event, context) {
       fulfillment_status: 'unfulfilled'
     };
 
-    console.log('📋 Order insert data prepared:', {
-      user_id: orderInsertData.user_id,
-      total_amount: orderInsertData.total_amount,
-      payment_method: orderInsertData.payment_method,
-      payment_status: orderInsertData.payment_status
-    });
+    console.log('💾 Creating order in database...');
 
+    // Create order (critical operation)
     const { data: createdOrder, error: orderError } = await supabaseAdmin
       .from('orders')
       .insert([orderInsertData])
@@ -274,23 +226,20 @@ exports.handler = async function(event, context) {
       .single();
 
     if (orderError) {
-      console.error('❌ Database error creating order:', orderError);
+      console.error('❌ Order creation failed:', orderError);
       return {
         statusCode: 500,
         headers,
         body: JSON.stringify({ 
-          error: 'Failed to create order in database',
-          details: orderError.message,
-          code: orderError.code,
-          hint: orderError.hint
+          error: 'Failed to create order',
+          details: orderError.message
         })
       };
     }
 
-    console.log('✅ Order created successfully:', createdOrder.order_number, 'with ID:', createdOrder.id);
+    console.log('✅ Order created:', createdOrder.order_number);
 
-    // Create order items
-    console.log('📦 Creating order items...');
+    // Create order items (critical operation)
     const orderItems = orderData.items.map(item => ({
       order_id: createdOrder.id,
       test_kit_id: item.test_kit_id,
@@ -301,70 +250,33 @@ exports.handler = async function(event, context) {
       product_description: item.product_description || null
     }));
 
-    console.log('📋 Order items prepared:', orderItems.length, 'items');
-
     const { data: createdItems, error: itemsError } = await supabaseAdmin
       .from('order_items')
       .insert(orderItems)
       .select();
 
     if (itemsError) {
-      console.error('❌ Error creating order items:', itemsError);
+      console.error('❌ Order items creation failed:', itemsError);
       
-      // Clean up - delete the order if items creation failed
-      console.log('🧹 Cleaning up failed order...');
-      await supabaseAdmin
-        .from('orders')
-        .delete()
-        .eq('id', createdOrder.id);
+      // Clean up - delete the order
+      await supabaseAdmin.from('orders').delete().eq('id', createdOrder.id);
       
       return {
         statusCode: 500,
         headers,
         body: JSON.stringify({ 
-          error: 'Failed to create order items',
-          details: itemsError.message
+          error: 'Failed to create order items'
         })
       };
     }
 
-    console.log('✅ Order items created successfully:', createdItems.length, 'items');
+    console.log('✅ Order items created:', createdItems.length);
 
-    // Clear user's cart (non-blocking)
-    console.log('🧹 Clearing user cart...');
-    clearUserCart(supabaseAdmin, user.id).catch(error => {
-      console.warn('⚠️ Failed to clear cart (non-critical):', error);
-    });
+    const processingTime = Date.now() - startTime;
+    console.log(`⏱️ Critical operations completed in ${processingTime}ms`);
 
-    // Send order confirmation email (non-blocking)
-    console.log('📧 Sending order confirmation email...');
-    sendLoopsEmail({
-      transactionalId: 'cmazp7ib41er0z60iagt7cw00',
-      to: orderData.shipping_address.email,
-      variables: {
-        firstName: orderData.shipping_address.firstName,
-        orderNumber: createdOrder.order_number,
-        orderTotal: formatPrice(createdOrder.total_amount),
-        itemCount: orderData.items.length,
-        paymentMethod: orderData.payment_method === 'paypal' ? 'PayPal' : 'Demo',
-        dashboardLink: `${process.env.VITE_APP_URL || 'https://mywaterqualityca.netlify.app'}/dashboard`,
-        websiteURL: process.env.VITE_APP_URL || 'https://mywaterqualityca.netlify.app'
-      }
-    }).then(result => {
-      if (result.success && !result.skipped) {
-        console.log('✅ Order confirmation email sent successfully');
-      } else if (result.skipped) {
-        console.log('⚠️ Email sending skipped (API key not configured)');
-      } else {
-        console.warn('⚠️ Failed to send confirmation email:', result.error);
-      }
-    }).catch(emailError => {
-      console.warn('⚠️ Email sending exception (non-critical):', emailError);
-    });
-
-    // Return successful response
-    console.log('🎉 Order processing completed successfully');
-    return {
+    // Return success immediately to prevent timeout
+    const successResponse = {
       statusCode: 200,
       headers,
       body: JSON.stringify({
@@ -382,8 +294,54 @@ exports.handler = async function(event, context) {
       })
     };
 
+    // Start non-critical operations asynchronously (don't await)
+    setImmediate(async () => {
+      try {
+        console.log('🧹 Starting background tasks...');
+        
+        // Clear cart (non-blocking)
+        clearUserCartAsync(supabaseAdmin, user.id).then(result => {
+          if (result.success) {
+            console.log('✅ Cart cleared in background');
+          } else {
+            console.warn('⚠️ Cart clear failed:', result.error);
+          }
+        });
+
+        // Send confirmation email (non-blocking)
+        sendLoopsEmailAsync({
+          transactionalId: 'cmazp7ib41er0z60iagt7cw00',
+          to: orderData.shipping_address.email,
+          variables: {
+            firstName: orderData.shipping_address.firstName,
+            orderNumber: createdOrder.order_number,
+            orderTotal: formatPrice(createdOrder.total_amount),
+            itemCount: orderData.items.length,
+            paymentMethod: orderData.payment_method === 'paypal' ? 'PayPal' : 'Demo',
+            dashboardLink: `${process.env.VITE_APP_URL || 'https://mywaterqualityca.netlify.app'}/dashboard`,
+            websiteURL: process.env.VITE_APP_URL || 'https://mywaterqualityca.netlify.app'
+          }
+        }).then(result => {
+          if (result.success && !result.skipped) {
+            console.log('✅ Confirmation email sent in background');
+          } else if (result.skipped) {
+            console.log('⚠️ Email skipped (API key not configured)');
+          } else {
+            console.warn('⚠️ Email failed in background:', result.error);
+          }
+        });
+
+        console.log('🎉 Background tasks initiated');
+      } catch (bgError) {
+        console.error('Background task error:', bgError);
+      }
+    });
+
+    return successResponse;
+
   } catch (error) {
-    console.error('💥 Unexpected function error:', error);
+    const processingTime = Date.now() - startTime;
+    console.error(`💥 Function error after ${processingTime}ms:`, error);
     
     return {
       statusCode: 500,

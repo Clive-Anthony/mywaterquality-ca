@@ -644,9 +644,10 @@ export default function CheckoutPage() {
 
   // Process order with PayPal payment verification
   const processOrderWithPayment = useCallback(async (paymentDetails) => {
+    console.log('🚀 Starting order processing with payment details:', paymentDetails);
     setLoading(true);
     setError(null);
-
+  
     try {
       const orderItems = cartItems.map(item => ({
         test_kit_id: item.test_kit_id,
@@ -655,7 +656,7 @@ export default function CheckoutPage() {
         product_name: item.test_kits.name,
         product_description: item.test_kits.description
       }));
-
+  
       const orderData = {
         subtotal: totals.subtotal,
         shipping_cost: totals.shipping,
@@ -665,18 +666,35 @@ export default function CheckoutPage() {
         billing_address: formData.billing.sameAsShipping ? formData.shipping : formData.billing,
         special_instructions: formData.specialInstructions,
         payment_method: 'paypal',
-        payment_data: paymentDetails,
+        payment_reference: paymentDetails.paypalOrderId, // Add payment reference
         items: orderItems
       };
-
-      console.log('Processing order with PayPal payment:', orderData);
-
-      const { data: { session } } = await supabase.auth.getSession();
-      if (!session) {
-        throw new Error('No valid session found. Please log in again.');
+  
+      console.log('📋 Order data prepared:', {
+        total: orderData.total_amount,
+        items: orderData.items.length,
+        payment_method: orderData.payment_method,
+        payment_reference: orderData.payment_reference
+      });
+  
+      // Get fresh session token
+      console.log('🔑 Getting authentication session...');
+      const { data: { session }, error: sessionError } = await supabase.auth.getSession();
+      
+      if (sessionError || !session) {
+        console.error('❌ Session error:', sessionError);
+        throw new Error('Authentication session expired. Please refresh the page and try again.');
       }
-
-      const response = await fetch('/.netlify/functions/process-order', {
+      
+      console.log('✅ Session valid, making API call...');
+  
+      // Create a timeout promise
+      const timeoutPromise = new Promise((_, reject) => {
+        setTimeout(() => reject(new Error('Request timeout - please try again')), 30000); // 30 second timeout
+      });
+  
+      // Make the API call with timeout
+      const apiCallPromise = fetch('/.netlify/functions/process-order', {
         method: 'POST',
         headers: {
           'Content-Type': 'application/json',
@@ -684,31 +702,76 @@ export default function CheckoutPage() {
         },
         body: JSON.stringify(orderData)
       });
-
-      const responseData = await response.json();
-
-      if (!response.ok) {
-        throw new Error(responseData.error || `Server error: ${response.status}`);
-      }
-
-      console.log('Order processed successfully:', responseData);
+  
+      console.log('📡 API request sent, waiting for response...');
       
-      await clearCart();
+      // Race between API call and timeout
+      const response = await Promise.race([apiCallPromise, timeoutPromise]);
+      
+      console.log('📨 Response received:', response.status, response.statusText);
+  
+      // Parse response
+      let responseData;
+      try {
+        const responseText = await response.text();
+        console.log('📄 Raw response:', responseText.substring(0, 200) + '...');
+        responseData = JSON.parse(responseText);
+      } catch (parseError) {
+        console.error('❌ Failed to parse response:', parseError);
+        throw new Error('Invalid response from server. Please try again.');
+      }
+  
+      if (!response.ok) {
+        console.error('❌ API error response:', responseData);
+        throw new Error(responseData.error || responseData.message || `Server error: ${response.status}`);
+      }
+  
+      console.log('✅ Order processed successfully:', responseData);
+      
+      // Clear cart
+      console.log('🧹 Clearing cart...');
+      try {
+        await clearCart();
+        console.log('✅ Cart cleared successfully');
+      } catch (cartError) {
+        console.warn('⚠️ Cart clear failed (non-critical):', cartError);
+        // Don't fail the whole process if cart clear fails
+      }
+      
+      // Set order confirmation and move to confirmation step
+      console.log('🎉 Setting order confirmation and redirecting...');
       setOrderConfirmation(responseData.order);
       setCurrentStep(4);
       
-    } catch (error) {
-      console.error('Order processing error:', error);
-      setError(error.message || 'Failed to process order. Please try again.');
+      // Additional success feedback
+      console.log('✅ Order processing completed successfully!');
       
+    } catch (error) {
+      console.error('💥 Order processing error:', error);
+      
+      // Provide specific error messages
+      let errorMessage = error.message || 'Failed to process order. Please try again.';
+      
+      if (error.message?.includes('timeout')) {
+        errorMessage = 'The request is taking longer than expected. Your payment was successful. Please contact support with your PayPal transaction ID: ' + paymentDetails.paypalOrderId;
+      } else if (error.message?.includes('Authentication') || error.message?.includes('session')) {
+        errorMessage = 'Your session has expired. Please refresh the page and try again.';
+      } else if (error.message?.includes('Network')) {
+        errorMessage = 'Network connection issue. Please check your internet and try again.';
+      }
+      
+      setError(errorMessage);
+      
+      // If we have payment details, show them to user
       if (paymentDetails) {
-        setError(`Payment successful (${paymentDetails.paypalOrderId}) but order processing failed. Please contact support with this reference number.`);
+        setError(`${errorMessage} Your PayPal payment (${paymentDetails.paypalOrderId}) was successful. Please contact support if this issue persists.`);
       }
     } finally {
+      console.log('🏁 Order processing finished, resetting loading states...');
       setLoading(false);
       setPaymentLoading(false);
     }
-  }, [cartItems, totals, formData, clearCart]);
+  }, [cartItems, totals, formData, clearCart, supabase]);
 
   // STABLE STEP CONTENT RENDERING
   const renderStepContent = useCallback(() => {
@@ -832,16 +895,34 @@ export default function CheckoutPage() {
 
         {/* Error Message */}
         {error && (
-          <div className="mb-6 bg-red-50 border-l-4 border-red-500 p-4 rounded">
-            <div className="flex items-center">
-              <svg className="h-5 w-5 text-red-500 mr-2" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" />
-              </svg>
-              <span className="text-red-700">{error}</span>
-            </div>
+  <div className="mb-6 bg-red-50 border-l-4 border-red-500 p-4 rounded">
+    <div className="flex items-start">
+      <svg className="h-5 w-5 text-red-500 mr-2 mt-0.5 flex-shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" />
+      </svg>
+      <div className="flex-1">
+        <h3 className="text-sm font-medium text-red-800 mb-1">Order Processing Error</h3>
+        <p className="text-sm text-red-700 whitespace-pre-wrap">{error}</p>
+        {error.includes('PayPal') && (
+          <div className="mt-3 flex flex-col sm:flex-row gap-2">
+            <button
+              onClick={() => setError(null)}
+              className="inline-flex items-center px-3 py-2 border border-red-300 text-sm font-medium rounded-md text-red-700 bg-red-50 hover:bg-red-100"
+            >
+              Dismiss
+            </button>
+            <button
+              onClick={() => navigate('/dashboard')}
+              className="inline-flex items-center px-3 py-2 border border-transparent text-sm font-medium rounded-md text-white bg-red-600 hover:bg-red-700"
+            >
+              Go to Dashboard
+            </button>
           </div>
         )}
-
+      </div>
+    </div>
+  </div>
+)}
         {/* Step Content */}
         <div className="mb-8">
           {renderStepContent()}
