@@ -1,4 +1,4 @@
-// src/pages/CheckoutPage.jsx - COMPLETE FIXED VERSION
+// src/pages/CheckoutPage.jsx - ENHANCED VERSION with better error handling and dashboard redirect
 import React, { useState, useEffect, useMemo, useCallback } from 'react';
 import { useNavigate, Link } from 'react-router-dom';
 import { useAuth } from '../contexts/AuthContext';
@@ -8,20 +8,34 @@ import PayPalPayment from '../components/PayPalPayment';
 import { supabase } from '../lib/supabaseClient';
 
 // ENHANCED LOADING OVERLAY COMPONENT
-const PaymentLoadingOverlay = ({ paymentLoading, paymentData }) => {
+const PaymentLoadingOverlay = ({ paymentLoading, paymentData, processingStep, error }) => {
   if (!paymentLoading) return null;
 
   return (
     <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
       <div className="bg-white rounded-lg p-8 max-w-md mx-4 text-center">
         <div className="animate-spin rounded-full h-12 w-12 border-t-2 border-b-2 border-blue-500 mx-auto mb-4"></div>
-        <h3 className="text-lg font-medium text-gray-900 mb-2">Processing Your Payment</h3>
-        <p className="text-gray-600 mb-4">
-          Please don't close this window. We're processing your order...
-        </p>
+        <h3 className="text-lg font-medium text-gray-900 mb-2">Processing Your Order</h3>
+        
+        {/* Processing Steps */}
+        <div className="text-left mb-4 space-y-2">
+          <div className={`flex items-center text-sm ${processingStep >= 1 ? 'text-green-600' : 'text-gray-400'}`}>
+            {processingStep >= 1 ? '✅' : '⏳'} PayPal payment received
+          </div>
+          <div className={`flex items-center text-sm ${processingStep >= 2 ? 'text-green-600' : 'text-gray-400'}`}>
+            {processingStep >= 2 ? '✅' : '⏳'} Verifying payment details
+          </div>
+          <div className={`flex items-center text-sm ${processingStep >= 3 ? 'text-green-600' : 'text-gray-400'}`}>
+            {processingStep >= 3 ? '✅' : '⏳'} Creating your order
+          </div>
+          <div className={`flex items-center text-sm ${processingStep >= 4 ? 'text-green-600' : 'text-gray-400'}`}>
+            {processingStep >= 4 ? '✅' : '⏳'} Sending confirmation
+          </div>
+        </div>
+
         {paymentData && (
           <div className="bg-green-50 border border-green-200 rounded-lg p-3 mb-4">
-            <p className="text-sm text-green-800">
+            <p className="text-sm text-green-800 font-medium">
               ✅ PayPal payment successful
             </p>
             <p className="text-xs text-green-600 mt-1">
@@ -29,67 +43,32 @@ const PaymentLoadingOverlay = ({ paymentLoading, paymentData }) => {
             </p>
           </div>
         )}
+
+        {error && (
+          <div className="bg-red-50 border border-red-200 rounded-lg p-3 mb-4">
+            <p className="text-sm text-red-800 font-medium">
+              ❌ Processing Error
+            </p>
+            <p className="text-xs text-red-600 mt-1">
+              {error}
+            </p>
+          </div>
+        )}
+        
         <div className="text-xs text-gray-500">
-          This usually takes 10-30 seconds...
+          Please don't close this window...
         </div>
       </div>
     </div>
   );
 };
 
-// PAYPAL ERROR BOUNDARY COMPONENT
-const PayPalErrorBoundary = ({ children, onError }) => {
-  const [hasError, setHasError] = useState(false);
-  const [error, setError] = useState(null);
-
-  useEffect(() => {
-    const handleError = (event) => {
-      if (event.error && event.error.message?.includes('paypal')) {
-        setHasError(true);
-        setError(event.error);
-        onError?.(event.error);
-      }
-    };
-
-    window.addEventListener('error', handleError);
-    return () => window.removeEventListener('error', handleError);
-  }, [onError]);
-
-  if (hasError) {
-    return (
-      <div className="bg-red-50 border border-red-200 rounded-lg p-4">
-        <div className="flex items-center mb-2">
-          <svg className="h-5 w-5 text-red-500 mr-2" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" />
-          </svg>
-          <h3 className="text-sm font-medium text-red-800">PayPal Loading Error</h3>
-        </div>
-        <p className="text-sm text-red-700 mb-3">
-          There was an issue loading the PayPal payment option. Please try refreshing the page.
-        </p>
-        <button
-          onClick={() => {
-            setHasError(false);
-            setError(null);
-            window.location.reload();
-          }}
-          className="inline-flex items-center px-3 py-2 border border-red-300 text-sm font-medium rounded-md text-red-700 bg-red-50 hover:bg-red-100"
-        >
-          Refresh Page
-        </button>
-      </div>
-    );
-  }
-
-  return children;
-};
-
 // SUCCESS NOTIFICATION COMPONENT
-const OrderSuccessNotification = ({ show, orderConfirmation, onClose }) => {
+const OrderSuccessNotification = ({ show, orderData, onClose }) => {
   useEffect(() => {
     if (show) {
-      // Auto-close after 10 seconds
-      const timer = setTimeout(onClose, 10000);
+      // Auto-close after 5 seconds
+      const timer = setTimeout(onClose, 5000);
       return () => clearTimeout(timer);
     }
   }, [show, onClose]);
@@ -109,7 +88,10 @@ const OrderSuccessNotification = ({ show, orderConfirmation, onClose }) => {
             Order Confirmed!
           </h3>
           <p className="mt-1 text-sm text-green-700">
-            Order #{orderConfirmation?.order_number} has been processed successfully.
+            Order #{orderData?.order_number} processed successfully.
+          </p>
+          <p className="mt-1 text-xs text-green-600">
+            Redirecting to dashboard...
           </p>
         </div>
         <div className="ml-4 flex-shrink-0">
@@ -127,9 +109,7 @@ const OrderSuccessNotification = ({ show, orderConfirmation, onClose }) => {
   );
 };
 
-// MEMOIZED STEP COMPONENTS TO PREVENT UNNECESSARY RE-RENDERS
-
-// Review Step Component - Memoized
+// MEMOIZED STEP COMPONENTS (keeping existing components)
 const ReviewStep = React.memo(({ 
   cartItems, 
   cartSummary, 
@@ -211,7 +191,7 @@ const ReviewStep = React.memo(({
   </div>
 ));
 
-// Shipping Step Component - Memoized
+// Shipping Step Component
 const ShippingStep = React.memo(({ formData, handleInputChange, provinces }) => (
   <div className="space-y-6">
     <h2 className="text-xl font-semibold text-gray-900">Shipping Information</h2>
@@ -328,7 +308,7 @@ const ShippingStep = React.memo(({ formData, handleInputChange, provinces }) => 
   </div>
 ));
 
-// Payment Step Component - Memoized with stable PayPal props
+// Payment Step Component
 const PaymentStep = React.memo(({ 
   formData, 
   cartItems, 
@@ -421,22 +401,16 @@ const PaymentStep = React.memo(({
           </div>
         </div>
 
-        {/* ENHANCED PAYPAL COMPONENT WITH ERROR BOUNDARY */}
-        <PayPalErrorBoundary onError={onPayPalError}>
-          <PayPalPayment
-            amount={totals.total}
-            currency="CAD"
-            onSuccess={onPaymentSuccess}
-            onError={(error) => {
-              console.error('PayPal payment error:', error);
-              onPayPalError(error);
-            }}
-            onCancel={() => {
-              console.log('Payment cancelled by user');
-            }}
-            disabled={paymentLoading}
-          />
-        </PayPalErrorBoundary>
+        <PayPalPayment
+          amount={totals.total}
+          currency="CAD"
+          onSuccess={onPaymentSuccess}
+          onError={onPayPalError}
+          onCancel={() => {
+            console.log('Payment cancelled by user');
+          }}
+          disabled={paymentLoading}
+        />
       </div>
 
       {/* Alternative Payment Methods (Future) */}
@@ -474,80 +448,22 @@ const PaymentStep = React.memo(({
   </div>
 ));
 
-// Confirmation Step Component - Memoized
-const ConfirmationStep = React.memo(({ orderConfirmation, formatPrice }) => (
-  <div className="space-y-6 text-center">
-    <div className="mx-auto w-16 h-16 bg-green-100 rounded-full flex items-center justify-center">
-      <svg className="h-8 w-8 text-green-600" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M5 13l4 4L19 7" />
-      </svg>
-    </div>
-    
-    <div>
-      <h2 className="text-2xl font-bold text-gray-900">Order Confirmed!</h2>
-      <p className="mt-2 text-gray-600">
-        Thank you for your order. You will receive a confirmation email shortly.
-      </p>
-      {orderConfirmation && (
-        <div className="mt-4 p-4 bg-blue-50 rounded-lg">
-          <p className="text-sm text-blue-800">
-            <strong>Order Number:</strong> {orderConfirmation.order_number}
-          </p>
-          <p className="text-sm text-blue-800">
-            <strong>Total:</strong> {formatPrice(orderConfirmation.total_amount)}
-          </p>
-          {orderConfirmation.payment_method === 'paypal' && (
-            <p className="text-sm text-blue-800">
-              <strong>Payment Method:</strong> PayPal
-            </p>
-          )}
-        </div>
-      )}
-    </div>
-
-    <div className="bg-green-50 rounded-lg p-6">
-      <h3 className="text-lg font-medium text-green-800 mb-2">What's Next?</h3>
-      <div className="text-sm text-green-700 space-y-2 text-left max-w-md mx-auto">
-        <p>1. You'll receive your water testing kit within 3-5 business days</p>
-        <p>2. Follow the included instructions to collect your water sample</p>
-        <p>3. Ship your sample back using the prepaid label</p>
-        <p>4. Receive your detailed results within 5-7 business days</p>
-      </div>
-    </div>
-
-    <div className="flex flex-col sm:flex-row gap-4 justify-center">
-      <Link
-        to="/dashboard"
-        className="inline-flex items-center px-6 py-3 border border-transparent text-base font-medium rounded-md text-white bg-blue-600 hover:bg-blue-700"
-      >
-        Go to Dashboard
-      </Link>
-      <Link
-        to="/test-kits"
-        className="inline-flex items-center px-6 py-3 border border-gray-300 text-base font-medium rounded-md text-gray-700 bg-white hover:bg-gray-50"
-      >
-        Continue Shopping
-      </Link>
-    </div>
-  </div>
-));
-
-// MAIN COMPONENT WITH OPTIMIZATIONS
+// MAIN COMPONENT WITH ENHANCED ERROR HANDLING
 export default function CheckoutPage() {
   const navigate = useNavigate();
   const { user } = useAuth();
-  const { cartItems, cartSummary, updateCartItemQuantity, removeFromCart, clearCart } = useCart();
+  const { cartItems, cartSummary, updateCartItemQuantity, removeFromCart, clearCart, refreshCart } = useCart();
   
   const [currentStep, setCurrentStep] = useState(1);
-  const [loading, setLoading] = useState(false);
   const [error, setError] = useState(null);
   const [userProfile, setUserProfile] = useState(null);
-  const [orderConfirmation, setOrderConfirmation] = useState(null);
-  const [showSuccessNotification, setShowSuccessNotification] = useState(false);
   
-  // PAYPAL SPECIFIC STATE
+  // ENHANCED PAYPAL AND ORDER PROCESSING STATE
   const [paymentData, setPaymentData] = useState(null);
   const [paymentLoading, setPaymentLoading] = useState(false);
+  const [processingStep, setProcessingStep] = useState(0);
+  const [orderData, setOrderData] = useState(null);
+  const [showSuccessNotification, setShowSuccessNotification] = useState(false);
   
   const [formData, setFormData] = useState({
     shipping: {
@@ -574,7 +490,7 @@ export default function CheckoutPage() {
     specialInstructions: ''
   });
 
-  // MEMOIZED CALCULATIONS TO PREVENT UNNECESSARY RE-RENDERS
+  // MEMOIZED CALCULATIONS
   const totals = useMemo(() => {
     const subtotal = cartSummary.totalPrice;
     const shipping = 0; // Free shipping
@@ -632,7 +548,7 @@ export default function CheckoutPage() {
     }
   }, [user, cartSummary.totalItems, navigate]);
 
-  // Load user profile data (only once)
+  // Load user profile data
   useEffect(() => {
     const loadUserProfile = async () => {
       if (!user) return;
@@ -744,24 +660,26 @@ export default function CheckoutPage() {
       }
     }
     
-    setCurrentStep(prev => Math.min(prev + 1, 4));
+    setCurrentStep(prev => Math.min(prev + 1, 3));
   }, [currentStep, validateShippingForm]);
 
   const goToPreviousStep = useCallback(() => {
     setCurrentStep(prev => Math.max(prev - 1, 1));
   }, []);
 
-  // ENHANCED PAYPAL SUCCESS HANDLER WITH TIMEOUT PROTECTION
+  // ENHANCED PAYPAL SUCCESS HANDLER
   const handlePaymentSuccess = useCallback(async (paymentDetails) => {
     console.log('🎉 Payment successful:', paymentDetails);
     setPaymentData(paymentDetails);
     setPaymentLoading(true);
+    setProcessingStep(1); // PayPal payment received
+    setError(null);
     
     try {
       await processOrderWithPayment(paymentDetails);
     } catch (error) {
       console.error('💥 Error processing order after payment:', error);
-      setError('Payment successful but order processing failed. Please contact support.');
+      setError('Payment successful but order processing failed. Please contact support with your PayPal reference: ' + paymentDetails.paypalOrderId);
       setPaymentLoading(false);
     }
   }, []);
@@ -770,6 +688,7 @@ export default function CheckoutPage() {
   const handlePayPalError = useCallback((error) => {
     console.error('PayPal error:', error);
     setPaymentLoading(false);
+    setProcessingStep(0);
     
     let errorMessage = 'Payment failed. Please try again.';
     
@@ -784,11 +703,10 @@ export default function CheckoutPage() {
     setError(errorMessage);
   }, []);
 
-  // ENHANCED PROCESS ORDER WITH PAYMENT VERIFICATION AND TIMEOUT PROTECTION
+  // ENHANCED PROCESS ORDER WITH BETTER ERROR HANDLING AND TIMEOUT
   const processOrderWithPayment = useCallback(async (paymentDetails) => {
     console.log('🚀 Starting order processing with payment details:', paymentDetails);
-    setLoading(true);
-    setError(null);
+    setProcessingStep(2); // Verifying payment details
 
     try {
       const orderItems = cartItems.map(item => ({
@@ -799,7 +717,7 @@ export default function CheckoutPage() {
         product_description: item.test_kits.description
       }));
 
-      const orderData = {
+      const orderRequestData = {
         subtotal: totals.subtotal,
         shipping_cost: totals.shipping,
         tax_amount: totals.tax,
@@ -813,11 +731,13 @@ export default function CheckoutPage() {
       };
 
       console.log('📋 Order data prepared:', {
-        total: orderData.total_amount,
-        items: orderData.items.length,
-        payment_method: orderData.payment_method,
-        payment_reference: orderData.payment_reference
+        total: orderRequestData.total_amount,
+        items: orderRequestData.items.length,
+        payment_method: orderRequestData.payment_method,
+        payment_reference: orderRequestData.payment_reference
       });
+
+      setProcessingStep(3); // Creating your order
 
       // Get fresh session token
       console.log('🔑 Getting authentication session...');
@@ -830,9 +750,13 @@ export default function CheckoutPage() {
       
       console.log('✅ Session valid, making API call...');
 
-      // Create a timeout promise
+      // Create timeouts for different stages
+      const FUNCTION_TIMEOUT = 45000; // 45 seconds for the entire function
+      const RESPONSE_TIMEOUT = 30000; // 30 seconds for initial response
+
+      // Create timeout promise
       const timeoutPromise = new Promise((_, reject) => {
-        setTimeout(() => reject(new Error('Request timeout - please try again')), 30000); // 30 second timeout
+        setTimeout(() => reject(new Error('Order processing timed out. Please contact support.')), FUNCTION_TIMEOUT);
       });
 
       // Make the API call with timeout
@@ -842,7 +766,7 @@ export default function CheckoutPage() {
           'Content-Type': 'application/json',
           'Authorization': `Bearer ${session.access_token}`
         },
-        body: JSON.stringify(orderData)
+        body: JSON.stringify(orderRequestData)
       });
 
       console.log('📡 API request sent, waiting for response...');
@@ -852,51 +776,81 @@ export default function CheckoutPage() {
       
       console.log('📨 Response received:', response.status, response.statusText);
 
-      // Parse response
+      // Check if response is ok before parsing
+      if (!response.ok) {
+        let errorData;
+        try {
+          const responseText = await response.text();
+          console.log('📄 Error response:', responseText);
+          errorData = JSON.parse(responseText);
+        } catch (parseError) {
+          console.error('❌ Failed to parse error response:', parseError);
+          throw new Error(`Server error: ${response.status} ${response.statusText}`);
+        }
+        
+        throw new Error(errorData.error || errorData.message || `Server error: ${response.status}`);
+      }
+
+      // Parse success response with timeout
       let responseData;
       try {
-        const responseText = await response.text();
-        console.log('📄 Raw response:', responseText.substring(0, 200) + '...');
+        const responseText = await Promise.race([
+          response.text(),
+          new Promise((_, reject) => setTimeout(() => reject(new Error('Response parsing timed out')), RESPONSE_TIMEOUT))
+        ]);
+        
+        console.log('📄 Raw response received');
         responseData = JSON.parse(responseText);
       } catch (parseError) {
         console.error('❌ Failed to parse response:', parseError);
-        throw new Error('Invalid response from server. Please try again.');
-      }
-
-      if (!response.ok) {
-        console.error('❌ API error response:', responseData);
-        throw new Error(responseData.error || responseData.message || `Server error: ${response.status}`);
+        throw new Error('Invalid response from server. Your order may have been processed. Please check your dashboard.');
       }
 
       console.log('✅ Order processed successfully:', responseData);
+      
+      setProcessingStep(4); // Sending confirmation
       
       // Clear cart
       console.log('🧹 Clearing cart...');
       try {
         await clearCart();
+        // Refresh cart to ensure it's updated
+        await refreshCart();
         console.log('✅ Cart cleared successfully');
       } catch (cartError) {
         console.warn('⚠️ Cart clear failed (non-critical):', cartError);
         // Don't fail the whole process if cart clear fails
       }
       
-      // Set order confirmation and move to confirmation step
-      console.log('🎉 Setting order confirmation and redirecting...');
-      setOrderConfirmation(responseData.order);
-      setCurrentStep(4);
+      // Set order data and show success
+      console.log('🎉 Setting order data and showing success...');
+      setOrderData(responseData.order);
       setShowSuccessNotification(true);
       
-      // Additional success feedback
+      // Redirect to dashboard after a short delay
+      console.log('🏠 Redirecting to dashboard...');
+      setTimeout(() => {
+        navigate('/dashboard', { 
+          replace: true,
+          state: { 
+            orderSuccess: true,
+            orderNumber: responseData.order.order_number,
+            orderTotal: formatPrice(responseData.order.total_amount)
+          }
+        });
+      }, 3000); // 3 second delay to show success message
+      
       console.log('✅ Order processing completed successfully!');
       
     } catch (error) {
       console.error('💥 Order processing error:', error);
+      setProcessingStep(0);
       
       // Provide specific error messages
       let errorMessage = error.message || 'Failed to process order. Please try again.';
       
       if (error.message?.includes('timeout')) {
-        errorMessage = 'The request is taking longer than expected. Your payment was successful. Please contact support with your PayPal transaction ID: ' + paymentDetails.paypalOrderId;
+        errorMessage = 'The order is taking longer than expected. Your payment was successful. Please check your dashboard in a few minutes or contact support with your PayPal transaction ID: ' + paymentDetails.paypalOrderId;
       } else if (error.message?.includes('Authentication') || error.message?.includes('session')) {
         errorMessage = 'Your session has expired. Please refresh the page and try again.';
       } else if (error.message?.includes('Network')) {
@@ -905,16 +859,11 @@ export default function CheckoutPage() {
       
       setError(errorMessage);
       
-      // If we have payment details, show them to user
-      if (paymentDetails) {
-        setError(`${errorMessage} Your PayPal payment (${paymentDetails.paypalOrderId}) was successful. Please contact support if this issue persists.`);
-      }
     } finally {
       console.log('🏁 Order processing finished, resetting loading states...');
-      setLoading(false);
       setPaymentLoading(false);
     }
-  }, [cartItems, totals, formData, clearCart]);
+  }, [cartItems, totals, formData, clearCart, refreshCart, navigate, formatPrice]);
 
   // STABLE STEP CONTENT RENDERING
   const renderStepContent = useCallback(() => {
@@ -949,13 +898,6 @@ export default function CheckoutPage() {
             onPayPalError={handlePayPalError}
           />
         );
-      case 4:
-        return (
-          <ConfirmationStep 
-            orderConfirmation={orderConfirmation}
-            formatPrice={formatPrice}
-          />
-        );
       default:
         return (
           <ReviewStep 
@@ -967,7 +909,7 @@ export default function CheckoutPage() {
           />
         );
     }
-  }, [currentStep, cartItems, cartSummary, handleQuantityUpdate, formatPrice, totals, formData, handleInputChange, provinces, handlePaymentSuccess, paymentLoading, handlePayPalError, orderConfirmation]);
+  }, [currentStep, cartItems, cartSummary, handleQuantityUpdate, formatPrice, totals, formData, handleInputChange, provinces, handlePaymentSuccess, paymentLoading, handlePayPalError]);
 
   if (!user || cartSummary.totalItems === 0) {
     return null; // Will redirect via useEffect
@@ -983,22 +925,21 @@ export default function CheckoutPage() {
               {[
                 { id: 1, name: 'Review', status: currentStep > 1 ? 'complete' : currentStep === 1 ? 'current' : 'upcoming' },
                 { id: 2, name: 'Shipping', status: currentStep > 2 ? 'complete' : currentStep === 2 ? 'current' : 'upcoming' },
-                { id: 3, name: 'Payment', status: currentStep > 3 ? 'complete' : currentStep === 3 ? 'current' : 'upcoming' },
-                { id: 4, name: 'Confirmation', status: currentStep === 4 ? 'current' : 'upcoming' }
+                { id: 3, name: 'Payment', status: currentStep === 3 ? 'current' : 'upcoming' }
               ].map((step, stepIdx) => (
-                <li key={step.id} className={`${stepIdx !== 3 ? 'pr-8 sm:pr-20' : ''} relative`}>
+                <li key={step.id} className={`${stepIdx !== 2 ? 'pr-8 sm:pr-20' : ''} relative`}>
                   {step.status === 'complete' ? (
                     <div className="absolute inset-0 flex items-center" aria-hidden="true">
                       <div className="h-0.5 w-full bg-blue-600" />
                     </div>
                   ) : step.status === 'current' ? (
-                    stepIdx !== 3 && (
+                    stepIdx !== 2 && (
                       <div className="absolute inset-0 flex items-center" aria-hidden="true">
                         <div className="h-0.5 w-full bg-gray-200" />
                       </div>
                     )
                   ) : (
-                    stepIdx !== 3 && (
+                    stepIdx !== 2 && (
                       <div className="absolute inset-0 flex items-center" aria-hidden="true">
                         <div className="h-0.5 w-full bg-gray-200" />
                       </div>
@@ -1047,7 +988,7 @@ export default function CheckoutPage() {
               <div className="flex-1">
                 <h3 className="text-sm font-medium text-red-800 mb-1">Order Processing Error</h3>
                 <p className="text-sm text-red-700 whitespace-pre-wrap">{error}</p>
-                {error.includes('PayPal') && (
+                {(error.includes('PayPal') || error.includes('timeout')) && (
                   <div className="mt-3 flex flex-col sm:flex-row gap-2">
                     <button
                       onClick={() => setError(null)}
@@ -1059,7 +1000,7 @@ export default function CheckoutPage() {
                       onClick={() => navigate('/dashboard')}
                       className="inline-flex items-center px-3 py-2 border border-transparent text-sm font-medium rounded-md text-white bg-red-600 hover:bg-red-700"
                     >
-                      Go to Dashboard
+                      Check Dashboard
                     </button>
                   </div>
                 )}
@@ -1074,56 +1015,56 @@ export default function CheckoutPage() {
         </div>
 
         {/* Navigation Buttons */}
-        {currentStep < 4 && (
-          <div className="flex justify-between">
-            <div>
-              {currentStep > 1 && (
-                <button
-                  onClick={goToPreviousStep}
-                  disabled={paymentLoading}
-                  className="inline-flex items-center px-6 py-3 border border-gray-300 text-base font-medium rounded-md text-gray-700 bg-white hover:bg-gray-50 disabled:opacity-50"
-                >
-                  ← Previous
-                </button>
-              )}
-            </div>
-            <div>
-              {currentStep < 3 ? (
-                <button
-                  onClick={goToNextStep}
-                  className="inline-flex items-center px-6 py-3 border border-transparent text-base font-medium rounded-md text-white bg-blue-600 hover:bg-blue-700"
-                >
-                  Continue →
-                </button>
-              ) : (
-                <div className="text-sm text-gray-500">
-                  {paymentLoading ? (
-                    <div className="flex items-center">
-                      <svg className="animate-spin -ml-1 mr-2 h-4 w-4 text-gray-500" fill="none" viewBox="0 0 24 24">
-                        <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
-                        <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
-                      </svg>
-                      Processing payment...
-                    </div>
-                  ) : (
-                    'Complete payment above to finish your order'
-                  )}
-                </div>
-              )}
-            </div>
+        <div className="flex justify-between">
+          <div>
+            {currentStep > 1 && (
+              <button
+                onClick={goToPreviousStep}
+                disabled={paymentLoading}
+                className="inline-flex items-center px-6 py-3 border border-gray-300 text-base font-medium rounded-md text-gray-700 bg-white hover:bg-gray-50 disabled:opacity-50"
+              >
+                ← Previous
+              </button>
+            )}
           </div>
-        )}
+          <div>
+            {currentStep < 3 ? (
+              <button
+                onClick={goToNextStep}
+                className="inline-flex items-center px-6 py-3 border border-transparent text-base font-medium rounded-md text-white bg-blue-600 hover:bg-blue-700"
+              >
+                Continue →
+              </button>
+            ) : (
+              <div className="text-sm text-gray-500">
+                {paymentLoading ? (
+                  <div className="flex items-center">
+                    <svg className="animate-spin -ml-1 mr-2 h-4 w-4 text-gray-500" fill="none" viewBox="0 0 24 24">
+                      <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
+                      <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+                    </svg>
+                    Processing order...
+                  </div>
+                ) : (
+                  'Complete payment above to finish your order'
+                )}
+              </div>
+            )}
+          </div>
+        </div>
       </div>
 
       {/* ENHANCED OVERLAYS AND NOTIFICATIONS */}
       <PaymentLoadingOverlay 
         paymentLoading={paymentLoading} 
-        paymentData={paymentData} 
+        paymentData={paymentData}
+        processingStep={processingStep}
+        error={error}
       />
       
       <OrderSuccessNotification
         show={showSuccessNotification}
-        orderConfirmation={orderConfirmation}
+        orderData={orderData}
         onClose={() => setShowSuccessNotification(false)}
       />
     </PageLayout>
