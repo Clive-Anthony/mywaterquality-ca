@@ -1,4 +1,4 @@
-// netlify/functions/process-order.js - COMPREHENSIVE FIX
+// netlify/functions/process-order.js - FIXED VERSION
 const { createClient } = require('@supabase/supabase-js');
 
 // Enhanced logging with better formatting
@@ -50,7 +50,7 @@ async function sendConfirmationEmailBackground(orderData, userEmail) {
     } catch (error) {
       log('warn', 'Confirmation email error (non-critical)', { error: error.message });
     }
-  }, 100); // Minimal delay to ensure function returns first
+  }, 100);
 }
 
 // Clear user cart (completely non-blocking)
@@ -105,18 +105,38 @@ function validateOrderData(orderData) {
   return { isValid: errors.length === 0, errors };
 }
 
+// FIXED: Check and create orders table if it doesn't exist
+async function ensureOrdersTableExists(supabaseAdmin) {
+  try {
+    // Test if we can query the orders table
+    const { data, error } = await supabaseAdmin
+      .from('orders')
+      .select('id')
+      .limit(1);
+    
+    if (error && error.code === '42P01') {
+      // Table doesn't exist
+      log('warn', 'Orders table does not exist - this needs to be created in Supabase');
+      throw new Error('Orders table not found. Please create the orders table in your Supabase database.');
+    } else if (error) {
+      log('warn', 'Error checking orders table', { error: error.message, code: error.code });
+      throw error;
+    }
+    
+    log('info', 'Orders table exists and is accessible');
+    return true;
+  } catch (error) {
+    log('error', 'Orders table check failed', { error: error.message });
+    throw error;
+  }
+}
+
 exports.handler = async function(event, context) {
   const startTime = Date.now();
   const requestId = Math.random().toString(36).substring(2, 8);
   
   log('info', `ORDER PROCESSING START [${requestId}]`);
   
-  // Set function timeout to prevent hanging
-  const functionTimeout = setTimeout(() => {
-    log('error', `Function timeout after 25 seconds [${requestId}]`);
-    process.exit(1);
-  }, 25000);
-
   const headers = {
     'Access-Control-Allow-Origin': '*',
     'Access-Control-Allow-Headers': 'Content-Type, Authorization',
@@ -126,12 +146,10 @@ exports.handler = async function(event, context) {
 
   try {
     if (event.httpMethod === 'OPTIONS') {
-      clearTimeout(functionTimeout);
       return { statusCode: 200, headers, body: '' };
     }
 
     if (event.httpMethod !== 'POST') {
-      clearTimeout(functionTimeout);
       return { 
         statusCode: 405, 
         headers,
@@ -142,7 +160,6 @@ exports.handler = async function(event, context) {
     // Validate environment
     if (!process.env.VITE_SUPABASE_URL || !process.env.VITE_SUPABASE_SERVICE_KEY) {
       log('error', 'Missing critical environment variables');
-      clearTimeout(functionTimeout);
       return {
         statusCode: 500,
         headers,
@@ -162,7 +179,6 @@ exports.handler = async function(event, context) {
       });
     } catch (parseError) {
       log('error', 'JSON parse error', { error: parseError.message });
-      clearTimeout(functionTimeout);
       return {
         statusCode: 400,
         headers,
@@ -174,7 +190,6 @@ exports.handler = async function(event, context) {
     const validation = validateOrderData(orderData);
     if (!validation.isValid) {
       log('error', 'Order validation failed', { errors: validation.errors });
-      clearTimeout(functionTimeout);
       return {
         statusCode: 400,
         headers,
@@ -184,8 +199,6 @@ exports.handler = async function(event, context) {
         })
       };
     }
-
-    log('info', 'Order validation passed');
 
     // Create Supabase client
     const supabaseAdmin = createClient(
@@ -199,11 +212,24 @@ exports.handler = async function(event, context) {
       }
     );
 
+    // Check if orders table exists
+    try {
+      await ensureOrdersTableExists(supabaseAdmin);
+    } catch (tableError) {
+      return {
+        statusCode: 500,
+        headers,
+        body: JSON.stringify({ 
+          error: 'Database configuration error',
+          details: tableError.message
+        })
+      };
+    }
+
     // Authenticate user
     const authHeader = event.headers.authorization;
     if (!authHeader?.startsWith('Bearer ')) {
       log('error', 'Missing authorization header');
-      clearTimeout(functionTimeout);
       return {
         statusCode: 401,
         headers,
@@ -212,11 +238,24 @@ exports.handler = async function(event, context) {
     }
 
     const token = authHeader.substring(7);
-    const { data: userData, error: userError } = await supabaseAdmin.auth.getUser(token);
+    let user;
     
-    if (userError || !userData?.user) {
-      log('error', 'User authentication failed', { error: userError?.message });
-      clearTimeout(functionTimeout);
+    try {
+      const { data: userData, error: userError } = await supabaseAdmin.auth.getUser(token);
+      
+      if (userError || !userData?.user) {
+        log('error', 'User authentication failed', { error: userError?.message });
+        return {
+          statusCode: 401,
+          headers,
+          body: JSON.stringify({ error: 'Authentication failed' })
+        };
+      }
+      
+      user = userData.user;
+      log('info', 'User authenticated', { userId: user.id, email: user.email });
+    } catch (authError) {
+      log('error', 'Authentication error', { error: authError.message });
       return {
         statusCode: 401,
         headers,
@@ -224,10 +263,7 @@ exports.handler = async function(event, context) {
       };
     }
 
-    const user = userData.user;
-    log('info', 'User authenticated', { userId: user.id, email: user.email });
-
-    // Prepare order data
+    // FIXED: Prepare order data with correct field mapping
     const orderInsertData = {
       user_id: user.id,
       subtotal: Number(orderData.subtotal) || 0,
@@ -251,90 +287,123 @@ exports.handler = async function(event, context) {
       paymentMethod: orderInsertData.payment_method
     });
 
-    // Create order with comprehensive error handling
-    const { data: createdOrder, error: orderError } = await supabaseAdmin
-      .from('orders')
-      .insert([orderInsertData])
-      .select()
-      .single();
+    // FIXED: Create order with better error handling and field selection
+    let createdOrder;
+    try {
+      const { data, error: orderError } = await supabaseAdmin
+        .from('orders')
+        .insert([orderInsertData])
+        .select(`
+          id,
+          order_number,
+          user_id,
+          status,
+          payment_status,
+          fulfillment_status,
+          total_amount,
+          shipping_address,
+          billing_address,
+          created_at
+        `)
+        .single();
 
-    if (orderError) {
-      log('error', 'Order creation failed', { 
-        error: orderError.message,
-        code: orderError.code,
-        details: orderError.details,
-        hint: orderError.hint
+      if (orderError) {
+        log('error', 'DETAILED ORDER CREATION ERROR', { 
+          error: orderError.message,
+          code: orderError.code,
+          details: orderError.details,
+          hint: orderError.hint,
+          orderData: orderInsertData
+        });
+        
+        // Provide specific error messages based on common issues
+        if (orderError.code === '42P01') {
+          throw new Error('Orders table does not exist in the database');
+        } else if (orderError.code === '42703') {
+          throw new Error(`Database column missing: ${orderError.message}`);
+        } else if (orderError.code === '23505') {
+          throw new Error('Duplicate order detected');
+        } else if (orderError.code === '42501') {
+          throw new Error('Database permission denied - check RLS policies');
+        } else {
+          throw new Error(`Database error: ${orderError.message}`);
+        }
+      }
+
+      if (!data) {
+        log('error', 'Order creation returned no data');
+        throw new Error('Order creation failed - no data returned');
+      }
+
+      createdOrder = data;
+      log('info', 'Order created successfully', { 
+        orderId: createdOrder.id,
+        orderNumber: createdOrder.order_number
       });
-      clearTimeout(functionTimeout);
+
+    } catch (insertError) {
+      log('error', 'Order insert failed', { error: insertError.message });
       return {
         statusCode: 500,
         headers,
         body: JSON.stringify({ 
           error: 'Failed to create order',
-          details: orderError.message
+          details: insertError.message
         })
       };
     }
 
-    if (!createdOrder) {
-      log('error', 'Order creation returned no data');
-      clearTimeout(functionTimeout);
-      return {
-        statusCode: 500,
-        headers,
-        body: JSON.stringify({ error: 'Order creation failed - no data returned' })
-      };
+    // FIXED: Create order items with proper error handling
+    if (orderData.items && orderData.items.length > 0) {
+      try {
+        const orderItems = orderData.items.map(item => ({
+          order_id: createdOrder.id, // Use the correct field name
+          test_kit_id: item.test_kit_id,
+          quantity: Number(item.quantity),
+          unit_price: Number(item.unit_price),
+          total_price: Number(item.quantity) * Number(item.unit_price),
+          product_name: item.product_name,
+          product_description: item.product_description || null
+        }));
+
+        const { data: createdItems, error: itemsError } = await supabaseAdmin
+          .from('order_items')
+          .insert(orderItems)
+          .select();
+
+        if (itemsError) {
+          log('error', 'Order items creation failed', { 
+            error: itemsError.message,
+            code: itemsError.code,
+            orderItems
+          });
+          
+          // Clean up the order if items creation fails
+          await supabaseAdmin.from('orders').delete().eq('id', createdOrder.id);
+          
+          throw new Error(`Failed to create order items: ${itemsError.message}`);
+        }
+
+        log('info', 'Order items created successfully', { itemCount: createdItems?.length });
+      } catch (itemsError) {
+        log('error', 'Order items processing failed', { error: itemsError.message });
+        return {
+          statusCode: 500,
+          headers,
+          body: JSON.stringify({ 
+            error: 'Failed to create order items',
+            details: itemsError.message
+          })
+        };
+      }
     }
-
-    log('info', 'Order created successfully', { 
-      orderId: createdOrder.id,
-      orderNumber: createdOrder.order_number
-    });
-
-    // Create order items
-    const orderItems = orderData.items.map(item => ({
-      order_id: createdOrder.id,
-      test_kit_id: item.test_kit_id,
-      quantity: Number(item.quantity),
-      unit_price: Number(item.unit_price),
-      total_price: Number(item.quantity) * Number(item.unit_price),
-      product_name: item.product_name,
-      product_description: item.product_description || null
-    }));
-
-    const { data: createdItems, error: itemsError } = await supabaseAdmin
-      .from('order_items')
-      .insert(orderItems)
-      .select();
-
-    if (itemsError) {
-      log('error', 'Order items creation failed', { error: itemsError.message });
-      
-      // Clean up the order
-      await supabaseAdmin.from('orders').delete().eq('id', createdOrder.id);
-      
-      clearTimeout(functionTimeout);
-      return {
-        statusCode: 500,
-        headers,
-        body: JSON.stringify({ 
-          error: 'Failed to create order items',
-          details: itemsError.message
-        })
-      };
-    }
-
-    log('info', 'Order items created', { itemCount: createdItems?.length });
 
     const processingTime = Date.now() - startTime;
-    log('info', `Order processing completed in ${processingTime}ms [${requestId}]`);
+    log('info', `Order processing completed successfully in ${processingTime}ms [${requestId}]`);
 
     // Start background tasks (non-blocking)
     sendConfirmationEmailBackground(createdOrder, orderData.shipping_address.email);
     clearUserCartBackground(supabaseAdmin, user.id);
-
-    // Clear timeout and return success
-    clearTimeout(functionTimeout);
     
     return {
       statusCode: 200,
@@ -363,8 +432,6 @@ exports.handler = async function(event, context) {
       error: error.message,
       stack: error.stack
     });
-    
-    clearTimeout(functionTimeout);
     
     return {
       statusCode: 500,
