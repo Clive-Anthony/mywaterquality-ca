@@ -374,12 +374,33 @@ export default function CheckoutPage() {
 
   // FIXED PAYMENT SUCCESS HANDLER - NO MORE SESSION HANGING
   const handlePaymentSuccess = useCallback(async (paymentDetails) => {
-    debugLog('PAYMENT', 'Payment successful', { paypalOrderId: paymentDetails.paypalOrderId });
-    
-    setIsProcessing(true);
-    setProcessingError(null);
-    setProcessingStep(0);
-    setDebugInfo({ lastAction: 'Payment successful' });
+    // ALTERNATIVE: Replace the success section with immediate redirect
+
+// Replace this section in handlePaymentSuccess:
+// setOrderData(responseData.order);
+// setIsProcessing(false);
+// setShowSuccess(true);
+
+// With this immediate redirect:
+debugLog('SUCCESS', 'Order created, redirecting immediately to dashboard');
+
+// Clear cart
+clearCart().catch(cartError => {
+  console.warn('Cart clear failed:', cartError);
+});
+
+// Immediate redirect - no modal
+navigate('/dashboard', { 
+  replace: true,
+  state: { 
+    orderSuccess: true,
+    orderNumber: responseData.order.order_number,
+    orderTotal: totals.total,
+    message: `🎉 Order #${responseData.order.order_number} confirmed! Your water testing kits will ship within 1-2 business days.`
+  }
+});
+
+// No need to set processing states - we're leaving the page
     
     try {
       // Step 1: Skip session retrieval - use existing session/user from context
