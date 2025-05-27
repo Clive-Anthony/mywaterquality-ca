@@ -374,42 +374,17 @@ export default function CheckoutPage() {
 
   // FIXED PAYMENT SUCCESS HANDLER - NO MORE SESSION HANGING
   const handlePaymentSuccess = useCallback(async (paymentDetails) => {
-    const responseData = JSON.parse(responseText);
-    debugLog('RESPONSE', 'Response parsed successfully', { 
-      success: responseData.success,
-      hasOrder: !!responseData.order,
-      orderNumber: responseData.order?.order_number
-    });
-
-    // Step 5: Success - FIXED IMMEDIATE REDIRECT
-    debugLog('SUCCESS', 'Order created, redirecting immediately to dashboard');
-
-    // Clear cart (non-blocking)
-    try {
-      await clearCart();
-      debugLog('CART', 'Cart cleared successfully');
-    } catch (cartError) {
-      debugLog('CART', 'Cart clear failed (non-critical)', { error: cartError.message });
-    }
-
-    // Immediate redirect to dashboard with success message
-    navigate('/dashboard', { 
-      replace: true,
-      state: { 
-        orderSuccess: true,
-        orderNumber: responseData.order.order_number,
-        orderTotal: formatPrice(totals.total),
-        itemCount: cartItems.length,
-        message: `🎉 Order #${responseData.order.order_number} confirmed! Your water testing kits will ship within 1-2 business days.`
-      }
-    });
-
-// No need to set processing states - we're leaving the page
+    debugLog('PAYPAL', 'Payment success received', { paymentDetails });
+    
+    setIsProcessing(true);
+    setProcessingStep(0);
+    setProcessingError(null);
+    setDebugInfo({ lastAction: 'Starting order processing' });
     
     try {
-      // Step 1: Skip session retrieval - use existing session/user from context
+      // Step 1: Use existing session from auth context
       setProcessingStep(1);
-      setDebugInfo({ lastAction: 'Preparing order data (skipping session fetch)' });
+      setDebugInfo({ lastAction: 'Using existing authentication' });
       debugLog('AUTH', 'Using existing session from auth context', { 
         hasUser: !!user,
         hasSession: !!session,
@@ -421,42 +396,24 @@ export default function CheckoutPage() {
         throw new Error('User not authenticated');
       }
 
-      // Get access token directly from session in auth context or create a fresh one
+      // Get access token from session
       let accessToken;
       if (session?.access_token) {
         accessToken = session.access_token;
         debugLog('AUTH', 'Using access token from auth context');
       } else {
-        debugLog('AUTH', 'No access token in context, getting fresh token with timeout');
-        // Only if we absolutely need to, get a fresh token with timeout
-        try {
-          const { data: sessionData } = await withTimeout(
-            supabase.auth.getSession(),
-            5000,
-            'Session fetch timed out'
-          );
-          
-          if (sessionData?.session?.access_token) {
-            accessToken = sessionData.session.access_token;
-            debugLog('AUTH', 'Fresh access token retrieved');
-          } else {
-            throw new Error('No access token available');
-          }
-        } catch (sessionError) {
-          debugLog('AUTH', 'Session fetch failed, trying to refresh', { error: sessionError.message });
-          // Try to refresh the session
-          const { data: refreshData } = await withTimeout(
-            supabase.auth.refreshSession(),
-            5000,
-            'Session refresh timed out'
-          );
-          
-          if (refreshData?.session?.access_token) {
-            accessToken = refreshData.session.access_token;
-            debugLog('AUTH', 'Access token from refresh');
-          } else {
-            throw new Error('Unable to get valid access token');
-          }
+        debugLog('AUTH', 'Getting fresh access token');
+        const { data: sessionData } = await withTimeout(
+          supabase.auth.getSession(),
+          5000,
+          'Session fetch timed out'
+        );
+        
+        if (sessionData?.session?.access_token) {
+          accessToken = sessionData.session.access_token;
+          debugLog('AUTH', 'Fresh access token retrieved');
+        } else {
+          throw new Error('No access token available');
         }
       }
 
@@ -490,7 +447,7 @@ export default function CheckoutPage() {
         paymentReference: orderRequestData.payment_reference
       });
 
-      // Step 3: Send to backend with timeout
+      // Step 3: Send to backend
       setProcessingStep(3);
       setDebugInfo({ lastAction: 'Sending request to backend' });
       debugLog('BACKEND', 'Sending request to backend...');
@@ -544,24 +501,27 @@ export default function CheckoutPage() {
         orderNumber: responseData.order?.order_number
       });
 
-      // Step 5: Success
-      debugLog('SUCCESS', 'Order created successfully', { 
-        orderNumber: responseData.order.order_number,
-        orderId: responseData.order.id
-      });
+      // Step 5: Success - Immediate redirect to dashboard
+      debugLog('SUCCESS', 'Order created, redirecting to dashboard');
       
-      setOrderData(responseData.order);
-      
-      // Clear cart
-      try {
-        await clearCart();
+      // Clear cart (non-blocking)
+      clearCart().then(() => {
         debugLog('CART', 'Cart cleared successfully');
-      } catch (cartError) {
+      }).catch((cartError) => {
         debugLog('CART', 'Cart clear failed (non-critical)', { error: cartError.message });
-      }
-      
-      setIsProcessing(false);
-      setShowSuccess(true);
+      });
+
+      // Immediate redirect to dashboard with success message
+      navigate('/dashboard', { 
+        replace: true,
+        state: { 
+          orderSuccess: true,
+          orderNumber: responseData.order.order_number,
+          orderTotal: formatPrice(totals.total),
+          itemCount: cartItems.length,
+          message: `🎉 Order #${responseData.order.order_number} confirmed! Your water testing kits will ship within 1-2 business days.`
+        }
+      });
 
     } catch (error) {
       debugLog('ERROR', 'Payment processing failed', { 
@@ -578,7 +538,7 @@ export default function CheckoutPage() {
       });
       setIsProcessing(false);
     }
-  }, [totals, formData, cartItems, clearCart, user, session, processingStep]);
+  }, [totals, formData, cartItems, clearCart, user, session, processingStep, navigate, formatPrice]);
 
   const handlePaymentError = useCallback((error) => {
     debugLog('PAYPAL_ERROR', 'PayPal error occurred', { error: error.message });
