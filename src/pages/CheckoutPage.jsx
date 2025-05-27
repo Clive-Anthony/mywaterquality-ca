@@ -1,4 +1,4 @@
-// src/pages/CheckoutPage.jsx - DEBUG VERSION to find hanging point
+// src/pages/CheckoutPage.jsx - FIXED: Session hanging issue resolved
 import React, { useState, useEffect, useMemo, useCallback } from 'react';
 import { useNavigate, Link } from 'react-router-dom';
 import { useAuth } from '../contexts/AuthContext';
@@ -19,13 +19,22 @@ const debugLog = (step, message, data = null) => {
   }
 };
 
+// TIMEOUT WRAPPER FOR ASYNC OPERATIONS
+const withTimeout = (promise, timeoutMs = 10000, errorMessage = 'Operation timed out') => {
+  return Promise.race([
+    promise,
+    new Promise((_, reject) => 
+      setTimeout(() => reject(new Error(errorMessage)), timeoutMs)
+    )
+  ]);
+};
+
 // SIMPLIFIED LOADING OVERLAY
 const PaymentLoadingOverlay = ({ isVisible, step, error, debugInfo }) => {
   if (!isVisible) return null;
 
   const steps = [
     'Processing PayPal payment...',
-    'Getting authentication session...',
     'Preparing order data...',
     'Sending to backend...',
     'Creating order...',
@@ -44,11 +53,6 @@ const PaymentLoadingOverlay = ({ isVisible, step, error, debugInfo }) => {
             </div>
             <h3 className="text-lg font-medium text-gray-900 mb-2">Processing Failed</h3>
             <p className="text-sm text-gray-600 mb-4">{error}</p>
-            {debugInfo && (
-              <div className="text-xs text-gray-500 bg-gray-100 p-2 rounded mb-4">
-                <pre>{JSON.stringify(debugInfo, null, 2)}</pre>
-              </div>
-            )}
             <button
               onClick={() => window.location.reload()}
               className="bg-blue-600 text-white px-4 py-2 rounded-md hover:bg-blue-700"
@@ -67,12 +71,7 @@ const PaymentLoadingOverlay = ({ isVisible, step, error, debugInfo }) => {
                 style={{ width: `${((step + 1) / steps.length) * 100}%` }}
               ></div>
             </div>
-            <p className="text-xs text-gray-500 mt-4">Debug: Step {step + 1} of {steps.length}</p>
-            {debugInfo && (
-              <div className="text-xs text-gray-500 bg-gray-100 p-2 rounded mt-2">
-                Last action: {debugInfo.lastAction}
-              </div>
-            )}
+            <p className="text-xs text-gray-500 mt-4">Step {step + 1} of {steps.length}</p>
           </>
         )}
       </div>
@@ -231,10 +230,10 @@ const PaymentStep = React.memo(({
   </div>
 ));
 
-// MAIN COMPONENT WITH EXTENSIVE DEBUGGING
+// MAIN COMPONENT WITH SESSION FIX
 export default function CheckoutPage() {
   const navigate = useNavigate();
-  const { user } = useAuth();
+  const { user, session } = useAuth(); // Use session from auth context instead of fetching
   const { cartItems, cartSummary, clearCart } = useCart();
   
   const [currentStep, setCurrentStep] = useState(1);
@@ -373,7 +372,7 @@ export default function CheckoutPage() {
     debugLog('NAVIGATION', `Moved to step ${step}`);
   }, [validateShipping]);
 
-  // ENHANCED PAYMENT SUCCESS HANDLER WITH EXTENSIVE DEBUGGING
+  // FIXED PAYMENT SUCCESS HANDLER - NO MORE SESSION HANGING
   const handlePaymentSuccess = useCallback(async (paymentDetails) => {
     debugLog('PAYMENT', 'Payment successful', { paypalOrderId: paymentDetails.paypalOrderId });
     
@@ -383,39 +382,57 @@ export default function CheckoutPage() {
     setDebugInfo({ lastAction: 'Payment successful' });
     
     try {
-      // Step 1: Get authentication session
+      // Step 1: Skip session retrieval - use existing session/user from context
       setProcessingStep(1);
-      setDebugInfo({ lastAction: 'Getting authentication session' });
-      debugLog('AUTH', 'Getting authentication session...');
+      setDebugInfo({ lastAction: 'Preparing order data (skipping session fetch)' });
+      debugLog('AUTH', 'Using existing session from auth context', { 
+        hasUser: !!user,
+        hasSession: !!session,
+        userId: user?.id
+      });
 
-      let session;
-      try {
-        const { data: sessionData, error: sessionError } = await supabase.auth.getSession();
-        
-        debugLog('AUTH', 'Session retrieval result', { 
-          hasSession: !!sessionData?.session,
-          hasError: !!sessionError,
-          errorMessage: sessionError?.message
-        });
+      // Verify we have what we need
+      if (!user) {
+        throw new Error('User not authenticated');
+      }
 
-        if (sessionError) {
-          throw new Error(`Session error: ${sessionError.message}`);
+      // Get access token directly from session in auth context or create a fresh one
+      let accessToken;
+      if (session?.access_token) {
+        accessToken = session.access_token;
+        debugLog('AUTH', 'Using access token from auth context');
+      } else {
+        debugLog('AUTH', 'No access token in context, getting fresh token with timeout');
+        // Only if we absolutely need to, get a fresh token with timeout
+        try {
+          const { data: sessionData } = await withTimeout(
+            supabase.auth.getSession(),
+            5000,
+            'Session fetch timed out'
+          );
+          
+          if (sessionData?.session?.access_token) {
+            accessToken = sessionData.session.access_token;
+            debugLog('AUTH', 'Fresh access token retrieved');
+          } else {
+            throw new Error('No access token available');
+          }
+        } catch (sessionError) {
+          debugLog('AUTH', 'Session fetch failed, trying to refresh', { error: sessionError.message });
+          // Try to refresh the session
+          const { data: refreshData } = await withTimeout(
+            supabase.auth.refreshSession(),
+            5000,
+            'Session refresh timed out'
+          );
+          
+          if (refreshData?.session?.access_token) {
+            accessToken = refreshData.session.access_token;
+            debugLog('AUTH', 'Access token from refresh');
+          } else {
+            throw new Error('Unable to get valid access token');
+          }
         }
-
-        if (!sessionData?.session) {
-          throw new Error('No active session found');
-        }
-
-        session = sessionData.session;
-        debugLog('AUTH', 'Session retrieved successfully', { 
-          userId: session.user?.id,
-          hasAccessToken: !!session.access_token,
-          tokenLength: session.access_token?.length
-        });
-
-      } catch (sessionError) {
-        debugLog('AUTH', 'Session retrieval failed', { error: sessionError.message });
-        throw new Error(`Authentication failed: ${sessionError.message}`);
       }
 
       // Step 2: Prepare order data
@@ -445,96 +462,64 @@ export default function CheckoutPage() {
       debugLog('ORDER', 'Order data prepared', { 
         total: orderRequestData.total_amount,
         itemCount: orderRequestData.items.length,
-        hasShippingAddress: !!orderRequestData.shipping_address,
-        shippingEmail: orderRequestData.shipping_address.email,
         paymentReference: orderRequestData.payment_reference
       });
 
-      // Step 3: Send to backend
+      // Step 3: Send to backend with timeout
       setProcessingStep(3);
       setDebugInfo({ lastAction: 'Sending request to backend' });
       debugLog('BACKEND', 'Sending request to backend...');
 
-      // Create timeout promise
-      const TIMEOUT_MS = 30000; // 30 seconds
-      const timeoutPromise = new Promise((_, reject) => {
-        setTimeout(() => reject(new Error('Request timeout after 30 seconds')), TIMEOUT_MS);
-      });
+      const response = await withTimeout(
+        fetch('/.netlify/functions/process-order', {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+            'Authorization': `Bearer ${accessToken}`
+          },
+          body: JSON.stringify(orderRequestData)
+        }),
+        30000,
+        'Backend request timed out'
+      );
 
-      // Create fetch promise
-      const fetchPromise = fetch('/.netlify/functions/process-order', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-          'Authorization': `Bearer ${session.access_token}`
-        },
-        body: JSON.stringify(orderRequestData)
+      debugLog('BACKEND', 'Response received', { 
+        status: response.status,
+        statusText: response.statusText,
+        ok: response.ok
       });
-
-      debugLog('BACKEND', 'Fetch request initiated', {
-        url: '/.netlify/functions/process-order',
-        hasAuthToken: !!session.access_token,
-        bodySize: JSON.stringify(orderRequestData).length
-      });
-
-      // Race between fetch and timeout
-      let response;
-      try {
-        response = await Promise.race([fetchPromise, timeoutPromise]);
-        debugLog('BACKEND', 'Response received', { 
-          status: response.status,
-          statusText: response.statusText,
-          ok: response.ok
-        });
-      } catch (fetchError) {
-        debugLog('BACKEND', 'Fetch failed', { error: fetchError.message });
-        throw new Error(`Network request failed: ${fetchError.message}`);
-      }
 
       // Step 4: Process response
       setProcessingStep(4);
       setDebugInfo({ lastAction: 'Processing backend response' });
       debugLog('RESPONSE', 'Processing response...');
 
-      let responseData;
-      try {
-        const responseText = await response.text();
-        debugLog('RESPONSE', 'Raw response received', { 
-          length: responseText.length,
-          preview: responseText.substring(0, 200)
+      const responseText = await response.text();
+      
+      if (!response.ok) {
+        debugLog('RESPONSE', 'Response not OK', { 
+          status: response.status,
+          responseText: responseText.substring(0, 500)
         });
-
-        if (!response.ok) {
-          debugLog('RESPONSE', 'Response not OK', { 
-            status: response.status,
-            responseText
-          });
-          
-          let errorData;
-          try {
-            errorData = JSON.parse(responseText);
-          } catch {
-            errorData = { error: responseText || `HTTP ${response.status}` };
-          }
-          
-          throw new Error(errorData.error || `Server error: ${response.status}`);
+        
+        let errorData;
+        try {
+          errorData = JSON.parse(responseText);
+        } catch {
+          errorData = { error: responseText || `HTTP ${response.status}` };
         }
-
-        responseData = JSON.parse(responseText);
-        debugLog('RESPONSE', 'Response parsed successfully', { 
-          success: responseData.success,
-          hasOrder: !!responseData.order,
-          orderNumber: responseData.order?.order_number
-        });
-
-      } catch (parseError) {
-        debugLog('RESPONSE', 'Response parsing failed', { error: parseError.message });
-        throw new Error(`Response parsing failed: ${parseError.message}`);
+        
+        throw new Error(errorData.error || `Server error: ${response.status}`);
       }
 
+      const responseData = JSON.parse(responseText);
+      debugLog('RESPONSE', 'Response parsed successfully', { 
+        success: responseData.success,
+        hasOrder: !!responseData.order,
+        orderNumber: responseData.order?.order_number
+      });
+
       // Step 5: Success
-      setProcessingStep(5);
-      setDebugInfo({ lastAction: 'Order completed successfully' });
       debugLog('SUCCESS', 'Order created successfully', { 
         orderNumber: responseData.order.order_number,
         orderId: responseData.order.id
@@ -568,7 +553,7 @@ export default function CheckoutPage() {
       });
       setIsProcessing(false);
     }
-  }, [totals, formData, cartItems, clearCart, processingStep]);
+  }, [totals, formData, cartItems, clearCart, user, session, processingStep]);
 
   const handlePaymentError = useCallback((error) => {
     debugLog('PAYPAL_ERROR', 'PayPal error occurred', { error: error.message });
@@ -624,6 +609,8 @@ export default function CheckoutPage() {
           <p>Processing: {isProcessing ? 'Yes' : 'No'}</p>
           <p>Processing Step: {processingStep}</p>
           <p>Last Action: {debugInfo.lastAction}</p>
+          <p>Has User: {user ? 'Yes' : 'No'}</p>
+          <p>Has Session: {session ? 'Yes' : 'No'}</p>
           {processingError && <p className="text-red-600">Error: {processingError}</p>}
         </div>
 
