@@ -1,4 +1,4 @@
-// src/components/TopNav.jsx - Enhanced with interactive cart dropdown
+// src/components/TopNav.jsx - Enhanced with Contact Us link
 import { useState } from 'react';
 import { Link, useNavigate, useLocation } from 'react-router-dom';
 import { useAuth } from '../contexts/AuthContext';
@@ -168,6 +168,14 @@ export default function TopNav() {
                 </Link>
               </>
             )}
+            
+            {/* Contact Us - Always visible */}
+            <Link 
+              to="/contact" 
+              className={getLinkClassName('/contact')}
+            >
+              Contact
+            </Link>
           </div>
           
           {/* Right section */}

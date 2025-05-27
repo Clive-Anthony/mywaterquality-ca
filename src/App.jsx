@@ -15,6 +15,7 @@ import UserPage from './pages/UserPage';
 import TestKitsPage from './pages/TestKitsPage';
 import CheckoutPage from './pages/CheckoutPage';
 import PayPalTest from './components/PayPalTest';
+import ContactPage from './pages/ContactPage';
 import OrderHistoryPage from './pages/OrderHistoryPage';
 import { useState, useEffect } from 'react';
 
@@ -70,6 +71,9 @@ export default function App() {
             
             {/* Public test kits page */}
             <Route path="/test-kits" element={<TestKitsPage />} />
+
+            {/* Public Contact page - ADD THIS ROUTE */}
+            <Route path="/contact" element={<ContactPage />} />
 
             {/* PAYPAL TEST ROUTE - Add this temporarily */}
             <Route path="/paypal-test" element={<PayPalTest />} />
