@@ -168,6 +168,49 @@ function withFunctionTimeout(promise, timeoutMs = 25000) {
   ]);
 }
 
+// Add this function before the main exports.handler
+async function sendConfirmationEmail(order, customerEmail, firstName) {
+    try {
+      console.log(`Sending order confirmation email for order ${order.order_number} to ${customerEmail}`);
+      
+      // Format the order total as a currency string
+      const orderTotal = new Intl.NumberFormat('en-CA', {
+        style: 'currency',
+        currency: 'CAD',
+      }).format(order.total_amount);
+  
+      const response = await fetch('/.netlify/functions/send-order-confirmation-email', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify({
+          email: customerEmail,
+          firstName: firstName || 'Valued Customer',
+          orderNumber: order.order_number,
+          orderTotal: orderTotal,
+          orderData: {
+            id: order.id,
+            status: order.status,
+            created_at: order.created_at,
+            total_amount: order.total_amount
+          }
+        }),
+      });
+  
+      if (!response.ok) {
+        const errorData = await response.json();
+        throw new Error(errorData.message || 'Failed to send confirmation email');
+      }
+  
+      console.log('Order confirmation email sent successfully');
+      return { success: true };
+    } catch (error) {
+      console.error('Error sending order confirmation email:', error);
+      return { success: false, error: error.message };
+    }
+  }
+
 exports.handler = async function(event, context) {
   const startTime = Date.now();
   const requestId = Math.random().toString(36).substring(2, 8);
@@ -548,20 +591,39 @@ async function createOrderWithRetry(supabaseAdmin, orderData, user, requestId, m
 }
 
 // Background tasks with error handling - UPDATED TO REMOVE CART CLEARING (now done synchronously)
+// Update the startBackgroundTasks function
 async function startBackgroundTasks(order, orderData, userId, supabaseAdmin) {
-  try {
-    // Send confirmation email
-    if (process.env.VITE_LOOPS_API_KEY) {
-      await sendConfirmationEmail(order, orderData.shipping_address.email);
+    try {
+      // Send confirmation email
+      if (process.env.VITE_LOOPS_API_KEY) {
+        console.log('Starting order confirmation email process...');
+        
+        // Extract customer details
+        const customerEmail = orderData.shipping_address?.email;
+        const firstName = orderData.shipping_address?.firstName || 'Valued Customer';
+        
+        if (customerEmail) {
+          const emailResult = await sendConfirmationEmail(order, customerEmail, firstName);
+          
+          if (emailResult.success) {
+            console.log('✅ Order confirmation email sent successfully');
+          } else {
+            console.warn('⚠️ Order confirmation email failed:', emailResult.error);
+          }
+        } else {
+          console.warn('⚠️ No customer email found, skipping confirmation email');
+        }
+      } else {
+        console.warn('⚠️ Loops API key not configured, skipping confirmation email');
+      }
+      
+      // Add any other background tasks here in the future
+      // e.g., inventory updates, analytics, etc.
+      
+    } catch (error) {
+      console.warn('Background tasks completed with some errors', { error: error.message });
     }
-    
-    // Cart clearing is now done synchronously after order creation
-    // No need to clear cart here anymore
-    
-  } catch (error) {
-    log('warn', 'Background tasks completed with some errors', { error: error.message });
   }
-}
 
 // Validation function (implement based on your needs)
 function validateOrderData(orderData) {
