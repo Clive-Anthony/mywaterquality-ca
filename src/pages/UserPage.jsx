@@ -1,9 +1,10 @@
-// src/pages/UserPage.jsx
+// src/pages/UserPage.jsx - Updated with working Orders tab
 import { useState } from 'react';
 import { Link } from 'react-router-dom';
 import { useAuth } from '../contexts/AuthContext';
 import PageLayout from '../components/PageLayout';
 import ProfileForm from '../components/ProfileForm';
+import OrdersList from '../components/OrdersList';
 
 export default function UserPage() {
   const { user } = useAuth();
@@ -30,6 +31,8 @@ export default function UserPage() {
     switch (activeTab) {
       case 'dashboard':
         return <DashboardContent />;
+      case 'orders':
+        return <OrdersList showTitle={false} maxHeight="max-h-full" />;
       case 'profile':
         return <ProfileForm />;
       default:
@@ -79,11 +82,17 @@ export default function UserPage() {
                   </li>
                   <li>
                     <button
-                      disabled
-                      className="w-full text-left px-6 py-3 flex items-center text-gray-400 cursor-not-allowed"
+                      onClick={() => setActiveTab('orders')}
+                      className={`w-full text-left px-6 py-3 flex items-center ${
+                        activeTab === 'orders'
+                          ? 'bg-blue-50 text-blue-600 border-l-4 border-blue-600'
+                          : 'text-gray-600 hover:bg-gray-50'
+                      }`}
                     >
                       <svg
-                        className="mr-3 h-5 w-5 text-gray-400"
+                        className={`mr-3 h-5 w-5 ${
+                          activeTab === 'orders' ? 'text-blue-600' : 'text-gray-400'
+                        }`}
                         xmlns="http://www.w3.org/2000/svg"
                         fill="none"
                         viewBox="0 0 24 24"
@@ -97,7 +106,6 @@ export default function UserPage() {
                         />
                       </svg>
                       Orders
-                      <span className="ml-auto bg-gray-100 text-xs px-2 py-1 rounded-full">Soon</span>
                     </button>
                   </li>
                   <li>
@@ -200,6 +208,11 @@ function DashboardContent() {
             </div>
           </dl>
         </div>
+      </div>
+
+      {/* Recent Orders Preview */}
+      <div className="mb-8">
+        <OrdersList showTitle={true} maxHeight="max-h-80" compact={true} />
       </div>
 
       {/* Quick Actions */}
