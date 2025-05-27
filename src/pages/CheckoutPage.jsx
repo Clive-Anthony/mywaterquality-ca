@@ -1,5 +1,5 @@
-// src/pages/CheckoutPage.jsx - COMPLETE FILE WITH PAYPAL INTEGRATION
-import { useState, useEffect } from 'react';
+// src/pages/CheckoutPage.jsx - OPTIMIZED VERSION TO PREVENT PAYPAL RE-RENDERS
+import React, { useState, useEffect, useMemo, useCallback } from 'react';
 import { useNavigate, Link } from 'react-router-dom';
 import { useAuth } from '../contexts/AuthContext';
 import { useCart } from '../contexts/CartContext';
@@ -7,17 +7,15 @@ import PageLayout from '../components/PageLayout';
 import PayPalPayment from '../components/PayPalPayment';
 import { supabase } from '../lib/supabaseClient';
 
-// STEP COMPONENTS MOVED OUTSIDE TO PREVENT RE-CREATION ON EVERY RENDER
+// MEMOIZED STEP COMPONENTS TO PREVENT UNNECESSARY RE-RENDERS
 
-// Review Step Component
-const ReviewStep = ({ 
+// Review Step Component - Memoized
+const ReviewStep = React.memo(({ 
   cartItems, 
   cartSummary, 
   handleQuantityUpdate, 
   formatPrice, 
-  calculateShipping, 
-  calculateTax, 
-  calculateTotal 
+  totals 
 }) => (
   <div className="space-y-6">
     <h2 className="text-xl font-semibold text-gray-900">Review Your Order</h2>
@@ -72,29 +70,29 @@ const ReviewStep = ({
       <div className="space-y-2">
         <div className="flex justify-between">
           <span>Subtotal</span>
-          <span>{formatPrice(cartSummary.totalPrice)}</span>
+          <span>{formatPrice(totals.subtotal)}</span>
         </div>
         <div className="flex justify-between">
           <span>Shipping</span>
-          <span>{calculateShipping() === 0 ? 'Free' : formatPrice(calculateShipping())}</span>
+          <span>{totals.shipping === 0 ? 'Free' : formatPrice(totals.shipping)}</span>
         </div>
         <div className="flex justify-between">
           <span>Tax (HST)</span>
-          <span>{formatPrice(calculateTax())}</span>
+          <span>{formatPrice(totals.tax)}</span>
         </div>
         <div className="border-t border-gray-200 pt-2">
           <div className="flex justify-between font-semibold text-lg">
             <span>Total</span>
-            <span>{formatPrice(calculateTotal())}</span>
+            <span>{formatPrice(totals.total)}</span>
           </div>
         </div>
       </div>
     </div>
   </div>
-);
+));
 
-// Shipping Step Component
-const ShippingStep = ({ formData, handleInputChange, provinces }) => (
+// Shipping Step Component - Memoized
+const ShippingStep = React.memo(({ formData, handleInputChange, provinces }) => (
   <div className="space-y-6">
     <h2 className="text-xl font-semibold text-gray-900">Shipping Information</h2>
     
@@ -208,17 +206,14 @@ const ShippingStep = ({ formData, handleInputChange, provinces }) => (
       </div>
     </div>
   </div>
-);
+));
 
-// Payment Step Component - UPDATED WITH PAYPAL
-const PaymentStep = ({ 
+// Payment Step Component - Memoized with stable PayPal props
+const PaymentStep = React.memo(({ 
   formData, 
   cartItems, 
-  cartSummary, 
   formatPrice, 
-  calculateShipping, 
-  calculateTax, 
-  calculateTotal,
+  totals,
   onPaymentSuccess,
   paymentLoading
 }) => (
@@ -259,20 +254,20 @@ const PaymentStep = ({
       <div className="border-t border-gray-200 pt-4 space-y-2">
         <div className="flex justify-between text-sm">
           <span>Subtotal</span>
-          <span>{formatPrice(cartSummary.totalPrice)}</span>
+          <span>{formatPrice(totals.subtotal)}</span>
         </div>
         <div className="flex justify-between text-sm">
           <span>Shipping</span>
-          <span>{calculateShipping() === 0 ? 'Free' : formatPrice(calculateShipping())}</span>
+          <span>{totals.shipping === 0 ? 'Free' : formatPrice(totals.shipping)}</span>
         </div>
         <div className="flex justify-between text-sm">
           <span>Tax (HST)</span>
-          <span>{formatPrice(calculateTax())}</span>
+          <span>{formatPrice(totals.tax)}</span>
         </div>
         <div className="border-t border-gray-200 pt-2">
           <div className="flex justify-between font-semibold text-lg">
             <span>Total</span>
-            <span>{formatPrice(calculateTotal())}</span>
+            <span>{formatPrice(totals.total)}</span>
           </div>
         </div>
       </div>
@@ -305,8 +300,9 @@ const PaymentStep = ({
           </div>
         </div>
 
+        {/* STABLE PAYPAL COMPONENT - Only re-renders when amount actually changes */}
         <PayPalPayment
-          amount={calculateTotal()}
+          amount={totals.total}
           currency="CAD"
           onSuccess={onPaymentSuccess}
           onError={(error) => {
@@ -353,10 +349,10 @@ const PaymentStep = ({
       </div>
     </div>
   </div>
-);
+));
 
-// Confirmation Step Component
-const ConfirmationStep = ({ orderConfirmation, formatPrice }) => (
+// Confirmation Step Component - Memoized
+const ConfirmationStep = React.memo(({ orderConfirmation, formatPrice }) => (
   <div className="space-y-6 text-center">
     <div className="mx-auto w-16 h-16 bg-green-100 rounded-full flex items-center justify-center">
       <svg className="h-8 w-8 text-green-600" fill="none" viewBox="0 0 24 24" stroke="currentColor">
@@ -411,9 +407,9 @@ const ConfirmationStep = ({ orderConfirmation, formatPrice }) => (
       </Link>
     </div>
   </div>
-);
+));
 
-// MAIN COMPONENT WITH PAYPAL INTEGRATION
+// MAIN COMPONENT WITH OPTIMIZATIONS
 export default function CheckoutPage() {
   const navigate = useNavigate();
   const { user } = useAuth();
@@ -454,6 +450,47 @@ export default function CheckoutPage() {
     specialInstructions: ''
   });
 
+  // MEMOIZED CALCULATIONS TO PREVENT UNNECESSARY RE-RENDERS
+  const totals = useMemo(() => {
+    const subtotal = cartSummary.totalPrice;
+    const shipping = 0; // Free shipping
+    const tax = subtotal * 0.13; // 13% HST for Ontario
+    const total = subtotal + shipping + tax;
+    
+    return {
+      subtotal,
+      shipping,
+      tax,
+      total
+    };
+  }, [cartSummary.totalPrice]);
+
+  // MEMOIZED FORMAT PRICE FUNCTION
+  const formatPrice = useCallback((price) => {
+    return new Intl.NumberFormat('en-CA', {
+      style: 'currency',
+      currency: 'CAD',
+    }).format(price);
+  }, []);
+
+  // STABLE PROVINCES ARRAY
+  const provinces = useMemo(() => [
+    { value: '', label: 'Select Province' },
+    { value: 'AB', label: 'Alberta' },
+    { value: 'BC', label: 'British Columbia' },
+    { value: 'MB', label: 'Manitoba' },
+    { value: 'NB', label: 'New Brunswick' },
+    { value: 'NL', label: 'Newfoundland and Labrador' },
+    { value: 'NS', label: 'Nova Scotia' },
+    { value: 'NT', label: 'Northwest Territories' },
+    { value: 'NU', label: 'Nunavut' },
+    { value: 'ON', label: 'Ontario' },
+    { value: 'PE', label: 'Prince Edward Island' },
+    { value: 'QC', label: 'Quebec' },
+    { value: 'SK', label: 'Saskatchewan' },
+    { value: 'YT', label: 'Yukon' }
+  ], []);
+
   // Redirect if cart is empty or user not logged in
   useEffect(() => {
     if (!user) {
@@ -471,7 +508,7 @@ export default function CheckoutPage() {
     }
   }, [user, cartSummary.totalItems, navigate]);
 
-  // Load user profile data
+  // Load user profile data (only once)
   useEffect(() => {
     const loadUserProfile = async () => {
       if (!user) return;
@@ -490,7 +527,6 @@ export default function CheckoutPage() {
 
         if (data) {
           setUserProfile(data);
-          // Pre-populate form with profile data
           setFormData(prev => ({
             ...prev,
             shipping: {
@@ -524,59 +560,14 @@ export default function CheckoutPage() {
     loadUserProfile();
   }, [user]);
 
-  // Canadian provinces
-  const provinces = [
-    { value: '', label: 'Select Province' },
-    { value: 'AB', label: 'Alberta' },
-    { value: 'BC', label: 'British Columbia' },
-    { value: 'MB', label: 'Manitoba' },
-    { value: 'NB', label: 'New Brunswick' },
-    { value: 'NL', label: 'Newfoundland and Labrador' },
-    { value: 'NS', label: 'Nova Scotia' },
-    { value: 'NT', label: 'Northwest Territories' },
-    { value: 'NU', label: 'Nunavut' },
-    { value: 'ON', label: 'Ontario' },
-    { value: 'PE', label: 'Prince Edward Island' },
-    { value: 'QC', label: 'Quebec' },
-    { value: 'SK', label: 'Saskatchewan' },
-    { value: 'YT', label: 'Yukon' }
-  ];
-
-  // Format price for display
-  const formatPrice = (price) => {
-    return new Intl.NumberFormat('en-CA', {
-      style: 'currency',
-      currency: 'CAD',
-    }).format(price);
-  };
-
-  // Calculate shipping (free for now, but structure for future)
-  const calculateShipping = () => {
-    return 0; // Free shipping
-  };
-
-  // Calculate tax (simplified - in real implementation, this would be based on province)
-  const calculateTax = () => {
-    const subtotal = cartSummary.totalPrice;
-    const taxRate = 0.13; // 13% HST for Ontario (would need to be dynamic based on province)
-    return subtotal * taxRate;
-  };
-
-  // Calculate final total
-  const calculateTotal = () => {
-    return cartSummary.totalPrice + calculateShipping() + calculateTax();
-  };
-
-  // Handle form input changes
-  const handleInputChange = (section, field, value) => {
+  // STABLE CALLBACK FUNCTIONS
+  const handleInputChange = useCallback((section, field, value) => {
     if (section === 'root') {
-      // Handle root-level fields like specialInstructions
       setFormData(prev => ({
         ...prev,
         [field]: value
       }));
     } else {
-      // Handle nested fields like shipping.firstName
       setFormData(prev => ({
         ...prev,
         [section]: {
@@ -585,10 +576,9 @@ export default function CheckoutPage() {
         }
       }));
     }
-  };
+  }, []);
 
-  // Handle quantity updates
-  const handleQuantityUpdate = async (itemId, newQuantity) => {
+  const handleQuantityUpdate = useCallback(async (itemId, newQuantity) => {
     try {
       if (newQuantity <= 0) {
         await removeFromCart(itemId);
@@ -598,10 +588,10 @@ export default function CheckoutPage() {
     } catch (error) {
       setError('Failed to update cart. Please try again.');
     }
-  };
+  }, [removeFromCart, updateCartItemQuantity]);
 
   // Validate shipping form
-  const validateShippingForm = () => {
+  const validateShippingForm = useCallback(() => {
     const { shipping } = formData;
     const requiredFields = ['firstName', 'lastName', 'email', 'address', 'city', 'province', 'postalCode'];
     
@@ -612,17 +602,16 @@ export default function CheckoutPage() {
       }
     }
 
-    // Validate postal code format
     if (!/^[A-Za-z]\d[A-Za-z][ -]?\d[A-Za-z]\d$/.test(shipping.postalCode)) {
       setError('Please enter a valid Canadian postal code');
       return false;
     }
 
     return true;
-  };
+  }, [formData]);
 
   // Handle step navigation
-  const goToNextStep = () => {
+  const goToNextStep = useCallback(() => {
     setError(null);
     
     if (currentStep === 2) {
@@ -632,30 +621,29 @@ export default function CheckoutPage() {
     }
     
     setCurrentStep(prev => Math.min(prev + 1, 4));
-  };
+  }, [currentStep, validateShippingForm]);
 
-  const goToPreviousStep = () => {
+  const goToPreviousStep = useCallback(() => {
     setCurrentStep(prev => Math.max(prev - 1, 1));
-  };
+  }, []);
 
-  // PAYPAL PAYMENT SUCCESS HANDLER
-  const handlePaymentSuccess = async (paymentDetails) => {
+  // STABLE PAYPAL SUCCESS HANDLER
+  const handlePaymentSuccess = useCallback(async (paymentDetails) => {
     console.log('Payment successful:', paymentDetails);
     setPaymentData(paymentDetails);
     setPaymentLoading(true);
     
     try {
-      // Process the order with PayPal payment data
       await processOrderWithPayment(paymentDetails);
     } catch (error) {
       console.error('Error processing order after payment:', error);
       setError('Payment successful but order processing failed. Please contact support.');
       setPaymentLoading(false);
     }
-  };
+  }, []);
 
   // Process order with PayPal payment verification
-  const processOrderWithPayment = async (paymentDetails) => {
+  const processOrderWithPayment = useCallback(async (paymentDetails) => {
     setLoading(true);
     setError(null);
 
@@ -669,15 +657,15 @@ export default function CheckoutPage() {
       }));
 
       const orderData = {
-        subtotal: cartSummary.totalPrice,
-        shipping_cost: calculateShipping(),
-        tax_amount: calculateTax(),
-        total_amount: calculateTotal(),
+        subtotal: totals.subtotal,
+        shipping_cost: totals.shipping,
+        tax_amount: totals.tax,
+        total_amount: totals.total,
         shipping_address: formData.shipping,
         billing_address: formData.billing.sameAsShipping ? formData.shipping : formData.billing,
         special_instructions: formData.specialInstructions,
         payment_method: 'paypal',
-        payment_data: paymentDetails, // Include PayPal payment details
+        payment_data: paymentDetails,
         items: orderItems
       };
 
@@ -713,7 +701,6 @@ export default function CheckoutPage() {
       console.error('Order processing error:', error);
       setError(error.message || 'Failed to process order. Please try again.');
       
-      // If order processing fails after payment, we need to handle this carefully
       if (paymentDetails) {
         setError(`Payment successful (${paymentDetails.paypalOrderId}) but order processing failed. Please contact support with this reference number.`);
       }
@@ -721,10 +708,10 @@ export default function CheckoutPage() {
       setLoading(false);
       setPaymentLoading(false);
     }
-  };
+  }, [cartItems, totals, formData, clearCart]);
 
-  // Render step content using stable components
-  const renderStepContent = () => {
+  // STABLE STEP CONTENT RENDERING
+  const renderStepContent = useCallback(() => {
     switch (currentStep) {
       case 1:
         return (
@@ -733,9 +720,7 @@ export default function CheckoutPage() {
             cartSummary={cartSummary}
             handleQuantityUpdate={handleQuantityUpdate}
             formatPrice={formatPrice}
-            calculateShipping={calculateShipping}
-            calculateTax={calculateTax}
-            calculateTotal={calculateTotal}
+            totals={totals}
           />
         );
       case 2:
@@ -751,11 +736,8 @@ export default function CheckoutPage() {
           <PaymentStep 
             formData={formData}
             cartItems={cartItems}
-            cartSummary={cartSummary}
             formatPrice={formatPrice}
-            calculateShipping={calculateShipping}
-            calculateTax={calculateTax}
-            calculateTotal={calculateTotal}
+            totals={totals}
             onPaymentSuccess={handlePaymentSuccess}
             paymentLoading={paymentLoading}
           />
@@ -774,13 +756,11 @@ export default function CheckoutPage() {
             cartSummary={cartSummary}
             handleQuantityUpdate={handleQuantityUpdate}
             formatPrice={formatPrice}
-            calculateShipping={calculateShipping}
-            calculateTax={calculateTax}
-            calculateTotal={calculateTotal}
+            totals={totals}
           />
         );
     }
-  };
+  }, [currentStep, cartItems, cartSummary, handleQuantityUpdate, formatPrice, totals, formData, handleInputChange, provinces, handlePaymentSuccess, paymentLoading, orderConfirmation]);
 
   if (!user || cartSummary.totalItems === 0) {
     return null; // Will redirect via useEffect
@@ -867,7 +847,7 @@ export default function CheckoutPage() {
           {renderStepContent()}
         </div>
 
-        {/* Navigation Buttons - UPDATED FOR PAYPAL FLOW */}
+        {/* Navigation Buttons */}
         {currentStep < 4 && (
           <div className="flex justify-between">
             <div>
@@ -890,7 +870,6 @@ export default function CheckoutPage() {
                   Continue →
                 </button>
               ) : (
-                // Step 3 (Payment) - PayPal handles the final submission
                 <div className="text-sm text-gray-500">
                   {paymentLoading ? (
                     <div className="flex items-center">

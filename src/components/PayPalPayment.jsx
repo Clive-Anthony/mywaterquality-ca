@@ -13,39 +13,54 @@ export default function PayPalPayment({
   const [isLoading, setIsLoading] = useState(true);
   const [error, setError] = useState(null);
   const [paypalLoaded, setPaypalLoaded] = useState(false);
-  const [isDestroyed, setIsDestroyed] = useState(false);
+  const mountedRef = useRef(true);
   const buttonInstanceRef = useRef(null);
+  const isInitializingRef = useRef(false);
 
-  // Cleanup function to destroy PayPal buttons safely
+  // Cleanup function
   const cleanupPayPal = useCallback(() => {
     if (buttonInstanceRef.current) {
       try {
+        // PayPal cleanup
         if (typeof buttonInstanceRef.current.close === 'function') {
           buttonInstanceRef.current.close();
         }
       } catch (err) {
-        console.log('PayPal cleanup warning:', err.message);
+        // Ignore cleanup errors
+        console.log('PayPal cleanup:', err.message);
       }
       buttonInstanceRef.current = null;
     }
     
+    // Clear the container
     if (paypalRef.current) {
       paypalRef.current.innerHTML = '';
     }
+    
+    isInitializingRef.current = false;
   }, []);
 
-  // Initialize PayPal buttons
-  const initializePayPal = useCallback(() => {
-    if (isDestroyed || !window.paypal || !paypalRef.current) {
+  // Initialize PayPal buttons with better error handling
+  const initializePayPal = useCallback(async () => {
+    // Prevent multiple simultaneous initializations
+    if (isInitializingRef.current || !mountedRef.current || !window.paypal || !paypalRef.current || disabled) {
       return;
     }
 
-    // Clean up any existing buttons first
-    cleanupPayPal();
-
-    console.log('Initializing PayPal buttons for amount:', amount);
+    isInitializingRef.current = true;
 
     try {
+      // Clean up any existing buttons
+      cleanupPayPal();
+
+      // Double check that we're still mounted and have the DOM element
+      if (!mountedRef.current || !paypalRef.current) {
+        isInitializingRef.current = false;
+        return;
+      }
+
+      console.log('Initializing PayPal buttons for amount:', amount);
+
       const buttonsComponent = window.paypal.Buttons({
         style: {
           layout: 'vertical',
@@ -67,7 +82,7 @@ export default function PayPalPayment({
               description: 'MyWaterQuality.ca - Water Testing Kit Order'
             }],
             application_context: {
-              shipping_preference: 'NO_SHIPPING' // We handle shipping separately
+              shipping_preference: 'NO_SHIPPING'
             }
           });
         },
@@ -76,11 +91,9 @@ export default function PayPalPayment({
           try {
             console.log('PayPal payment approved:', data);
             
-            // Capture the payment on PayPal's servers
             const details = await actions.order.capture();
             console.log('PayPal payment captured:', details);
             
-            // Call success handler with payment details
             onSuccess({
               paypalOrderId: data.orderID,
               paypalPaymentId: details.id,
@@ -106,65 +119,73 @@ export default function PayPalPayment({
         }
       });
 
-      // Render the buttons and store the instance
-      buttonsComponent.render(paypalRef.current).then((instance) => {
-        if (!isDestroyed) {
+      // Render with additional safety checks
+      if (!mountedRef.current || !paypalRef.current) {
+        isInitializingRef.current = false;
+        return;
+      }
+
+      const renderPromise = buttonsComponent.render(paypalRef.current);
+      
+      renderPromise.then((instance) => {
+        if (mountedRef.current) {
           buttonInstanceRef.current = instance;
           setIsLoading(false);
           setError(null);
           console.log('PayPal buttons rendered successfully');
-        }
-      }).catch((err) => {
-        if (!isDestroyed) {
-          console.error('Error rendering PayPal buttons:', err);
-          
-          // Handle specific zoid errors more gracefully
-          if (err.message?.includes('zoid destroyed') || err.message?.includes('destroyed all components')) {
-            console.log('PayPal component destroyed during initialization, retrying...');
-            
-            // Retry after a short delay
-            setTimeout(() => {
-              if (!isDestroyed && paypalRef.current) {
-                initializePayPal();
-              }
-            }, 1000);
-          } else {
-            setError('Failed to initialize PayPal buttons. Please refresh the page.');
-            setIsLoading(false);
+        } else {
+          // Component unmounted during render, cleanup
+          if (instance && typeof instance.close === 'function') {
+            instance.close();
           }
+        }
+        isInitializingRef.current = false;
+      }).catch((err) => {
+        isInitializingRef.current = false;
+        
+        if (!mountedRef.current) {
+          return; // Component unmounted, ignore error
+        }
+
+        console.error('Error rendering PayPal buttons:', err);
+        
+        // Handle specific PayPal errors
+        if (err.message?.includes('container element removed') || 
+            err.message?.includes('zoid destroyed')) {
+          console.log('PayPal container error, will retry on next render');
+          // Don't set error state for container issues, just log
+          setIsLoading(false);
+        } else {
+          setError('Failed to initialize PayPal buttons. Please refresh the page.');
+          setIsLoading(false);
         }
       });
 
     } catch (initError) {
-      if (!isDestroyed) {
+      isInitializingRef.current = false;
+      
+      if (mountedRef.current) {
         console.error('PayPal initialization error:', initError);
         setError('Failed to initialize PayPal. Please refresh the page.');
         setIsLoading(false);
       }
     }
-  }, [amount, currency, onSuccess, onError, onCancel, isDestroyed, cleanupPayPal]);
+  }, [amount, currency, onSuccess, onError, onCancel, disabled, cleanupPayPal]);
 
   // Load PayPal SDK
   useEffect(() => {
-    if (disabled || isDestroyed) {
+    if (disabled) {
       return;
     }
 
     const loadPayPalScript = async () => {
       try {
-        // Check if PayPal script is already loaded
-        if (window.paypal && !paypalLoaded) {
+        // Check if PayPal is already available
+        if (window.paypal) {
           setPaypalLoaded(true);
-          initializePayPal();
           return;
         }
 
-        if (paypalLoaded) {
-          initializePayPal();
-          return;
-        }
-
-        // Load PayPal SDK
         const clientId = import.meta.env.VITE_PAYPAL_CLIENT_ID;
         if (!clientId) {
           throw new Error('PayPal Client ID not configured');
@@ -176,32 +197,30 @@ export default function PayPalPayment({
           // Wait for existing script to load
           if (window.paypal) {
             setPaypalLoaded(true);
-            initializePayPal();
           } else {
-            existingScript.onload = () => {
-              if (!isDestroyed) {
+            existingScript.addEventListener('load', () => {
+              if (mountedRef.current) {
                 setPaypalLoaded(true);
-                initializePayPal();
               }
-            };
+            });
           }
           return;
         }
 
+        // Create new script
         const script = document.createElement('script');
         script.src = `https://www.paypal.com/sdk/js?client-id=${clientId}&currency=${currency}&components=buttons`;
         script.async = true;
         
         script.onload = () => {
-          if (!isDestroyed) {
+          if (mountedRef.current) {
             console.log('PayPal SDK loaded successfully');
             setPaypalLoaded(true);
-            initializePayPal();
           }
         };
         
         script.onerror = () => {
-          if (!isDestroyed) {
+          if (mountedRef.current) {
             setError('Failed to load PayPal SDK');
             setIsLoading(false);
           }
@@ -210,7 +229,7 @@ export default function PayPalPayment({
         document.head.appendChild(script);
 
       } catch (err) {
-        if (!isDestroyed) {
+        if (mountedRef.current) {
           console.error('Error loading PayPal:', err);
           setError(err.message);
           setIsLoading(false);
@@ -219,22 +238,43 @@ export default function PayPalPayment({
     };
 
     loadPayPalScript();
-  }, [disabled, paypalLoaded, initializePayPal, isDestroyed]);
+  }, [disabled, currency]);
+
+  // Initialize PayPal when SDK is loaded
+  useEffect(() => {
+    if (paypalLoaded && !disabled && mountedRef.current) {
+      // Add a small delay to ensure DOM is stable
+      const timer = setTimeout(() => {
+        if (mountedRef.current) {
+          initializePayPal();
+        }
+      }, 100);
+
+      return () => clearTimeout(timer);
+    }
+  }, [paypalLoaded, disabled, initializePayPal]);
 
   // Cleanup on unmount
   useEffect(() => {
     return () => {
-      setIsDestroyed(true);
+      mountedRef.current = false;
       cleanupPayPal();
     };
   }, [cleanupPayPal]);
 
-  // Re-initialize when amount changes
+  // Handle amount changes with debouncing
   useEffect(() => {
-    if (paypalLoaded && !disabled && !isDestroyed) {
-      initializePayPal();
+    if (paypalLoaded && !disabled && mountedRef.current) {
+      // Debounce amount changes to prevent excessive re-renders
+      const timer = setTimeout(() => {
+        if (mountedRef.current && !isInitializingRef.current) {
+          initializePayPal();
+        }
+      }, 300);
+
+      return () => clearTimeout(timer);
     }
-  }, [amount, paypalLoaded, disabled, initializePayPal, isDestroyed]);
+  }, [amount, paypalLoaded, disabled, initializePayPal]);
 
   if (disabled) {
     return (
@@ -258,7 +298,9 @@ export default function PayPalPayment({
               onClick={() => {
                 setError(null);
                 setIsLoading(true);
-                initializePayPal();
+                if (paypalLoaded) {
+                  initializePayPal();
+                }
               }}
               className="text-sm text-red-800 underline mt-2 hover:text-red-900"
             >
@@ -281,11 +323,14 @@ export default function PayPalPayment({
       
       <div 
         ref={paypalRef} 
-        className={`paypal-buttons ${isLoading ? 'hidden' : ''}`}
-        style={{ minHeight: isLoading ? '0' : '50px' }}
+        className={`paypal-buttons ${isLoading ? 'opacity-0' : 'opacity-100'} transition-opacity duration-300`}
+        style={{ 
+          minHeight: isLoading ? '0' : '50px',
+          display: isLoading ? 'none' : 'block'
+        }}
       />
       
-      {!isLoading && (
+      {!isLoading && !error && (
         <div className="mt-4 text-center">
           <p className="text-xs text-gray-500">
             By clicking the PayPal button, you agree to our terms of service and privacy policy.
