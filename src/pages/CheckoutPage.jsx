@@ -630,14 +630,28 @@ export default function CheckoutPage() {
     }
   }, [removeFromCart, updateCartItemQuantity]);
 
-  // Validate shipping form
+  // Enhanced validate shipping form
   const validateShippingForm = useCallback(() => {
     const { shipping } = formData;
-    const requiredFields = ['firstName', 'lastName', 'email', 'address', 'city', 'province', 'postalCode'];
+    const requiredFields = [
+      { key: 'firstName', label: 'First Name' },
+      { key: 'lastName', label: 'Last Name' },
+      { key: 'email', label: 'Email' },
+      { key: 'address', label: 'Street Address' },
+      { key: 'city', label: 'City' },
+      { key: 'province', label: 'Province' },
+      { key: 'postalCode', label: 'Postal Code' }
+    ];
     
     for (const field of requiredFields) {
-      if (!shipping[field] || shipping[field].trim() === '') {
-        setError(`Please fill in ${field.replace(/([A-Z])/g, ' $1').toLowerCase()}`);
+      const value = shipping[field.key];
+      if (!value || (typeof value === 'string' && value.trim() === '')) {
+        setError(`Please fill in ${field.label}`);
+        console.error('Shipping validation failed:', {
+          field: field.key,
+          value: value,
+          allFields: shipping
+        });
         return false;
       }
     }
@@ -646,6 +660,27 @@ export default function CheckoutPage() {
       setError('Please enter a valid Canadian postal code');
       return false;
     }
+
+    if (shipping.province === '') {
+      setError('Please select a province');
+      return false;
+    }
+
+    // Email validation
+    if (!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(shipping.email)) {
+      setError('Please enter a valid email address');
+      return false;
+    }
+
+    console.log('✅ Shipping validation passed:', {
+      firstName: !!shipping.firstName,
+      lastName: !!shipping.lastName,
+      email: !!shipping.email,
+      address: !!shipping.address,
+      city: !!shipping.city,
+      province: !!shipping.province,
+      postalCode: !!shipping.postalCode
+    });
 
     return true;
   }, [formData]);
@@ -722,9 +757,29 @@ export default function CheckoutPage() {
         shipping_cost: totals.shipping,
         tax_amount: totals.tax,
         total_amount: totals.total,
-        shipping_address: formData.shipping,
-        billing_address: formData.billing.sameAsShipping ? formData.shipping : formData.billing,
-        special_instructions: formData.specialInstructions,
+        shipping_address: {
+          firstName: formData.shipping.firstName,
+          lastName: formData.shipping.lastName,
+          email: formData.shipping.email,
+          phone: formData.shipping.phone || '',
+          address: formData.shipping.address,
+          city: formData.shipping.city,
+          province: formData.shipping.province,
+          postalCode: formData.shipping.postalCode,
+          country: formData.shipping.country
+        },
+        billing_address: formData.billing.sameAsShipping ? {
+          firstName: formData.shipping.firstName,
+          lastName: formData.shipping.lastName,
+          email: formData.shipping.email,
+          phone: formData.shipping.phone || '',
+          address: formData.shipping.address,
+          city: formData.shipping.city,
+          province: formData.shipping.province,
+          postalCode: formData.shipping.postalCode,
+          country: formData.shipping.country
+        } : formData.billing,
+        special_instructions: formData.specialInstructions || null,
         payment_method: 'paypal',
         payment_reference: paymentDetails.paypalOrderId,
         items: orderItems
@@ -734,10 +789,51 @@ export default function CheckoutPage() {
         total: orderRequestData.total_amount,
         items: orderRequestData.items.length,
         payment_method: orderRequestData.payment_method,
-        payment_reference: orderRequestData.payment_reference
+        payment_reference: orderRequestData.payment_reference,
+        shippingFields: Object.keys(orderRequestData.shipping_address),
+        billingFields: Object.keys(orderRequestData.billing_address),
+        hasRequiredShippingFields: {
+          firstName: !!orderRequestData.shipping_address.firstName,
+          lastName: !!orderRequestData.shipping_address.lastName,
+          email: !!orderRequestData.shipping_address.email,
+          address: !!orderRequestData.shipping_address.address,
+          city: !!orderRequestData.shipping_address.city,
+          province: !!orderRequestData.shipping_address.province,
+          postalCode: !!orderRequestData.shipping_address.postalCode
+        }
       });
 
       setProcessingStep(3); // Creating your order
+
+      // FINAL VALIDATION CHECK before sending to backend
+      console.log('🔍 Final validation check before submission...');
+      
+      // Validate order items
+      if (!orderItems || orderItems.length === 0) {
+        throw new Error('Cart is empty. Please add items before checkout.');
+      }
+
+      // Validate totals
+      if (!totals.total || totals.total <= 0) {
+        throw new Error('Invalid order total. Please refresh and try again.');
+      }
+
+      // Validate shipping address
+      const shippingErrors = [];
+      const requiredShippingFields = ['firstName', 'lastName', 'email', 'address', 'city', 'province', 'postalCode'];
+      
+      for (const field of requiredShippingFields) {
+        const value = formData.shipping[field];
+        if (!value || (typeof value === 'string' && value.trim() === '')) {
+          shippingErrors.push(`${field} is missing`);
+        }
+      }
+
+      if (shippingErrors.length > 0) {
+        throw new Error(`Shipping information incomplete: ${shippingErrors.join(', ')}. Please go back and complete all required fields.`);
+      }
+
+      console.log('✅ Final validation passed - submitting order');
 
       // Get fresh session token
       console.log('🔑 Getting authentication session...');
@@ -804,6 +900,23 @@ export default function CheckoutPage() {
       } catch (parseError) {
         console.error('❌ Failed to parse response:', parseError);
         throw new Error('Invalid response from server. Your order may have been processed. Please check your dashboard.');
+      }
+
+      // Check for validation errors with detailed feedback
+      if (responseData.error && responseData.details) {
+        console.error('❌ Validation error details:', responseData);
+        
+        let errorMessage = responseData.error;
+        if (responseData.details && Array.isArray(responseData.details)) {
+          errorMessage += '\n\nSpecific issues:\n• ' + responseData.details.join('\n• ');
+        }
+        
+        if (responseData.debug) {
+          console.error('Debug info:', responseData.debug);
+          errorMessage += '\n\nDebug: Check browser console for technical details.';
+        }
+        
+        throw new Error(errorMessage);
       }
 
       console.log('✅ Order processed successfully:', responseData);
