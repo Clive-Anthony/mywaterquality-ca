@@ -34,6 +34,7 @@ export default function TestKitsPage() {
         const { data, error } = await supabase
           .from('test_kits')
           .select('*')
+          .eq('environment','prod')
           .order('price', { ascending: true });
 
         if (error) {
