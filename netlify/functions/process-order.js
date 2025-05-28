@@ -1,4 +1,4 @@
-// netlify/functions/process-order.js - UPDATED WITH CART CLEARING
+// netlify/functions/process-order.js - FIXED: Direct email integration instead of function calls
 
 const { createClient } = require('@supabase/supabase-js');
 
@@ -34,6 +34,76 @@ function logCriticalError(error, context, requestId) {
       platform: process.platform
     }
   });
+}
+
+// FIXED: Direct Loops email function (no more function-to-function calls)
+async function sendOrderConfirmationEmailDirect(orderData, customerEmail, firstName, requestId) {
+  try {
+    const apiKey = process.env.VITE_LOOPS_API_KEY;
+    if (!apiKey) {
+      throw new Error('Loops API key not configured');
+    }
+
+    log('info', `📧 Sending order confirmation email to ${customerEmail} [${requestId}]`);
+
+    // Format the order total as a currency string
+    const orderTotal = new Intl.NumberFormat('en-CA', {
+      style: 'currency',
+      currency: 'CAD',
+    }).format(orderData.total_amount);
+
+    const baseUrl = process.env.VITE_APP_URL || 'https://mywaterqualityca.netlify.app';
+
+    const emailData = {
+      transactionalId: 'cmb6pqu9c02qht60i7w92yalf', // Order confirmation template ID
+      email: customerEmail,
+      dataVariables: {
+        firstName: firstName || 'Valued Customer',
+        orderNumber: orderData.order_number,
+        orderTotal: orderTotal,
+        dashboardLink: `${baseUrl}/dashboard`,
+        websiteURL: baseUrl,
+        orderDate: new Date(orderData.created_at).toLocaleDateString('en-CA'),
+        orderStatus: orderData.status || 'confirmed'
+      }
+    };
+
+    log('info', `📧 Prepared email data for order ${orderData.order_number}`);
+
+    // Call Loops API directly (no more internal function calls)
+    const response = await fetch('https://app.loops.so/api/v1/transactional', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'Authorization': `Bearer ${apiKey}`
+      },
+      body: JSON.stringify(emailData)
+    });
+
+    const responseText = await response.text();
+    log('info', `📧 Loops API response: ${response.status}`, { responseText });
+
+    if (!response.ok) {
+      let errorData;
+      try {
+        errorData = JSON.parse(responseText);
+      } catch (e) {
+        errorData = { message: responseText || `HTTP ${response.status}` };
+      }
+      throw new Error(`Loops API Error ${response.status}: ${errorData.message}`);
+    }
+
+    log('info', `✅ Order confirmation email sent successfully to ${customerEmail} for order ${orderData.order_number}`);
+    return { success: true };
+
+  } catch (error) {
+    log('error', `❌ Failed to send order confirmation email: ${error.message}`, { 
+      orderNumber: orderData.order_number,
+      customerEmail,
+      error: error.message 
+    });
+    return { success: false, error: error.message };
+  }
 }
 
 // CART CLEARING FUNCTION - IMPLEMENTATION WITH MULTIPLE FALLBACK METHODS
@@ -167,49 +237,6 @@ function withFunctionTimeout(promise, timeoutMs = 25000) {
     )
   ]);
 }
-
-// Add this function before the main exports.handler
-async function sendConfirmationEmail(order, customerEmail, firstName) {
-    try {
-      console.log(`Sending order confirmation email for order ${order.order_number} to ${customerEmail}`);
-      
-      // Format the order total as a currency string
-      const orderTotal = new Intl.NumberFormat('en-CA', {
-        style: 'currency',
-        currency: 'CAD',
-      }).format(order.total_amount);
-  
-      const response = await fetch('/.netlify/functions/send-order-confirmation-email', {
-        method: 'POST',
-        headers: {
-          'Content-Type': 'application/json',
-        },
-        body: JSON.stringify({
-          email: customerEmail,
-          firstName: firstName || 'Valued Customer',
-          orderNumber: order.order_number,
-          orderTotal: orderTotal,
-          orderData: {
-            id: order.id,
-            status: order.status,
-            created_at: order.created_at,
-            total_amount: order.total_amount
-          }
-        }),
-      });
-  
-      if (!response.ok) {
-        const errorData = await response.json();
-        throw new Error(errorData.message || 'Failed to send confirmation email');
-      }
-  
-      console.log('Order confirmation email sent successfully');
-      return { success: true };
-    } catch (error) {
-      console.error('Error sending order confirmation email:', error);
-      return { success: false, error: error.message };
-    }
-  }
 
 exports.handler = async function(event, context) {
   const startTime = Date.now();
@@ -435,12 +462,32 @@ exports.handler = async function(event, context) {
       log('info', `✅ Cart cleared successfully: ${JSON.stringify(cartClearResult)}`);
     }
 
-    // Start other background tasks (non-blocking with error handling)
-    setImmediate(() => {
-      startBackgroundTasks(orderResult.order, orderData, user.id, supabaseAdmin).catch(bgError => {
-        log('warn', 'Background task failed (non-critical)', { error: bgError.message });
-      });
-    });
+    // FIXED: Send confirmation email directly (synchronously) instead of background task
+    log('info', `📧 Sending order confirmation email [${requestId}]`);
+    
+    if (process.env.VITE_LOOPS_API_KEY) {
+      const customerEmail = orderData.shipping_address?.email;
+      const firstName = orderData.shipping_address?.firstName || 'Valued Customer';
+      
+      if (customerEmail) {
+        const emailResult = await sendOrderConfirmationEmailDirect(
+          orderResult.order, 
+          customerEmail, 
+          firstName, 
+          requestId
+        );
+        
+        if (emailResult.success) {
+          log('info', '✅ Order confirmation email sent successfully');
+        } else {
+          log('warn', '⚠️ Order confirmation email failed (non-critical)', { error: emailResult.error });
+        }
+      } else {
+        log('warn', '⚠️ No customer email found, skipping confirmation email');
+      }
+    } else {
+      log('warn', '⚠️ Loops API key not configured, skipping confirmation email');
+    }
     
     return {
       statusCode: 200,
@@ -589,41 +636,6 @@ async function createOrderWithRetry(supabaseAdmin, orderData, user, requestId, m
   
   return { success: false, error: lastError };
 }
-
-// Background tasks with error handling - UPDATED TO REMOVE CART CLEARING (now done synchronously)
-// Update the startBackgroundTasks function
-async function startBackgroundTasks(order, orderData, userId, supabaseAdmin) {
-    try {
-      // Send confirmation email
-      if (process.env.VITE_LOOPS_API_KEY) {
-        console.log('Starting order confirmation email process...');
-        
-        // Extract customer details
-        const customerEmail = orderData.shipping_address?.email;
-        const firstName = orderData.shipping_address?.firstName || 'Valued Customer';
-        
-        if (customerEmail) {
-          const emailResult = await sendConfirmationEmail(order, customerEmail, firstName);
-          
-          if (emailResult.success) {
-            console.log('✅ Order confirmation email sent successfully');
-          } else {
-            console.warn('⚠️ Order confirmation email failed:', emailResult.error);
-          }
-        } else {
-          console.warn('⚠️ No customer email found, skipping confirmation email');
-        }
-      } else {
-        console.warn('⚠️ Loops API key not configured, skipping confirmation email');
-      }
-      
-      // Add any other background tasks here in the future
-      // e.g., inventory updates, analytics, etc.
-      
-    } catch (error) {
-      console.warn('Background tasks completed with some errors', { error: error.message });
-    }
-  }
 
 // Validation function (implement based on your needs)
 function validateOrderData(orderData) {
