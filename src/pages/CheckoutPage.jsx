@@ -505,22 +505,29 @@ export default function CheckoutPage() {
       setProcessingStep(5);
       setDebugInfo({ lastAction: 'Refreshing cart state...' });
       debugLog('CART', 'Backend cleared cart, refreshing frontend state');
-  
-      // Simply refresh the cart state from the context
-      // The backend has already cleared the cart, so this should show empty cart
-      try {
-        await withTimeout(
-          forceRefreshCart(),
-          5000,
-          'Cart refresh timeout'
-        );
-        debugLog('CART', 'Cart state refreshed successfully');
-      } catch (refreshError) {
+
+      forceRefreshCart().catch(refreshError => {
         debugLog('CART', 'Cart refresh failed, but backend cleared it', { 
           error: refreshError.message 
         });
-        // Don't fail the entire process for this
-      }
+      });
+      
+  
+      // Simply refresh the cart state from the context
+      // The backend has already cleared the cart, so this should show empty cart
+      // try {
+      //   await withTimeout(
+      //     forceRefreshCart(),
+      //     5000,
+      //     'Cart refresh timeout'
+      //   );
+      //   debugLog('CART', 'Cart state refreshed successfully');
+      // } catch (refreshError) {
+      //   debugLog('CART', 'Cart refresh failed, but backend cleared it', { 
+      //     error: refreshError.message 
+      //   });
+      //   // Don't fail the entire process for this
+      // }
   
       // Success - Navigate to dashboard
       debugLog('SUCCESS', 'Order processing complete, navigating to dashboard');
