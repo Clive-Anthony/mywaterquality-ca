@@ -234,8 +234,7 @@ const PaymentStep = React.memo(({
 export default function CheckoutPage() {
   const navigate = useNavigate();
   const { user, session } = useAuth(); // Use session from auth context instead of fetching
-  const { cartItems, cartSummary, clearCart } = useCart();
-  
+  const { cartItems, cartSummary, clearCart, forceRefreshCart } = useCart();  
   const [currentStep, setCurrentStep] = useState(1);
   const [isProcessing, setIsProcessing] = useState(false);
   const [processingStep, setProcessingStep] = useState(0);
@@ -511,7 +510,7 @@ export default function CheckoutPage() {
       // The backend has already cleared the cart, so this should show empty cart
       try {
         await withTimeout(
-          cartContext.forceRefreshCart(),
+          forceRefreshCart(),
           5000,
           'Cart refresh timeout'
         );
