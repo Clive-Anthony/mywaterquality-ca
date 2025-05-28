@@ -17,6 +17,7 @@ import WaterSamplingInstructionsPage from './pages/WaterSamplingInstructionsPage
 import CheckoutPage from './pages/CheckoutPage';
 import PayPalTest from './components/PayPalTest';
 import ContactPage from './pages/ContactPage';
+import ProcessPage from './pages/ProcessPage';
 import OrderHistoryPage from './pages/OrderHistoryPage';
 import { useState, useEffect } from 'react';
 
@@ -75,6 +76,9 @@ export default function App() {
 
             {/* Public Contact page - ADD THIS ROUTE */}
             <Route path="/contact" element={<ContactPage />} />
+
+            {/* Public Process page - ADD THIS ROUTE */}
+            <Route path="/process" element={<ProcessPage />} />
 
             {/* Public Water Sampling Instructions */}
             <Route path="/sampling-instructions" element={<WaterSamplingInstructionsPage />} />

@@ -192,10 +192,24 @@ export default function TopNav() {
                       className="block px-4 py-3 text-sm text-gray-700 hover:bg-blue-50 hover:text-blue-600 transition-colors duration-200"
                     >
                       <div className="flex items-center">
-                        <span className="text-lg mr-3">🧪</span>
+                        <span className="text-lg mr-3"></span>
                         <div>
-                          <div className="font-medium">Water Sampling Instructions</div>
+                          <div className="font-medium"><strong>Water Sampling Instructions</strong></div>
                           <div className="text-xs text-gray-500">Step-by-step sampling guide</div>
+                        </div>
+                      </div>
+                    </Link>
+
+                    <Link
+                      to="/process"
+                      onClick={() => setShowLearnDropdown(false)}
+                      className="block px-4 py-3 text-sm text-gray-700 hover:bg-blue-50 hover:text-blue-600 transition-colors duration-200"
+                    >
+                      <div className="flex items-center">
+                        <span className="text-lg mr-3"></span>
+                        <div>
+                          <div className="font-medium"><strong>MyWaterQuality Process</strong></div>
+                          <div className="text-xs text-gray-500">Learn how our testing works</div>
                         </div>
                       </div>
                     </Link>
