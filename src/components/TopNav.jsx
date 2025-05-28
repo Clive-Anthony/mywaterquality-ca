@@ -213,6 +213,20 @@ export default function TopNav() {
                         </div>
                       </div>
                     </Link>
+
+                    <Link
+                      to="/about-us"
+                      onClick={() => setShowLearnDropdown(false)}
+                      className="block px-4 py-3 text-sm text-gray-700 hover:bg-blue-50 hover:text-blue-600 transition-colors duration-200"
+                    >
+                      <div className="flex items-center">
+                        <span className="text-lg mr-3"></span>
+                        <div>
+                          <div className="font-medium"><strong>About Us</strong></div>
+                          <div className="text-xs text-gray-500">Meet our team!</div>
+                        </div>
+                      </div>
+                    </Link>
                     
                     <div className="border-t border-gray-100 my-1"></div>
                     
