@@ -13,6 +13,7 @@ import UpdatePasswordPage from './pages/UpdatePasswordPage'; // ADD THIS IMPORT
 import HomePage from './pages/HomePage';
 import UserPage from './pages/UserPage';
 import TestKitsPage from './pages/TestKitsPage';
+import WaterSamplingInstructionsPage from './pages/WaterSamplingInstructionsPage';
 import CheckoutPage from './pages/CheckoutPage';
 import PayPalTest from './components/PayPalTest';
 import ContactPage from './pages/ContactPage';
@@ -75,8 +76,12 @@ export default function App() {
             {/* Public Contact page - ADD THIS ROUTE */}
             <Route path="/contact" element={<ContactPage />} />
 
+            {/* Public Water Sampling Instructions */}
+            <Route path="/sampling-instructions" element={<WaterSamplingInstructionsPage />} />
+
             {/* PAYPAL TEST ROUTE - Add this temporarily */}
             <Route path="/paypal-test" element={<PayPalTest />} />
+          
             
             {/* Protected checkout page */}
             <Route 

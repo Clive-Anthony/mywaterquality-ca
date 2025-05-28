@@ -1,5 +1,5 @@
-// src/components/TopNav.jsx - Enhanced with Contact Us link
-import { useState } from 'react';
+// src/components/TopNav.jsx - Enhanced with Learn dropdown and Contact Us link
+import { useState, useRef, useEffect } from 'react';
 import { Link, useNavigate, useLocation } from 'react-router-dom';
 import { useAuth } from '../contexts/AuthContext';
 import { useCart } from '../contexts/CartContext';
@@ -12,8 +12,24 @@ export default function TopNav() {
   const { cartSummary, cartItems, updateCartItemQuantity, removeFromCart } = useCart();
   const [loading, setLoading] = useState(false);
   const [showCartDropdown, setShowCartDropdown] = useState(false);
+  const [showLearnDropdown, setShowLearnDropdown] = useState(false);
   const [updatingItems, setUpdatingItems] = useState({}); // Track which items are being updated
+  const learnDropdownRef = useRef(null);
   
+  // Close dropdowns when clicking outside
+  useEffect(() => {
+    function handleClickOutside(event) {
+      if (learnDropdownRef.current && !learnDropdownRef.current.contains(event.target)) {
+        setShowLearnDropdown(false);
+      }
+    }
+
+    document.addEventListener('mousedown', handleClickOutside);
+    return () => {
+      document.removeEventListener('mousedown', handleClickOutside);
+    };
+  }, []);
+
   const handleSignOut = async () => {
     setLoading(true);
     try {
@@ -144,6 +160,56 @@ export default function TopNav() {
             >
               Test Kits
             </Link>
+
+            {/* Learn Dropdown - Always visible */}
+            <div className="relative" ref={learnDropdownRef}>
+              <button
+                onClick={() => setShowLearnDropdown(!showLearnDropdown)}
+                className={`px-3 py-2 rounded-md text-sm font-medium transition-colors duration-200 flex items-center ${
+                  location.pathname.includes('/learn') || location.pathname.includes('/water-sampling-instructions')
+                    ? 'text-blue-600 bg-blue-50'
+                    : 'text-gray-700 hover:text-blue-600 hover:bg-blue-50'
+                }`}
+              >
+                Learn
+                <svg 
+                  className={`ml-1 h-4 w-4 transition-transform duration-200 ${showLearnDropdown ? 'rotate-180' : ''}`} 
+                  fill="none" 
+                  viewBox="0 0 24 24" 
+                  stroke="currentColor"
+                >
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M19 9l-7 7-7-7" />
+                </svg>
+              </button>
+
+              {/* Learn Dropdown Menu */}
+              {showLearnDropdown && (
+                <div className="absolute left-0 mt-2 w-64 bg-white rounded-lg shadow-lg border border-gray-200 z-50">
+                  <div className="py-2">
+                    <Link
+                      to="/sampling-instructions"
+                      onClick={() => setShowLearnDropdown(false)}
+                      className="block px-4 py-3 text-sm text-gray-700 hover:bg-blue-50 hover:text-blue-600 transition-colors duration-200"
+                    >
+                      <div className="flex items-center">
+                        <span className="text-lg mr-3">🧪</span>
+                        <div>
+                          <div className="font-medium">Water Sampling Instructions</div>
+                          <div className="text-xs text-gray-500">Step-by-step sampling guide</div>
+                        </div>
+                      </div>
+                    </Link>
+                    
+                    <div className="border-t border-gray-100 my-1"></div>
+                    
+                    {/* Future learn content can be added here */}
+                    <div className="px-4 py-2">
+                      <p className="text-xs text-gray-500">More learning resources coming soon...</p>
+                    </div>
+                  </div>
+                </div>
+              )}
+            </div>
             
             {/* User-only navigation links */}
             {user && (
@@ -387,11 +453,14 @@ export default function TopNav() {
         </div>
       </div>
 
-      {/* Click outside to close dropdown */}
-      {showCartDropdown && (
+      {/* Click outside to close dropdowns */}
+      {(showCartDropdown || showLearnDropdown) && (
         <div 
           className="fixed inset-0 z-40" 
-          onClick={() => setShowCartDropdown(false)}
+          onClick={() => {
+            setShowCartDropdown(false);
+            setShowLearnDropdown(false);
+          }}
         />
       )}
     </header>
