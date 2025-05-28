@@ -37,7 +37,7 @@ export default function AboutPage() {
                 <div className="lg:col-span-1">
                   <div className="relative">
                     <img
-                      src="/tecia_white.jpg"
+                      src="/images/tecia_white.jpg"
                       alt="Tecia White, M.Sc., P.Geo - Founder of MyWaterQuality"
                       className="w-full h-auto rounded-lg shadow-md object-cover"
                       onError={(e) => {
@@ -198,7 +198,7 @@ export default function AboutPage() {
                 <div className="lg:col-span-1 order-1 lg:order-2">
                   <div className="relative">
                     <img
-                      src="/tecia_white_about.jpg"
+                      src="/images/tecia_white_about.jpg"
                       alt="Tecia White and the MyWaterQuality team"
                       className="w-full h-auto rounded-lg shadow-md object-cover"
                       onError={(e) => {
