@@ -531,19 +531,22 @@ export default function CheckoutPage() {
   
       // Success - Navigate to dashboard
       debugLog('SUCCESS', 'Order processing complete, navigating to dashboard');
+
+      // refreshing the page
+      window.location.href = '/dashboard?order_success=true&order_number=' + responseData.order.order_number;
       
-      navigate('/dashboard', { 
-        replace: true,
-        state: { 
-          orderSuccess: true,
-          orderNumber: responseData.order.order_number,
-          orderTotal: formatPrice(totals.total),
-          itemCount: cartItems.length,
-          cartCleared: responseData.cart_cleared,
-          cartClearMethod: responseData.cart_clear_method,
-          message: `🎉 Order #${responseData.order.order_number} confirmed! Your water testing kits will ship within 1-2 business days.`
-        }
-      });
+      // navigate('/dashboard', { 
+      //   replace: true,
+      //   state: { 
+      //     orderSuccess: true,
+      //     orderNumber: responseData.order.order_number,
+      //     orderTotal: formatPrice(totals.total),
+      //     itemCount: cartItems.length,
+      //     cartCleared: responseData.cart_cleared,
+      //     cartClearMethod: responseData.cart_clear_method,
+      //     message: `🎉 Order #${responseData.order.order_number} confirmed! Your water testing kits will ship within 1-2 business days.`
+      //   }
+      // });
   
     } catch (error) {
       debugLog('ERROR', 'Payment processing failed', { 
