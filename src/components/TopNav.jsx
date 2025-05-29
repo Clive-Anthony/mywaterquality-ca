@@ -158,8 +158,20 @@ export default function TopNav() {
               to="/test-kits" 
               className={getLinkClassName('/test-kits')}
             >
-              Test Kits
+              Browse Test Kits
             </Link>
+
+            {/* User-only navigation links */}
+            {user && (
+              <>
+                <Link 
+                  to="/dashboard" 
+                  className={getLinkClassName('/dashboard', true)}
+                >
+                  Dashboard
+                </Link>
+              </>
+            )}
 
             {/* Learn Dropdown - Always visible */}
             <div className="relative" ref={learnDropdownRef}>
@@ -253,36 +265,13 @@ export default function TopNav() {
               )}
             </div>
             
-            {/* User-only navigation links */}
-            {user && (
-              <>
-                <Link 
-                  to="/dashboard" 
-                  className={getLinkClassName('/dashboard', true)}
-                >
-                  Dashboard
-                </Link>
-                <Link 
-                  to="/results" 
-                  className={getLinkClassName('/results', true)}
-                >
-                  Results
-                </Link>
-                <Link 
-                  to="/resources" 
-                  className={getLinkClassName('/resources', true)}
-                >
-                  Resources
-                </Link>
-              </>
-            )}
             
             {/* Contact Us - Always visible */}
             <Link 
               to="/contact" 
               className={getLinkClassName('/contact')}
             >
-              Contact
+              Contact Us
             </Link>
           </div>
           
@@ -450,9 +439,6 @@ export default function TopNav() {
                     {user?.email?.charAt(0).toUpperCase() || 'U'}
                   </span>
                 </div>
-                <span className="ml-2 text-sm font-medium text-gray-700 hidden md:block">
-                  {user?.email}
-                </span>
               </div>
             )}
             

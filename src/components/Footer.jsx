@@ -29,7 +29,7 @@ export default function Footer() {
               <li><Link to="/help" className="text-gray-300 hover:text-white transition-colors">Help Center</Link></li>
               <li><Link to="/contact" className="text-gray-300 hover:text-white transition-colors">Get Support</Link></li>
               <li><Link to="/privacy" className="text-gray-300 hover:text-white transition-colors">Privacy Policy</Link></li>
-              <li><Link to="/terms" className="text-gray-300 hover:text-white transition-colors">Terms of Service</Link></li>
+              <li><Link to="/terms-and-conditions" className="text-gray-300 hover:text-white transition-colors">Terms of Service</Link></li>
             </ul>
           </div>
         </div>

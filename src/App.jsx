@@ -19,6 +19,7 @@ import PayPalTest from './components/PayPalTest';
 import ContactPage from './pages/ContactPage';
 import AboutPage from './pages/AboutPage';
 import FAQPage from './pages/FAQPage';
+import TermsConditionsPage from './pages/TermsConditionsPage';
 import ProcessPage from './pages/ProcessPage';
 import OrderHistoryPage from './pages/OrderHistoryPage';
 import { useState, useEffect } from 'react';
@@ -84,6 +85,9 @@ export default function App() {
 
             {/* Public FAQ page */}
             <Route path="/faq" element={<FAQPage />} />
+            
+            {/* Public Terms and Conditions page */}
+            <Route path="/terms-and-conditions" element={<TermsConditionsPage/>} />
 
             {/* Public Process page */}
             <Route path="/process" element={<ProcessPage />} />
