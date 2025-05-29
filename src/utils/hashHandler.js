@@ -9,8 +9,8 @@
   // Only run in the browser environment
   if (typeof window === 'undefined') return;
   
-  console.log('Hash handler: Checking URL for auth tokens...');
-  console.log('Current URL:', window.location.href);
+  // console.log('Hash handler: Checking URL for auth tokens...');
+  // console.log('Current URL:', window.location.href);
   
   // Handle the case where the URL has an access_token in the hash
   const processAuthTokens = () => {
@@ -29,11 +29,11 @@
       const tokenType = hashParams.get('type');
       const refreshToken = hashParams.get('refresh_token');
       
-      console.log('Token details:', {
-        hasAccessToken: !!accessToken,
-        tokenType,
-        hasRefreshToken: !!refreshToken
-      });
+      // console.log('Token details:', {
+      //   hasAccessToken: !!accessToken,
+      //   tokenType,
+      //   hasRefreshToken: !!refreshToken
+      // });
       
       // Check if we're already on the auth callback route
       if (window.location.pathname === '/auth/callback') {
