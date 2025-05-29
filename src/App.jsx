@@ -18,6 +18,7 @@ import CheckoutPage from './pages/CheckoutPage';
 import PayPalTest from './components/PayPalTest';
 import ContactPage from './pages/ContactPage';
 import AboutPage from './pages/AboutPage';
+import FAQPage from './pages/FAQPage';
 import ProcessPage from './pages/ProcessPage';
 import OrderHistoryPage from './pages/OrderHistoryPage';
 import { useState, useEffect } from 'react';
@@ -75,13 +76,16 @@ export default function App() {
             {/* Public test kits page */}
             <Route path="/test-kits" element={<TestKitsPage />} />
 
-            {/* Public Contact page - ADD THIS ROUTE */}
+            {/* Public Contact page */}
             <Route path="/contact" element={<ContactPage />} />
 
-            {/* Public About Us page - ADD THIS ROUTE */}
+            {/* Public About Us page */}
             <Route path="/about-us" element={<AboutPage />} />
 
-            {/* Public Process page - ADD THIS ROUTE */}
+            {/* Public FAQ page */}
+            <Route path="/faq" element={<FAQPage />} />
+
+            {/* Public Process page */}
             <Route path="/process" element={<ProcessPage />} />
 
             {/* Public Water Sampling Instructions */}
