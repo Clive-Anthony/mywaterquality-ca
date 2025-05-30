@@ -1,4 +1,4 @@
-// netlify/functions/process-order.js - FIXED: Direct email integration instead of function calls
+// netlify/functions/process-order.js - UPDATED: Added admin order notification
 
 const { createClient } = require('@supabase/supabase-js');
 
@@ -100,6 +100,120 @@ async function sendOrderConfirmationEmailDirect(orderData, customerEmail, firstN
     log('error', `❌ Failed to send order confirmation email: ${error.message}`, { 
       orderNumber: orderData.order_number,
       customerEmail,
+      error: error.message 
+    });
+    return { success: false, error: error.message };
+  }
+}
+
+// NEW: Direct admin order notification function
+async function sendAdminOrderNotificationDirect(orderData, orderItems, shippingAddress, requestId) {
+  try {
+    const apiKey = process.env.VITE_LOOPS_API_KEY;
+    if (!apiKey) {
+      throw new Error('Loops API key not configured');
+    }
+
+    log('info', `📧 Sending admin order notification for order ${orderData.order_number} [${requestId}]`);
+
+    // Format the order total as a currency string
+    const orderTotal = new Intl.NumberFormat('en-CA', {
+      style: 'currency',
+      currency: 'CAD',
+    }).format(orderData.total_amount);
+
+    // Format the order date
+    const orderDate = new Date(orderData.created_at).toLocaleString('en-CA', {
+      timeZone: 'America/Toronto',
+      year: 'numeric',
+      month: 'long',
+      day: 'numeric',
+      hour: '2-digit',
+      minute: '2-digit',
+      hour12: true
+    });
+
+    // Format items list for email
+    const itemsList = orderItems?.map(item => 
+      `${item.quantity}x ${item.product_name} - ${new Intl.NumberFormat('en-CA', {
+        style: 'currency',
+        currency: 'CAD',
+      }).format(item.unit_price)}`
+    ).join('\n') || 'No items listed';
+
+    // Format customer name
+    const customerName = shippingAddress ? 
+      `${shippingAddress.firstName} ${shippingAddress.lastName}`.trim() : 
+      'Not provided';
+
+    // Format shipping address
+    const formattedShippingAddress = shippingAddress ? 
+      `${shippingAddress.address}, ${shippingAddress.city}, ${shippingAddress.province} ${shippingAddress.postalCode}` : 
+      'Not provided';
+
+    const emailData = {
+      transactionalId: 'cmb6u4tcl1n8dz10inz2llfzt', // Admin notification template ID (reusing contact template)
+      email: 'david.phillips@bookerhq.ca',
+      dataVariables: {
+        // Map to contact notification template variables for now
+        name: `NEW ORDER: ${orderData.order_number}`,
+        email: shippingAddress?.email || 'Not provided',
+        feedback: `
+NEW ORDER RECEIVED!
+
+Order Number: ${orderData.order_number}
+Customer: ${customerName}
+Customer Email: ${shippingAddress?.email || 'Not provided'}
+Order Total: ${orderTotal}
+Payment Method: ${orderData.payment_method || 'PayPal'}
+Order Date: ${orderDate}
+
+Items Ordered:
+${itemsList}
+
+Shipping Address:
+${formattedShippingAddress}
+
+Order Status: ${orderData.status || 'confirmed'}
+Payment Status: ${orderData.payment_status || 'paid'}
+Fulfillment Status: ${orderData.fulfillment_status || 'unfulfilled'}
+        `.trim(),
+        createdAt: orderDate,
+        userStatus: 'New Order Notification'
+      }
+    };
+
+    log('info', `📧 Prepared admin notification data for order ${orderData.order_number}`);
+
+    // Call Loops API directly
+    const response = await fetch('https://app.loops.so/api/v1/transactional', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'Authorization': `Bearer ${apiKey}`
+      },
+      body: JSON.stringify(emailData)
+    });
+
+    const responseText = await response.text();
+    log('info', `📧 Admin notification Loops API response: ${response.status}`, { responseText });
+
+    if (!response.ok) {
+      let errorData;
+      try {
+        errorData = JSON.parse(responseText);
+      } catch (e) {
+        errorData = { message: responseText || `HTTP ${response.status}` };
+      }
+      throw new Error(`Loops API Error ${response.status}: ${errorData.message}`);
+    }
+
+    log('info', `✅ Admin order notification sent successfully for order ${orderData.order_number}`);
+    return { success: true };
+
+  } catch (error) {
+    log('error', `❌ Failed to send admin order notification: ${error.message}`, { 
+      orderNumber: orderData.order_number,
       error: error.message 
     });
     return { success: false, error: error.message };
@@ -485,8 +599,25 @@ exports.handler = async function(event, context) {
       } else {
         log('warn', '⚠️ No customer email found, skipping confirmation email');
       }
+
+      // NEW: Send admin order notification email (non-blocking)
+      log('info', `📧 Sending admin order notification [${requestId}]`);
+      
+      const adminEmailResult = await sendAdminOrderNotificationDirect(
+        orderResult.order,
+        orderData.items,
+        orderData.shipping_address,
+        requestId
+      );
+      
+      if (adminEmailResult.success) {
+        log('info', '✅ Admin order notification sent successfully');
+      } else {
+        log('warn', '⚠️ Admin order notification failed (non-critical)', { error: adminEmailResult.error });
+      }
+      
     } else {
-      log('warn', '⚠️ Loops API key not configured, skipping confirmation email');
+      log('warn', '⚠️ Loops API key not configured, skipping all email notifications');
     }
     
     return {

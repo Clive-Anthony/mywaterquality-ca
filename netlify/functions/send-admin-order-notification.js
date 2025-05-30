@@ -55,7 +55,7 @@ Email: ${shippingAddress.email}`;
     ).join('\n');
 
     const emailData = {
-      transactionalId: 'ADMIN_ORDER_TEMPLATE_ID', // TODO: Replace with actual Loops template ID
+      transactionalId: 'cmbax4sey1n651h0it0rm6f8k', // TODO: Replace with actual Loops template ID
       email: 'david.phillips@bookerhq.ca',
       dataVariables: {
         customerName: orderData.customer_name,
