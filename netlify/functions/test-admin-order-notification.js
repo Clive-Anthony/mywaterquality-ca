@@ -147,7 +147,7 @@ Email: ${mockOrderData.shipping_address.email}`;
 
       // Test email data
       const testEmailData = {
-        transactionalId: 'ADMIN_ORDER_TEMPLATE_ID', // TODO: Replace with actual template ID
+        transactionalId: 'cmbax4sey1n651h0it0rm6f8k', // TODO: Replace with actual template ID
         email: 'david.phillips@bookerhq.ca',
         dataVariables: {
           customerName: mockOrderData.customer_name,
