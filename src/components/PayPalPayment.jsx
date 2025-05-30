@@ -1,4 +1,4 @@
-// src/components/PayPalPayment.jsx - FIXED VERSION
+// src/components/PayPalPayment.jsx - FIXED VERSION with Canadian locale
 import { useEffect, useRef, useState, useCallback } from 'react';
 
 export default function PayPalPayment({ 
@@ -83,7 +83,10 @@ export default function PayPalPayment({
             }],
             application_context: {
               shipping_preference: 'NO_SHIPPING',
-              locale: 'en_CA'           // ← New: Canadian locale
+              // Set Canadian locale for the payment experience
+              locale: 'en_CA',
+              // Set Canadian user context
+              user_action: 'PAY_NOW'
             }
           });
         },
@@ -133,7 +136,7 @@ export default function PayPalPayment({
           buttonInstanceRef.current = instance;
           setIsLoading(false);
           setError(null);
-          console.log('PayPal buttons rendered successfully');
+          console.log('PayPal buttons rendered successfully with Canadian locale');
         } else {
           // Component unmounted during render, cleanup
           if (instance && typeof instance.close === 'function') {
@@ -173,7 +176,7 @@ export default function PayPalPayment({
     }
   }, [amount, currency, onSuccess, onError, onCancel, disabled, cleanupPayPal]);
 
-  // Load PayPal SDK
+  // Load PayPal SDK with Canadian locale
   useEffect(() => {
     if (disabled) {
       return;
@@ -208,14 +211,14 @@ export default function PayPalPayment({
           return;
         }
 
-        // Create new script
+        // Create new script with Canadian locale
         const script = document.createElement('script');
         script.src = `https://www.paypal.com/sdk/js?client-id=${clientId}&currency=${currency}&locale=en_CA&components=buttons`;
         script.async = true;
         
         script.onload = () => {
           if (mountedRef.current) {
-            console.log('PayPal SDK loaded successfully');
+            console.log('PayPal SDK loaded successfully with Canadian locale (en_CA)');
             setPaypalLoaded(true);
           }
         };
@@ -335,6 +338,9 @@ export default function PayPalPayment({
         <div className="mt-4 text-center">
           <p className="text-xs text-gray-500">
             By clicking the PayPal button, you agree to our terms of service and privacy policy.
+          </p>
+          <p className="text-xs text-green-600 mt-1">
+            ✓ Canadian billing addresses supported
           </p>
         </div>
       )}
