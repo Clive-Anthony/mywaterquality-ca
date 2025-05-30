@@ -82,7 +82,8 @@ export default function PayPalPayment({
               description: 'MyWaterQuality.ca - Water Testing Kit Order'
             }],
             application_context: {
-              shipping_preference: 'NO_SHIPPING'
+              shipping_preference: 'NO_SHIPPING',
+              locale: 'en_CA'           // ← New: Canadian locale
             }
           });
         },
@@ -209,7 +210,7 @@ export default function PayPalPayment({
 
         // Create new script
         const script = document.createElement('script');
-        script.src = `https://www.paypal.com/sdk/js?client-id=${clientId}&currency=${currency}&components=buttons`;
+        script.src = `https://www.paypal.com/sdk/js?client-id=${clientId}&currency=${currency}&locale=en_CA&components=buttons`;
         script.async = true;
         
         script.onload = () => {
