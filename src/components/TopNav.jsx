@@ -1,4 +1,4 @@
-// src/components/TopNav.jsx - Enhanced with Learn dropdown and Contact Us link
+// src/components/TopNav.jsx - Enhanced with responsive hamburger menu
 import { useState, useRef, useEffect } from 'react';
 import { Link, useNavigate, useLocation } from 'react-router-dom';
 import { useAuth } from '../contexts/AuthContext';
@@ -13,14 +13,21 @@ export default function TopNav() {
   const [loading, setLoading] = useState(false);
   const [showCartDropdown, setShowCartDropdown] = useState(false);
   const [showLearnDropdown, setShowLearnDropdown] = useState(false);
+  const [showMobileMenu, setShowMobileMenu] = useState(false);
+  const [showMobileLearnSubmenu, setShowMobileLearnSubmenu] = useState(false);
   const [updatingItems, setUpdatingItems] = useState({}); // Track which items are being updated
   const learnDropdownRef = useRef(null);
+  const mobileMenuRef = useRef(null);
   
-  // Close dropdowns when clicking outside
+  // Close dropdowns and mobile menu when clicking outside
   useEffect(() => {
     function handleClickOutside(event) {
       if (learnDropdownRef.current && !learnDropdownRef.current.contains(event.target)) {
         setShowLearnDropdown(false);
+      }
+      if (mobileMenuRef.current && !mobileMenuRef.current.contains(event.target)) {
+        setShowMobileMenu(false);
+        setShowMobileLearnSubmenu(false);
       }
     }
 
@@ -30,8 +37,29 @@ export default function TopNav() {
     };
   }, []);
 
+  // Close mobile menu when route changes
+  useEffect(() => {
+    setShowMobileMenu(false);
+    setShowMobileLearnSubmenu(false);
+  }, [location.pathname]);
+
+  // Prevent body scroll when mobile menu is open
+  useEffect(() => {
+    if (showMobileMenu) {
+      document.body.style.overflow = 'hidden';
+    } else {
+      document.body.style.overflow = 'unset';
+    }
+    
+    // Cleanup on unmount
+    return () => {
+      document.body.style.overflow = 'unset';
+    };
+  }, [showMobileMenu]);
+
   const handleSignOut = async () => {
     setLoading(true);
+    setShowMobileMenu(false); // Close mobile menu
     try {
       const { error } = await signOut();
       if (error) {
@@ -60,6 +88,17 @@ export default function TopNav() {
       return `${baseClasses} text-blue-600 bg-blue-50`;
     } else {
       return `${baseClasses} text-gray-700 hover:text-blue-600 hover:bg-blue-50`;
+    }
+  };
+
+  // Mobile link styling
+  const getMobileLinkClassName = (path) => {
+    const baseClasses = "block px-4 py-3 text-base font-medium transition-colors duration-200 border-l-4";
+    
+    if (isActivePage(path)) {
+      return `${baseClasses} text-blue-600 bg-blue-50 border-blue-600`;
+    } else {
+      return `${baseClasses} text-gray-700 hover:text-blue-600 hover:bg-blue-50 border-transparent hover:border-blue-300`;
     }
   };
 
@@ -136,6 +175,18 @@ export default function TopNav() {
 
     navigate('/checkout');
   };
+
+  // Handle mobile menu item clicks
+  const handleMobileMenuClick = (action) => {
+    setShowMobileMenu(false);
+    setShowMobileLearnSubmenu(false);
+    if (action) action();
+  };
+
+  // Handle mobile learn submenu toggle
+  const handleMobileLearnToggle = () => {
+    setShowMobileLearnSubmenu(!showMobileLearnSubmenu);
+  };
   
   return (
     <header className="bg-white shadow-sm relative">
@@ -151,8 +202,8 @@ export default function TopNav() {
             </Link>
           </div>
           
-          {/* Navigation Links */}
-          <div className="hidden md:flex items-center space-x-4 ml-6">
+          {/* Desktop Navigation Links - Hidden on mobile */}
+          <div className="hidden lg:flex items-center space-x-4 ml-6">
             {/* Test Kits - Always visible */}
             <Link 
               to="/test-kits" 
@@ -264,7 +315,6 @@ export default function TopNav() {
                 </div>
               )}
             </div>
-            
             
             {/* Contact Us - Always visible */}
             <Link 
@@ -431,9 +481,9 @@ export default function TopNav() {
               )}
             </div>
             
-            {/* User info if authenticated */}
+            {/* User info if authenticated - Hidden on mobile */}
             {user && (
-              <div className="flex items-center">
+              <div className="hidden lg:flex items-center">
                 <div className="h-8 w-8 rounded-full bg-blue-100 flex items-center justify-center">
                   <span className="text-blue-600 font-medium text-sm">
                     {user?.email?.charAt(0).toUpperCase() || 'U'}
@@ -442,12 +492,12 @@ export default function TopNav() {
               </div>
             )}
             
-            {/* Conditional Authentication Buttons */}
+            {/* Conditional Authentication Buttons - Hidden on mobile */}
             {user ? (
               <button
                 onClick={handleSignOut}
                 disabled={loading}
-                className="inline-flex items-center px-4 py-2 border border-transparent text-sm font-medium rounded-md text-white bg-blue-600 hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500 transition-colors duration-200"
+                className="hidden lg:inline-flex items-center px-4 py-2 border border-transparent text-sm font-medium rounded-md text-white bg-blue-600 hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500 transition-colors duration-200"
               >
                 {loading ? (
                   <span className="flex items-center">
@@ -465,21 +515,227 @@ export default function TopNav() {
               <>
                 <Link
                   to="/login"
-                  className="inline-flex items-center px-4 py-2 border border-blue-600 text-sm font-medium rounded-md text-blue-600 bg-white hover:bg-blue-50 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500 transition-colors duration-200"
+                  className="hidden lg:inline-flex items-center px-4 py-2 border border-blue-600 text-sm font-medium rounded-md text-blue-600 bg-white hover:bg-blue-50 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500 transition-colors duration-200"
                 >
                   Log In
                 </Link>
                 <Link
                   to="/signup"
-                  className="inline-flex items-center px-4 py-2 border border-transparent text-sm font-medium rounded-md text-white bg-blue-600 hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500 transition-colors duration-200"
+                  className="hidden lg:inline-flex items-center px-4 py-2 border border-transparent text-sm font-medium rounded-md text-white bg-blue-600 hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500 transition-colors duration-200"
                 >
                   Sign Up
                 </Link>
               </>
             )}
+
+            {/* Hamburger Menu Button - Visible only on mobile */}
+            <button
+              onClick={() => setShowMobileMenu(!showMobileMenu)}
+              className="lg:hidden p-2 text-gray-600 hover:text-blue-600 transition-colors duration-200"
+              aria-label="Toggle mobile menu"
+            >
+              <svg className="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                {showMobileMenu ? (
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M6 18L18 6M6 6l12 12" />
+                ) : (
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M4 6h16M4 12h16M4 18h16" />
+                )}
+              </svg>
+            </button>
           </div>
         </div>
       </div>
+
+      {/* Mobile Menu Overlay */}
+      {showMobileMenu && (
+        <div className="lg:hidden fixed inset-0 z-50 bg-black bg-opacity-50" onClick={() => setShowMobileMenu(false)}>
+          <div 
+            ref={mobileMenuRef}
+            className="absolute top-0 right-0 w-80 max-w-sm h-full bg-white shadow-xl overflow-y-auto"
+            onClick={(e) => e.stopPropagation()}
+          >
+            {/* Mobile Menu Header */}
+            <div className="flex items-center justify-between p-4 border-b border-gray-200">
+              <h2 className="text-lg font-semibold text-gray-900">Menu</h2>
+              <button
+                onClick={() => setShowMobileMenu(false)}
+                className="p-2 text-gray-400 hover:text-gray-600 transition-colors duration-200"
+              >
+                <svg className="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M6 18L18 6M6 6l12 12" />
+                </svg>
+              </button>
+            </div>
+
+            {/* Mobile Menu Content */}
+            <div className="py-2">
+              {/* Browse Test Kits */}
+              <Link
+                to="/test-kits"
+                onClick={() => handleMobileMenuClick()}
+                className={getMobileLinkClassName('/test-kits')}
+              >
+                Browse Test Kits
+              </Link>
+
+              {/* Dashboard - Only show when logged in */}
+              {user && (
+                <Link
+                  to="/dashboard"
+                  onClick={() => handleMobileMenuClick()}
+                  className={getMobileLinkClassName('/dashboard')}
+                >
+                  Dashboard
+                </Link>
+              )}
+
+              {/* Learn Section with submenu */}
+              <div>
+                <button
+                  onClick={handleMobileLearnToggle}
+                  className={`w-full text-left px-4 py-3 text-base font-medium transition-colors duration-200 border-l-4 flex items-center justify-between ${
+                    location.pathname.includes('/learn') || location.pathname.includes('/sampling-instructions') || location.pathname.includes('/process') || location.pathname.includes('/about-us') || location.pathname.includes('/faq')
+                      ? 'text-blue-600 bg-blue-50 border-blue-600'
+                      : 'text-gray-700 hover:text-blue-600 hover:bg-blue-50 border-transparent hover:border-blue-300'
+                  }`}
+                >
+                  Learn
+                  <svg 
+                    className={`h-5 w-5 transition-transform duration-200 ${showMobileLearnSubmenu ? 'rotate-180' : ''}`} 
+                    fill="none" 
+                    viewBox="0 0 24 24" 
+                    stroke="currentColor"
+                  >
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M19 9l-7 7-7-7" />
+                  </svg>
+                </button>
+
+                {/* Learn Submenu */}
+                {showMobileLearnSubmenu && (
+                  <div className="bg-gray-50 border-l-4 border-gray-200">
+                    <Link
+                      to="/sampling-instructions"
+                      onClick={() => handleMobileMenuClick()}
+                      className="block px-8 py-3 text-sm text-gray-700 hover:text-blue-600 hover:bg-blue-50 transition-colors duration-200"
+                    >
+                      <div>
+                        <div className="font-medium">Water Sampling Instructions</div>
+                        <div className="text-xs text-gray-500 mt-1">Step-by-step sampling guide</div>
+                      </div>
+                    </Link>
+
+                    <Link
+                      to="/process"
+                      onClick={() => handleMobileMenuClick()}
+                      className="block px-8 py-3 text-sm text-gray-700 hover:text-blue-600 hover:bg-blue-50 transition-colors duration-200"
+                    >
+                      <div>
+                        <div className="font-medium">MyWaterQuality Process</div>
+                        <div className="text-xs text-gray-500 mt-1">Learn how our testing works</div>
+                      </div>
+                    </Link>
+
+                    <Link
+                      to="/about-us"
+                      onClick={() => handleMobileMenuClick()}
+                      className="block px-8 py-3 text-sm text-gray-700 hover:text-blue-600 hover:bg-blue-50 transition-colors duration-200"
+                    >
+                      <div>
+                        <div className="font-medium">About Us</div>
+                        <div className="text-xs text-gray-500 mt-1">Meet our team!</div>
+                      </div>
+                    </Link>
+
+                    <Link
+                      to="/faq"
+                      onClick={() => handleMobileMenuClick()}
+                      className="block px-8 py-3 text-sm text-gray-700 hover:text-blue-600 hover:bg-blue-50 transition-colors duration-200"
+                    >
+                      <div>
+                        <div className="font-medium">FAQ</div>
+                        <div className="text-xs text-gray-500 mt-1">Your questions - answered</div>
+                      </div>
+                    </Link>
+                  </div>
+                )}
+              </div>
+
+              {/* Contact Us */}
+              <Link
+                to="/contact"
+                onClick={() => handleMobileMenuClick()}
+                className={getMobileLinkClassName('/contact')}
+              >
+                Contact Us
+              </Link>
+
+              {/* Divider */}
+              <div className="border-t border-gray-200 my-2"></div>
+
+              {/* Authentication Section */}
+              {user ? (
+                <>
+                  {/* User Info */}
+                  <div className="px-4 py-3 border-l-4 border-transparent">
+                    <div className="flex items-center">
+                      <div className="h-10 w-10 rounded-full bg-blue-100 flex items-center justify-center">
+                        <span className="text-blue-600 font-medium">
+                          {user?.email?.charAt(0).toUpperCase() || 'U'}
+                        </span>
+                      </div>
+                      <div className="ml-3">
+                        <p className="text-sm font-medium text-gray-900">
+                          {user?.user_metadata?.firstName || user?.email?.split('@')[0] || 'User'}
+                        </p>
+                        <p className="text-xs text-gray-500">{user?.email}</p>
+                      </div>
+                    </div>
+                  </div>
+
+                  {/* Sign Out Button */}
+                  <button
+                    onClick={() => handleMobileMenuClick(handleSignOut)}
+                    disabled={loading}
+                    className="w-full text-left px-4 py-3 text-base font-medium text-red-600 hover:text-red-700 hover:bg-red-50 transition-colors duration-200 border-l-4 border-transparent hover:border-red-300 disabled:opacity-50"
+                  >
+                    {loading ? (
+                      <span className="flex items-center">
+                        <svg className="animate-spin -ml-1 mr-2 h-4 w-4" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+                          <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
+                          <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+                        </svg>
+                        Signing out...
+                      </span>
+                    ) : (
+                      'Sign Out'
+                    )}
+                  </button>
+                </>
+              ) : (
+                <>
+                  {/* Log In Button */}
+                    <Link
+                      to="/login"
+                      onClick={() => handleMobileMenuClick()}
+                      className="block px-4 py-3 mx-4 mb-2 text-base font-medium text-blue-600 bg-white border border-blue-600 hover:bg-blue-50 transition-colors duration-200 rounded-md text-center"
+                    >
+                      Log In
+                    </Link>
+
+                    {/* Sign Up Button */}
+                    <Link
+                      to="/signup"
+                      onClick={() => handleMobileMenuClick()}
+                      className="block px-4 py-3 text-base font-medium text-white bg-blue-600 hover:bg-blue-700 transition-colors duration-200 mx-4 rounded-md text-center"
+                    >
+                      Sign Up
+                    </Link>
+                </>
+              )}
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* Click outside to close dropdowns */}
       {(showCartDropdown || showLearnDropdown) && (
