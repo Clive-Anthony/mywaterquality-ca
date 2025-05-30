@@ -83,9 +83,6 @@ export default function PayPalPayment({
             }],
             application_context: {
               shipping_preference: 'NO_SHIPPING',
-              // Set Canadian locale for the payment experience
-              locale: 'en_CA',
-              // Set Canadian user context
               user_action: 'PAY_NOW'
             }
           });
