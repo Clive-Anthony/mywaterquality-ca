@@ -349,12 +349,12 @@ export default function TopNav() {
                 )}
               </button>
 
-              {/* Enhanced Cart Dropdown */}
+              {/* Enhanced Cart Dropdown - RESPONSIVE VERSION */}
               {showCartDropdown && user && (
-                <div className="absolute right-0 mt-2 w-96 bg-white rounded-lg shadow-lg border border-gray-200 z-50">
-                  <div className="p-4">
+                <div className="absolute right-0 mt-2 w-64 sm:right-0 sm:w-96 bg-white rounded-lg shadow-lg border border-gray-200 z-50">
+                  <div className="p-3 sm:p-4">
                     <div className="flex items-center justify-between mb-4">
-                      <h3 className="text-lg font-medium text-gray-900">Shopping Cart</h3>
+                      <h3 className="text-base sm:text-lg font-medium text-gray-900">Shopping Cart</h3>
                       <button
                         onClick={() => setShowCartDropdown(false)}
                         className="text-gray-400 hover:text-gray-600"
@@ -381,23 +381,23 @@ export default function TopNav() {
                       </div>
                     ) : (
                       <>
-                        {/* Enhanced Cart Items */}
-                        <div className="max-h-80 overflow-y-auto">
+                        {/* Enhanced Cart Items - Responsive */}
+                        <div className="max-h-64 sm:max-h-80 overflow-y-auto">
                           {cartItems.map((item) => {
                             const isUpdating = updatingItems[item.item_id];
                             
                             return (
-                              <div key={item.item_id} className="flex items-center py-4 border-b border-gray-100 last:border-b-0">
-                                <div className="flex-1 min-w-0 pr-4">
-                                  <p className="text-sm font-medium text-gray-900 truncate">
+                              <div key={item.item_id} className="flex items-start py-3 sm:py-4 border-b border-gray-100 last:border-b-0 gap-3">
+                                <div className="flex-1 min-w-0">
+                                  <p className="text-sm font-medium text-gray-900 line-clamp-2 leading-tight">
                                     {item.test_kits.name}
                                   </p>
                                   <p className="text-xs text-gray-500 mt-1">
                                     {formatPrice(item.test_kits.price)} each
                                   </p>
                                   
-                                  {/* Quantity Controls */}
-                                  <div className="flex items-center mt-2 space-x-2">
+                                  {/* Quantity Controls - Responsive */}
+                                  <div className="flex items-center mt-2 space-x-1 sm:space-x-2">
                                     <button
                                       onClick={() => handleCartItemUpdate(item.item_id, item.quantity - 1)}
                                       disabled={isUpdating || item.quantity <= 1}
@@ -422,7 +422,7 @@ export default function TopNav() {
                                     <button
                                       onClick={() => handleCartItemRemove(item.item_id)}
                                       disabled={isUpdating}
-                                      className="ml-2 text-red-600 hover:text-red-800 disabled:opacity-50 disabled:cursor-not-allowed"
+                                      className="ml-1 sm:ml-2 text-red-600 hover:text-red-800 disabled:opacity-50 disabled:cursor-not-allowed"
                                       title="Remove item"
                                     >
                                       <svg className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
@@ -439,8 +439,8 @@ export default function TopNav() {
                                   )}
                                 </div>
                                 
-                                {/* Item Total */}
-                                <div className="text-right">
+                                {/* Item Total - Responsive positioning */}
+                                <div className="text-right flex-shrink-0">
                                   <p className="text-sm font-medium text-gray-900">
                                     {formatPrice(item.quantity * item.test_kits.price)}
                                   </p>
@@ -450,8 +450,8 @@ export default function TopNav() {
                           })}
                         </div>
 
-                        {/* Cart Summary */}
-                        <div className="mt-4 pt-4 border-t border-gray-200">
+                        {/* Cart Summary - Responsive */}
+                        <div className="mt-3 sm:mt-4 pt-3 sm:pt-4 border-t border-gray-200">
                           <div className="flex justify-between items-center mb-3">
                             <span className="text-base font-medium text-gray-900">Total:</span>
                             <span className="text-lg font-bold text-blue-600">
@@ -461,7 +461,7 @@ export default function TopNav() {
                           
                           <button
                             onClick={handleCheckout}
-                            className="w-full bg-blue-600 text-white py-2 px-4 rounded-md hover:bg-blue-700 font-medium transition-colors duration-200 mb-2"
+                            className="w-full bg-blue-600 text-white py-2 px-4 rounded-md hover:bg-blue-700 font-medium transition-colors duration-200 mb-2 text-sm sm:text-base"
                           >
                             Proceed to Checkout ({cartSummary.totalItems} items)
                           </button>
