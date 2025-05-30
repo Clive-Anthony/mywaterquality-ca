@@ -151,35 +151,24 @@ async function sendAdminOrderNotificationDirect(orderData, orderItems, shippingA
       `${shippingAddress.address}, ${shippingAddress.city}, ${shippingAddress.province} ${shippingAddress.postalCode}` : 
       'Not provided';
 
+    // FIXED: Use the correct admin template ID and proper data structure
     const emailData = {
-      transactionalId: 'cmb6u4tcl1n8dz10inz2llfzt', // Admin notification template ID (reusing contact template)
+      transactionalId: 'cmbax4sey1n651h0it0rm6f8k', // CORRECT admin notification template ID
       email: 'david.phillips@bookerhq.ca',
       dataVariables: {
-        // Map to contact notification template variables for now
-        name: `NEW ORDER: ${orderData.order_number}`,
-        email: shippingAddress?.email || 'Not provided',
-        feedback: `
-NEW ORDER RECEIVED!
-
-Order Number: ${orderData.order_number}
-Customer: ${customerName}
-Customer Email: ${shippingAddress?.email || 'Not provided'}
-Order Total: ${orderTotal}
-Payment Method: ${orderData.payment_method || 'PayPal'}
-Order Date: ${orderDate}
-
-Items Ordered:
-${itemsList}
-
-Shipping Address:
-${formattedShippingAddress}
-
-Order Status: ${orderData.status || 'confirmed'}
-Payment Status: ${orderData.payment_status || 'paid'}
-Fulfillment Status: ${orderData.fulfillment_status || 'unfulfilled'}
-        `.trim(),
-        createdAt: orderDate,
-        userStatus: 'New Order Notification'
+        // Admin template specific variables
+        customerName: customerName,
+        orderNumber: orderData.order_number,
+        orderDate: orderDate,
+        orderTotal: orderTotal,
+        customerEmail: shippingAddress?.email || 'Not provided',
+        shippingAddress: formattedShippingAddress,
+        orderItems: orderItemsText,
+        itemCount: orderItems?.length || 0,
+        totalAmount: orderData.total_amount,
+        paymentMethod: orderData.payment_method || 'PayPal',
+        orderStatus: orderData.status || 'confirmed',
+        specialInstructions: orderData.special_instructions || 'None provided'
       }
     };
 
