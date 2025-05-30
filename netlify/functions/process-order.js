@@ -36,8 +36,8 @@ function logCriticalError(error, context, requestId) {
   });
 }
 
-// Customer order confirmation email (unchanged)
-async function sendOrderConfirmationEmailDirect(orderData, customerEmail, firstName, requestId) {
+// ENHANCED: Customer order confirmation email with order items included
+async function sendOrderConfirmationEmailDirect(orderData, orderItems, customerEmail, firstName, requestId) {
   try {
     const apiKey = process.env.VITE_LOOPS_API_KEY;
     if (!apiKey) {
@@ -52,6 +52,14 @@ async function sendOrderConfirmationEmailDirect(orderData, customerEmail, firstN
       currency: 'CAD',
     }).format(orderData.total_amount);
 
+    // Format order items for customer email (same as admin format)
+    const orderItemsText = orderItems?.map(item => 
+      `• ${item.product_name} (Qty: ${item.quantity}) - ${new Intl.NumberFormat('en-CA', {
+        style: 'currency',
+        currency: 'CAD',
+      }).format(item.unit_price)} each`
+    ).join('\n') || 'No items listed';
+
     const baseUrl = process.env.VITE_APP_URL || 'https://mywaterqualityca.netlify.app';
 
     const emailData = {
@@ -61,6 +69,7 @@ async function sendOrderConfirmationEmailDirect(orderData, customerEmail, firstN
         firstName: firstName || 'Valued Customer',
         orderNumber: orderData.order_number,
         orderTotal: orderTotal,
+        orderItems: orderItemsText,
         dashboardLink: `${baseUrl}/dashboard`,
         websiteURL: baseUrl,
         orderDate: new Date(orderData.created_at).toLocaleDateString('en-CA'),
@@ -68,7 +77,11 @@ async function sendOrderConfirmationEmailDirect(orderData, customerEmail, firstN
       }
     };
 
-    log('info', `📧 Prepared customer email data for order ${orderData.order_number}`);
+    log('info', `📧 Prepared customer email data for order ${orderData.order_number}`, {
+      templateId: emailData.transactionalId,
+      itemCount: emailData.dataVariables.itemCount,
+      orderTotal: emailData.dataVariables.orderTotal
+    });
 
     // Call Loops API directly
     const response = await fetch('https://app.loops.so/api/v1/transactional', {
@@ -93,13 +106,14 @@ async function sendOrderConfirmationEmailDirect(orderData, customerEmail, firstN
       throw new Error(`Loops API Error ${response.status}: ${errorData.message}`);
     }
 
-    log('info', `✅ Order confirmation email sent successfully to ${customerEmail} for order ${orderData.order_number}`);
+    log('info', `✅ Order confirmation email sent successfully to ${customerEmail} for order ${orderData.order_number} with ${orderItems?.length || 0} items`);
     return { success: true };
 
   } catch (error) {
     log('error', `❌ Failed to send order confirmation email: ${error.message}`, { 
       orderNumber: orderData.order_number,
       customerEmail,
+      itemCount: orderItems?.length || 0,
       error: error.message 
     });
     return { success: false, error: error.message };
@@ -166,7 +180,6 @@ Email: ${shippingAddress.email}` : 'Not provided';
         customerEmail: shippingAddress?.email || 'Not provided',
         shippingAddress: formattedShippingAddress,
         orderItems: orderItemsText,
-        itemCount: orderItems?.length || 0,
         totalAmount: orderData.total_amount,
         paymentMethod: orderData.payment_method || 'PayPal',
         orderStatus: orderData.status || 'confirmed',
@@ -583,13 +596,14 @@ exports.handler = async function(event, context) {
         log('info', `📧 Sending customer confirmation email [${requestId}]`);
         const customerEmailResult = await sendOrderConfirmationEmailDirect(
           orderResult.order, 
+          orderData.items, // Pass order items to customer email
           customerEmail, 
           firstName, 
           requestId
         );
         
         if (customerEmailResult.success) {
-          log('info', '✅ Customer order confirmation email sent successfully');
+          log('info', '✅ Customer order confirmation email sent successfully (includes order items)');
         } else {
           log('warn', '⚠️ Customer order confirmation email failed (non-critical)', { 
             error: customerEmailResult.error 
@@ -643,7 +657,9 @@ exports.handler = async function(event, context) {
         cart_clear_method: cartClearResult.success ? cartClearResult.method : 'failed',
         emails_sent: {
           customer_confirmation: !!process.env.VITE_LOOPS_API_KEY && !!orderData.shipping_address?.email,
-          admin_notification: !!process.env.VITE_LOOPS_API_KEY
+          admin_notification: !!process.env.VITE_LOOPS_API_KEY,
+          customer_includes_items: true,
+          admin_includes_items: true
         }
       })
     };
