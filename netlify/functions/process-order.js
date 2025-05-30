@@ -1,4 +1,4 @@
-// netlify/functions/process-order.js - UPDATED: Added admin order notification
+// netlify/functions/process-order.js - FIXED: Admin notification with correct template ID
 
 const { createClient } = require('@supabase/supabase-js');
 
@@ -36,7 +36,7 @@ function logCriticalError(error, context, requestId) {
   });
 }
 
-// FIXED: Direct Loops email function (no more function-to-function calls)
+// Customer order confirmation email (unchanged)
 async function sendOrderConfirmationEmailDirect(orderData, customerEmail, firstName, requestId) {
   try {
     const apiKey = process.env.VITE_LOOPS_API_KEY;
@@ -55,7 +55,7 @@ async function sendOrderConfirmationEmailDirect(orderData, customerEmail, firstN
     const baseUrl = process.env.VITE_APP_URL || 'https://mywaterqualityca.netlify.app';
 
     const emailData = {
-      transactionalId: 'cmb6pqu9c02qht60i7w92yalf', // Order confirmation template ID
+      transactionalId: 'cmb6pqu9c02qht60i7w92yalf', // Customer order confirmation template ID
       email: customerEmail,
       dataVariables: {
         firstName: firstName || 'Valued Customer',
@@ -68,9 +68,9 @@ async function sendOrderConfirmationEmailDirect(orderData, customerEmail, firstN
       }
     };
 
-    log('info', `📧 Prepared email data for order ${orderData.order_number}`);
+    log('info', `📧 Prepared customer email data for order ${orderData.order_number}`);
 
-    // Call Loops API directly (no more internal function calls)
+    // Call Loops API directly
     const response = await fetch('https://app.loops.so/api/v1/transactional', {
       method: 'POST',
       headers: {
@@ -81,7 +81,7 @@ async function sendOrderConfirmationEmailDirect(orderData, customerEmail, firstN
     });
 
     const responseText = await response.text();
-    log('info', `📧 Loops API response: ${response.status}`, { responseText });
+    log('info', `📧 Customer email Loops API response: ${response.status}`, { responseText });
 
     if (!response.ok) {
       let errorData;
@@ -106,7 +106,7 @@ async function sendOrderConfirmationEmailDirect(orderData, customerEmail, firstN
   }
 }
 
-// NEW: Direct admin order notification function
+// FIXED: Admin order notification with correct template ID and proper data structure
 async function sendAdminOrderNotificationDirect(orderData, orderItems, shippingAddress, requestId) {
   try {
     const apiKey = process.env.VITE_LOOPS_API_KEY;
@@ -123,33 +123,35 @@ async function sendAdminOrderNotificationDirect(orderData, orderItems, shippingA
     }).format(orderData.total_amount);
 
     // Format the order date
-    const orderDate = new Date(orderData.created_at).toLocaleString('en-CA', {
-      timeZone: 'America/Toronto',
+    const orderDate = new Date(orderData.created_at).toLocaleDateString('en-CA', {
       year: 'numeric',
       month: 'long',
       day: 'numeric',
       hour: '2-digit',
       minute: '2-digit',
-      hour12: true
+      timeZone: 'America/Toronto'
     });
-
-    // Format items list for email
-    const itemsList = orderItems?.map(item => 
-      `${item.quantity}x ${item.product_name} - ${new Intl.NumberFormat('en-CA', {
-        style: 'currency',
-        currency: 'CAD',
-      }).format(item.unit_price)}`
-    ).join('\n') || 'No items listed';
 
     // Format customer name
     const customerName = shippingAddress ? 
       `${shippingAddress.firstName} ${shippingAddress.lastName}`.trim() : 
       'Not provided';
 
-    // Format shipping address
+    // Format shipping address for display
     const formattedShippingAddress = shippingAddress ? 
-      `${shippingAddress.address}, ${shippingAddress.city}, ${shippingAddress.province} ${shippingAddress.postalCode}` : 
-      'Not provided';
+      `${shippingAddress.firstName} ${shippingAddress.lastName}
+${shippingAddress.address}
+${shippingAddress.city}, ${shippingAddress.province} ${shippingAddress.postalCode}
+${shippingAddress.country || 'Canada'}
+Email: ${shippingAddress.email}` : 'Not provided';
+
+    // Format order items for display
+    const orderItemsText = orderItems?.map(item => 
+      `• ${item.product_name} (Qty: ${item.quantity}) - ${new Intl.NumberFormat('en-CA', {
+        style: 'currency',
+        currency: 'CAD',
+      }).format(item.unit_price)} each`
+    ).join('\n') || 'No items listed';
 
     // FIXED: Use the correct admin template ID and proper data structure
     const emailData = {
@@ -172,7 +174,11 @@ async function sendAdminOrderNotificationDirect(orderData, orderItems, shippingA
       }
     };
 
-    log('info', `📧 Prepared admin notification data for order ${orderData.order_number}`);
+    log('info', `📧 Prepared admin notification data for order ${orderData.order_number}`, {
+      templateId: emailData.transactionalId,
+      customerEmail: emailData.dataVariables.customerEmail,
+      orderTotal: emailData.dataVariables.orderTotal
+    });
 
     // Call Loops API directly
     const response = await fetch('https://app.loops.so/api/v1/transactional', {
@@ -565,32 +571,36 @@ exports.handler = async function(event, context) {
       log('info', `✅ Cart cleared successfully: ${JSON.stringify(cartClearResult)}`);
     }
 
-    // FIXED: Send confirmation email directly (synchronously) instead of background task
-    log('info', `📧 Sending order confirmation email [${requestId}]`);
+    // FIXED: Send both customer and admin emails with proper error handling
+    log('info', `📧 Starting email notifications [${requestId}]`);
     
     if (process.env.VITE_LOOPS_API_KEY) {
       const customerEmail = orderData.shipping_address?.email;
       const firstName = orderData.shipping_address?.firstName || 'Valued Customer';
       
+      // Send customer confirmation email
       if (customerEmail) {
-        const emailResult = await sendOrderConfirmationEmailDirect(
+        log('info', `📧 Sending customer confirmation email [${requestId}]`);
+        const customerEmailResult = await sendOrderConfirmationEmailDirect(
           orderResult.order, 
           customerEmail, 
           firstName, 
           requestId
         );
         
-        if (emailResult.success) {
-          log('info', '✅ Order confirmation email sent successfully');
+        if (customerEmailResult.success) {
+          log('info', '✅ Customer order confirmation email sent successfully');
         } else {
-          log('warn', '⚠️ Order confirmation email failed (non-critical)', { error: emailResult.error });
+          log('warn', '⚠️ Customer order confirmation email failed (non-critical)', { 
+            error: customerEmailResult.error 
+          });
         }
       } else {
-        log('warn', '⚠️ No customer email found, skipping confirmation email');
+        log('warn', '⚠️ No customer email found, skipping customer confirmation email');
       }
 
-      // NEW: Send admin order notification email (non-blocking)
-      log('info', `📧 Sending admin order notification [${requestId}]`);
+      // FIXED: Send admin order notification email with proper template ID
+      log('info', `📧 Sending admin order notification with correct template [${requestId}]`);
       
       const adminEmailResult = await sendAdminOrderNotificationDirect(
         orderResult.order,
@@ -600,9 +610,11 @@ exports.handler = async function(event, context) {
       );
       
       if (adminEmailResult.success) {
-        log('info', '✅ Admin order notification sent successfully');
+        log('info', '✅ Admin order notification sent successfully with template ID: cmbax4sey1n651h0it0rm6f8k');
       } else {
-        log('warn', '⚠️ Admin order notification failed (non-critical)', { error: adminEmailResult.error });
+        log('warn', '⚠️ Admin order notification failed (non-critical)', { 
+          error: adminEmailResult.error 
+        });
       }
       
     } else {
@@ -628,7 +640,11 @@ exports.handler = async function(event, context) {
         processing_time_ms: processingTime,
         request_id: requestId,
         cart_cleared: cartClearResult.success,
-        cart_clear_method: cartClearResult.success ? cartClearResult.method : 'failed'
+        cart_clear_method: cartClearResult.success ? cartClearResult.method : 'failed',
+        emails_sent: {
+          customer_confirmation: !!process.env.VITE_LOOPS_API_KEY && !!orderData.shipping_address?.email,
+          admin_notification: !!process.env.VITE_LOOPS_API_KEY
+        }
       })
     };
 
@@ -757,7 +773,7 @@ async function createOrderWithRetry(supabaseAdmin, orderData, user, requestId, m
   return { success: false, error: lastError };
 }
 
-// Validation function (implement based on your needs)
+// Validation function
 function validateOrderData(orderData) {
   const errors = [];
   
