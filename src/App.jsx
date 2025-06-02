@@ -5,6 +5,7 @@ import { CartProvider } from './contexts/CartContext';
 import ProtectedRoute from './components/ProtectedRoute';
 import AuthRedirect from './components/AuthRedirect';
 import CallbackDebugger from './components/CallbackDebugger';
+import ScrollToTop from './components/ScrollToTop';
 // import CartDebugger from './components/CartDebugger'; // ADD THIS LINE
 import SignupPage from './pages/SignupPage';
 import LoginPage from './pages/LoginPage';
@@ -47,6 +48,9 @@ export default function App() {
     <AuthProvider>
       <CartProvider>
         <Router>
+          {/* Scroll to top on route changes */}
+          <ScrollToTop />
+          
           {/* Add callback debugger (invisible component) */}
           <CallbackDebugger />
           

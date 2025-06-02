@@ -12,26 +12,34 @@ export default function HomePage() {
       {/* Hero Section */}
       <section className="bg-gradient-to-r from-blue-600 to-blue-800 py-20">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-          <div className="text-center">
-            <h1 className="text-4xl font-bold text-white sm:text-5xl md:text-6xl">
-              Can You Trust Your Drinking Water?
-            </h1>
-            <p className="mt-6 max-w-3xl mx-auto text-xl text-blue-100">
-              We can tell you! My Water Quality provides comprehensive water testing results in an understandable report card format that gives you the knowledge to make informed decisions about the safety of drinking water.
-            </p>
-            <div className="mt-10 flex justify-center space-x-4">
-              <Link
-                to="/signup"
-                className="inline-flex items-center px-8 py-3 border border-transparent text-base font-medium rounded-md text-blue-600 bg-white hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500 transition-colors duration-200"
-              >
-                Get Started
-              </Link>
-              <Link
-                to="#learn-more"
-                className="inline-flex items-center px-8 py-3 border border-white text-base font-medium rounded-md text-white bg-transparent hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-white transition-colors duration-200"
-              >
-                Learn More
-              </Link>
+          <div className="grid grid-cols-1 lg:grid-cols-2 gap-12 items-center">
+            {/* Hero Image - Left side */}
+            <div className="order-2 lg:order-1">
+              <div className="relative">
+                <img
+                  src="/images/MWQ_Home_Hero.jpg"
+                  alt="MyWaterQuality.ca - Professional Water Testing"
+                  className="w-full h-auto rounded-lg shadow-2xl"
+                />
+              </div>
+            </div>
+
+            {/* Hero Content - Right side */}
+            <div className="order-1 lg:order-2 text-center lg:text-left">
+              <h1 className="text-4xl font-bold text-white sm:text-5xl lg:text-6xl">
+                Can You Trust Your Drinking Water?
+              </h1>
+              <p className="mt-6 text-xl text-blue-100 lg:max-w-none">
+                We can tell you! My Water Quality provides comprehensive water testing results in an understandable report card format that gives you the knowledge to make informed decisions about the safety of drinking water.
+              </p>
+              <div className="mt-10 flex flex-col sm:flex-row justify-center lg:justify-start space-y-4 sm:space-y-0 sm:space-x-4">
+                <Link
+                  to="/signup"
+                  className="inline-flex items-center justify-center px-8 py-3 border border-transparent text-base font-medium rounded-md text-blue-600 bg-white hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500 transition-colors duration-200"
+                >
+                  TEST MY WATER
+                </Link>
+              </div>
             </div>
           </div>
         </div>
@@ -183,6 +191,49 @@ export default function HomePage() {
             >
               Get Started Today
             </Link>
+          </div>
+        </div>
+      </section>
+
+      {/* Why Sample Your Water Video Section */}
+      <section className="py-16 bg-white">
+        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+          <div className="grid grid-cols-1 lg:grid-cols-2 gap-12 items-center">
+            {/* Content - Left side */}
+            <div className="order-2 lg:order-1">
+              <h2 className="text-3xl font-bold text-gray-900 sm:text-4xl mb-6">
+                Why Should I Sample My Water?
+              </h2>
+              <p className="text-lg text-gray-600 mb-8 leading-relaxed">
+                Testing the quality of your well water on a regular basis is an important part of maintaining a safe and reliable source. This will help ensure that the water source is being properly protected from potential contamination.
+              </p>
+              <Link
+                to="/process"
+                className="inline-flex items-center px-6 py-3 border border-transparent text-base font-medium rounded-md text-white bg-blue-600 hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500 transition-colors duration-200"
+              >
+                Learn About the Process
+                <svg className="ml-2 h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M17 8l4 4m0 0l-4 4m4-4H3" />
+                </svg>
+              </Link>
+            </div>
+
+            {/* Video - Right side */}
+            <div className="order-1 lg:order-2">
+              <div className="relative rounded-lg overflow-hidden shadow-xl">
+                <div className="aspect-w-16 aspect-h-9">
+                  <iframe
+                    src="https://www.youtube.com/embed/wuNShId7NGE"
+                    title="Why Should I Sample My Water - MyWaterQuality.ca"
+                    frameBorder="0"
+                    allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share"
+                    allowFullScreen
+                    className="w-full h-full"
+                    style={{ aspectRatio: '16/9', minHeight: '300px' }}
+                  ></iframe>
+                </div>
+              </div>
+            </div>
           </div>
         </div>
       </section>
