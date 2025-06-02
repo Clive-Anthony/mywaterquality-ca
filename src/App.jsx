@@ -20,6 +20,7 @@ import PayPalTest from './components/PayPalTest';
 import ContactPage from './pages/ContactPage';
 import AboutPage from './pages/AboutPage';
 import FAQPage from './pages/FAQPage';
+import WaterQualityStandardsPage from './pages/WaterQualityStandardsPage';
 import TermsConditionsPage from './pages/TermsConditionsPage';
 import ProcessPage from './pages/ProcessPage';
 import OrderHistoryPage from './pages/OrderHistoryPage';
@@ -80,6 +81,9 @@ export default function App() {
             
             {/* Public test kits page */}
             <Route path="/test-kits" element={<TestKitsPage />} />
+            
+            {/* Public Canada's water page */}
+            <Route path="/about-canadas-drinking-water" element={<WaterQualityStandardsPage />} />
 
             {/* Public Contact page */}
             <Route path="/contact" element={<ContactPage />} />
