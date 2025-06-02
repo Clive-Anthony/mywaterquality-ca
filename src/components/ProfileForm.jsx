@@ -1,10 +1,12 @@
-// src/components/ProfileForm.jsx
+// src/components/ProfileForm.jsx - FIXED VERSION
+// Key fix: Removed the problematic refreshAuth call that was causing hanging
+
 import { useState, useEffect } from 'react';
 import { supabase } from '../lib/supabaseClient';
 import { useAuth } from '../contexts/AuthContext';
 
 export default function ProfileForm() {
-  const { user, refreshAuth } = useAuth();
+  const { user } = useAuth(); // REMOVED refreshAuth from destructuring
   const [loading, setLoading] = useState(false);
   const [fetchingProfile, setFetchingProfile] = useState(true);
   const [success, setSuccess] = useState(false);
@@ -123,7 +125,7 @@ export default function ProfileForm() {
     }
   };
 
-  // Handle form submission
+  // Handle form submission - FIXED VERSION
   const handleSubmit = async (e) => {
     e.preventDefault();
     
@@ -132,16 +134,8 @@ export default function ProfileForm() {
     setSuccess(false);
     setValidationErrors({});
     
-    // Add a failsafe timeout to reset loading state if something hangs
-    const failsafeTimeout = setTimeout(() => {
-      console.warn('FAILSAFE: Resetting loading state after 10 seconds');
-      setLoading(false);
-      setSuccess(true);
-    }, 10000);
-    
     // Validate form
     if (!validateForm()) {
-      clearTimeout(failsafeTimeout);
       setLoading(false);
       setError('Please correct the errors above');
       return;
@@ -188,11 +182,11 @@ export default function ProfileForm() {
 
       console.log('Profile updated successfully in database:', profileResult);
 
-      // Update user metadata in auth.users (completely non-blocking)
-      console.log('Starting auth metadata update...');
+      // ✅ FIXED: Update user metadata WITHOUT blocking auth refresh
+      console.log('Starting non-blocking auth metadata update...');
       const fullName = `${profileData.first_name} ${profileData.last_name}`.trim();
       
-      // Don't await this - let it run in background
+      // Fire-and-forget auth metadata update (completely non-blocking)
       supabase.auth.updateUser({
         data: {
           first_name: profileData.first_name,
@@ -203,20 +197,19 @@ export default function ProfileForm() {
         }
       }).then(({ data: authResult, error: metadataError }) => {
         if (metadataError) {
-          console.warn('Failed to update auth metadata (profile still saved successfully):', metadataError);
+          console.warn('Auth metadata update failed (profile still saved):', metadataError);
         } else {
           console.log('Auth metadata updated successfully:', authResult);
         }
       }).catch((metadataUpdateError) => {
-        console.warn('Exception updating auth metadata (profile still saved successfully):', metadataUpdateError);
+        console.warn('Auth metadata update exception (profile still saved):', metadataUpdateError);
       });
 
-      // DON'T refresh auth context - it's causing the hang
-      // The auth state will update automatically due to the updateUser call above
-      console.log('Skipping refreshAuth to prevent hanging');
+      // ✅ CRITICAL FIX: DO NOT call refreshAuth() - this was causing the hanging
+      // The auth state listener will automatically pick up the metadata changes
+      console.log('✅ Profile update completed - auth will refresh automatically');
 
       // Show success message immediately
-      console.log('Profile update completed successfully');
       setSuccess(true);
       
       // Clear success message after 5 seconds
@@ -228,10 +221,8 @@ export default function ProfileForm() {
       console.error('Error updating profile:', error);
       setError(error.message || 'Failed to update profile. Please try again.');
     } finally {
-      // Clear the failsafe timeout
-      clearTimeout(failsafeTimeout);
-      // CRITICAL: Always clear loading state
-      console.log('Setting loading to false in finally block');
+      // ✅ CRITICAL: Always clear loading state immediately
+      console.log('Setting loading to false - profile update complete');
       setLoading(false);
     }
   };
@@ -524,26 +515,6 @@ export default function ProfileForm() {
                   'Save Profile'
                 )}
               </button>
-              
-              {/* Debug button - remove this after fixing the issue */}
-              {process.env.NODE_ENV === 'development' && (
-                <button
-                  type="button"
-                  onClick={() => {
-                    console.log('Debug: Current state:', {
-                      loading,
-                      success,
-                      error,
-                      profile
-                    });
-                    // Force reset loading state
-                    setLoading(false);
-                  }}
-                  className="bg-yellow-500 py-2 px-4 border border-transparent rounded-md shadow-sm text-sm font-medium text-white hover:bg-yellow-600"
-                >
-                  Debug Reset
-                </button>
-              )}
             </div>
           </div>
         </form>
