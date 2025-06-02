@@ -1,9 +1,8 @@
-// src/contexts/AuthContext.jsx - OPTIMIZED VERSION
-// Fixed to prevent database hanging and cascading re-renders
+// src/contexts/AuthContext.jsx - FIXED VERSION
+// Removed database optimization from critical auth operations
 
 import { createContext, useState, useEffect, useContext, useCallback, useRef } from 'react';
 import { supabase, getCurrentUser, getSession } from '../lib/supabaseClient';
-import { useDbOptimization } from '../hooks/useDbOptimization';
 
 const AuthContext = createContext();
 
@@ -14,42 +13,37 @@ export function AuthProvider({ children }) {
   const [isEmailVerified, setIsEmailVerified] = useState(false);
   const [authError, setAuthError] = useState(null);
   
-  // Optimization hooks
-  const { debouncedDbOperation } = useDbOptimization();
-  
-  // Refs to prevent unnecessary re-renders
+  // Refs to prevent unnecessary re-renders and track initialization
   const userRef = useRef(null);
   const sessionRef = useRef(null);
   const initializationRef = useRef(false);
   const authListenerRef = useRef(null);
 
-  // Optimized session fetch
+  // FIXED: Direct session fetch without optimization (critical for auth flow)
   const fetchSession = useCallback(async () => {
-    return debouncedDbOperation(
-      'getSession',
-      {},
-      async () => {
-        console.log('🔄 AuthContext: Fetching session...');
-        const session = await getSession();
-        return session;
-      },
-      { priority: 'high' }
-    );
-  }, [debouncedDbOperation]);
+    console.log('🔄 AuthContext: Fetching session directly...');
+    try {
+      const session = await getSession();
+      console.log('✅ AuthContext: Session fetched successfully', { hasSession: !!session });
+      return session;
+    } catch (error) {
+      console.error('❌ AuthContext: Session fetch error:', error);
+      throw error;
+    }
+  }, []);
 
-  // Optimized user fetch
+  // FIXED: Direct user fetch without optimization (critical for auth flow)
   const fetchUser = useCallback(async () => {
-    return debouncedDbOperation(
-      'getCurrentUser',
-      {},
-      async () => {
-        console.log('🔄 AuthContext: Fetching user...');
-        const user = await getCurrentUser();
-        return user;
-      },
-      { priority: 'high' }
-    );
-  }, [debouncedDbOperation]);
+    console.log('🔄 AuthContext: Fetching user directly...');
+    try {
+      const user = await getCurrentUser();
+      console.log('✅ AuthContext: User fetched successfully', { hasUser: !!user, email: user?.email });
+      return user;
+    } catch (error) {
+      console.error('❌ AuthContext: User fetch error:', error);
+      throw error;
+    }
+  }, []);
 
   // Debounced state updates to prevent rapid re-renders
   const updateAuthState = useCallback(async (newSession, newUser = null) => {
@@ -93,7 +87,8 @@ export function AuthProvider({ children }) {
           console.log('🔍 AuthContext: Found access token in URL hash, will be processed by AuthRedirect');
         }
         
-        // Fetch session and user in parallel with optimization
+        // FIXED: Fetch session and user directly without timeout or optimization
+        console.log('🔄 AuthContext: Fetching initial auth data...');
         const [currentSession, currentUser] = await Promise.all([
           fetchSession(),
           fetchUser()
@@ -140,6 +135,7 @@ export function AuthProvider({ children }) {
           if (newSession) {
             // Only fetch user if session is new or changed
             if (newSession !== sessionRef.current) {
+              console.log('🔄 AuthContext: Session changed, fetching user...');
               newUser = await fetchUser();
             } else {
               newUser = userRef.current; // Use existing user
@@ -172,39 +168,32 @@ export function AuthProvider({ children }) {
     };
   }, [fetchUser, updateAuthState, loading]);
 
-  // Optimized refresh function with debouncing
+  // FIXED: Simplified refresh function without optimization
   const refreshAuth = useCallback(async () => {
     console.log('🔄 AuthContext: Manual auth refresh requested...');
     
-    return debouncedDbOperation(
-      'refreshAuth',
-      { timestamp: Date.now() },
-      async () => {
-        setLoading(true);
-        setAuthError(null);
-        
-        try {
-          const [currentSession, currentUser] = await Promise.all([
-            fetchSession(),
-            fetchUser()
-          ]);
-          
-          await updateAuthState(currentSession, currentUser);
-          
-          console.log('✅ AuthContext: Auth refreshed successfully');
-          return { success: true };
-          
-        } catch (error) {
-          console.error('❌ AuthContext: Auth refresh error:', error);
-          setAuthError(error.message || 'Failed to refresh authentication');
-          return { success: false, error };
-        } finally {
-          setLoading(false);
-        }
-      },
-      { skipCache: true }
-    );
-  }, [debouncedDbOperation, fetchSession, fetchUser, updateAuthState]);
+    setLoading(true);
+    setAuthError(null);
+    
+    try {
+      const [currentSession, currentUser] = await Promise.all([
+        fetchSession(),
+        fetchUser()
+      ]);
+      
+      await updateAuthState(currentSession, currentUser);
+      
+      console.log('✅ AuthContext: Auth refreshed successfully');
+      return { success: true };
+      
+    } catch (error) {
+      console.error('❌ AuthContext: Auth refresh error:', error);
+      setAuthError(error.message || 'Failed to refresh authentication');
+      return { success: false, error };
+    } finally {
+      setLoading(false);
+    }
+  }, [fetchSession, fetchUser, updateAuthState]);
 
   // Memoized context value to prevent unnecessary re-renders
   const contextValue = {
