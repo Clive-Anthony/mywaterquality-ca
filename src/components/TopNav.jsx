@@ -306,12 +306,20 @@ export default function TopNav() {
                       </div>
                     </Link>
                     
-                    <div className="border-t border-gray-100 my-1"></div>
+                    <Link
+                      to="/about-canadas-drinking-water"
+                      onClick={() => setShowLearnDropdown(false)}
+                      className="block px-4 py-3 text-sm text-gray-700 hover:bg-blue-50 hover:text-blue-600 transition-colors duration-200"
+                    >
+                      <div className="flex items-center">
+                        <span className="text-lg mr-3"></span>
+                        <div>
+                          <div className="font-medium"><strong>About Canada's Water</strong></div>
+                          <div className="text-xs text-gray-500">Learn about your drinking water</div>
+                        </div>
+                      </div>
+                    </Link>
                     
-                    {/* Future learn content can be added here */}
-                    <div className="px-4 py-2">
-                      <p className="text-xs text-gray-500">More learning resources coming soon...</p>
-                    </div>
                   </div>
                 </div>
               )}
@@ -655,6 +663,17 @@ export default function TopNav() {
                       <div>
                         <div className="font-medium">FAQ</div>
                         <div className="text-xs text-gray-500 mt-1">Your questions - answered</div>
+                      </div>
+                    </Link>
+                    
+                    <Link
+                      to="/about-canadas-drinking-water"
+                      onClick={() => handleMobileMenuClick()}
+                      className="block px-8 py-3 text-sm text-gray-700 hover:text-blue-600 hover:bg-blue-50 transition-colors duration-200"
+                    >
+                      <div>
+                        <div className="font-medium">About Canada's Water</div>
+                        <div className="text-xs text-gray-500 mt-1">Learn about your drinking water</div>
                       </div>
                     </Link>
                   </div>
