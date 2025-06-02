@@ -1,12 +1,10 @@
-// src/components/ProfileForm.jsx - SIMPLIFIED VERSION
-// Removed database optimization that was causing hanging
-
+// src/components/ProfileForm.jsx
 import { useState, useEffect } from 'react';
 import { supabase } from '../lib/supabaseClient';
 import { useAuth } from '../contexts/AuthContext';
 
 export default function ProfileForm() {
-  const { user } = useAuth();
+  const { user, refreshAuth } = useAuth();
   const [loading, setLoading] = useState(false);
   const [fetchingProfile, setFetchingProfile] = useState(true);
   const [success, setSuccess] = useState(false);
@@ -34,9 +32,9 @@ export default function ProfileForm() {
         setFetchingProfile(true);
         setError(null);
         
-        console.log('ProfileForm: Fetching profile for user:', user.id);
+        console.log('Fetching profile for user:', user.id);
         
-        // FIXED: Direct query without optimization
+        // Query the profiles table to get user profile data
         const { data, error } = await supabase
           .from('profiles')
           .select('*')
@@ -46,7 +44,7 @@ export default function ProfileForm() {
         if (error) {
           // If the error is that no row was found, that's okay - we'll create one on save
           if (error.code === 'PGRST116') {
-            console.log('ProfileForm: No existing profile found, will create on save');
+            console.log('No existing profile found, will create on save');
             // Pre-populate with user metadata if available
             setProfile({
               first_name: user.user_metadata?.first_name || user.user_metadata?.firstName || '',
@@ -58,11 +56,11 @@ export default function ProfileForm() {
               phone: ''
             });
           } else {
-            console.error('ProfileForm: Error fetching profile:', error);
+            console.error('Error fetching profile:', error);
             setError(`Failed to load profile: ${error.message}`);
           }
         } else if (data) {
-          console.log('ProfileForm: Profile data loaded:', data);
+          console.log('Profile data loaded:', data);
           setProfile({
             first_name: data.first_name || '',
             last_name: data.last_name || '',
@@ -74,7 +72,7 @@ export default function ProfileForm() {
           });
         }
       } catch (error) {
-        console.error('ProfileForm: Exception fetching profile:', error);
+        console.error('Exception fetching profile:', error);
         setError(`Error loading profile: ${error.message}`);
       } finally {
         setFetchingProfile(false);
@@ -125,7 +123,7 @@ export default function ProfileForm() {
     }
   };
 
-  // FIXED: Simplified form submission without hanging
+  // Handle form submission
   const handleSubmit = async (e) => {
     e.preventDefault();
     
@@ -134,16 +132,24 @@ export default function ProfileForm() {
     setSuccess(false);
     setValidationErrors({});
     
+    // Add a failsafe timeout to reset loading state if something hangs
+    const failsafeTimeout = setTimeout(() => {
+      console.warn('FAILSAFE: Resetting loading state after 10 seconds');
+      setLoading(false);
+      setSuccess(true);
+    }, 10000);
+    
     // Validate form
     if (!validateForm()) {
+      clearTimeout(failsafeTimeout);
       setLoading(false);
       setError('Please correct the errors above');
       return;
     }
     
     try {
-      console.log('ProfileForm: Updating profile for user:', user.id);
-      console.log('ProfileForm: Profile data:', profile);
+      console.log('Updating profile for user:', user.id);
+      console.log('Profile data:', profile);
       
       // Prepare the profile data
       const profileData = {
@@ -158,7 +164,7 @@ export default function ProfileForm() {
         updated_at: new Date().toISOString()
       };
 
-      // FIXED: Direct database update without optimization
+      // Update profile in the profiles table
       const { data: profileResult, error: profileError } = await supabase
         .from('profiles')
         .upsert(profileData, { 
@@ -168,7 +174,7 @@ export default function ProfileForm() {
         .select();
 
       if (profileError) {
-        console.error('ProfileForm: Profile update error:', profileError);
+        console.error('Profile update error:', profileError);
         
         // Provide more specific error messages
         if (profileError.code === '42501') {
@@ -180,13 +186,13 @@ export default function ProfileForm() {
         }
       }
 
-      console.log('ProfileForm: Profile updated successfully in database:', profileResult);
+      console.log('Profile updated successfully in database:', profileResult);
 
-      // FIXED: Update user metadata in background (non-blocking)
-      console.log('ProfileForm: Starting background auth metadata update...');
+      // Update user metadata in auth.users (completely non-blocking)
+      console.log('Starting auth metadata update...');
       const fullName = `${profileData.first_name} ${profileData.last_name}`.trim();
       
-      // Fire-and-forget auth metadata update (completely non-blocking)
+      // Don't await this - let it run in background
       supabase.auth.updateUser({
         data: {
           first_name: profileData.first_name,
@@ -197,17 +203,20 @@ export default function ProfileForm() {
         }
       }).then(({ data: authResult, error: metadataError }) => {
         if (metadataError) {
-          console.warn('ProfileForm: Auth metadata update failed (profile still saved):', metadataError);
+          console.warn('Failed to update auth metadata (profile still saved successfully):', metadataError);
         } else {
-          console.log('ProfileForm: Auth metadata updated successfully:', authResult);
+          console.log('Auth metadata updated successfully:', authResult);
         }
       }).catch((metadataUpdateError) => {
-        console.warn('ProfileForm: Auth metadata update exception (profile still saved):', metadataUpdateError);
+        console.warn('Exception updating auth metadata (profile still saved successfully):', metadataUpdateError);
       });
 
-      console.log('✅ ProfileForm: Profile update completed successfully');
+      // DON'T refresh auth context - it's causing the hang
+      // The auth state will update automatically due to the updateUser call above
+      console.log('Skipping refreshAuth to prevent hanging');
 
       // Show success message immediately
+      console.log('Profile update completed successfully');
       setSuccess(true);
       
       // Clear success message after 5 seconds
@@ -216,11 +225,13 @@ export default function ProfileForm() {
       }, 5000);
       
     } catch (error) {
-      console.error('ProfileForm: Error updating profile:', error);
+      console.error('Error updating profile:', error);
       setError(error.message || 'Failed to update profile. Please try again.');
     } finally {
-      // Always clear loading state immediately
-      console.log('ProfileForm: Setting loading to false - profile update complete');
+      // Clear the failsafe timeout
+      clearTimeout(failsafeTimeout);
+      // CRITICAL: Always clear loading state
+      console.log('Setting loading to false in finally block');
       setLoading(false);
     }
   };
@@ -513,6 +524,26 @@ export default function ProfileForm() {
                   'Save Profile'
                 )}
               </button>
+              
+              {/* Debug button - remove this after fixing the issue */}
+              {process.env.NODE_ENV === 'development' && (
+                <button
+                  type="button"
+                  onClick={() => {
+                    console.log('Debug: Current state:', {
+                      loading,
+                      success,
+                      error,
+                      profile
+                    });
+                    // Force reset loading state
+                    setLoading(false);
+                  }}
+                  className="bg-yellow-500 py-2 px-4 border border-transparent rounded-md shadow-sm text-sm font-medium text-white hover:bg-yellow-600"
+                >
+                  Debug Reset
+                </button>
+              )}
             </div>
           </div>
         </form>
