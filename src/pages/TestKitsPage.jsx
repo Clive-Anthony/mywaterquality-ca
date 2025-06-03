@@ -23,45 +23,49 @@ export default function TestKitsPage() {
   const [quantities, setQuantities] = useState({});
 
   // Fetch test kits from Supabase
-  useEffect(() => {
-    const fetchTestKits = async () => {
-      try {
-        setLoading(true);
-        setError(null);
-        
-        console.log('Fetching test kits from Supabase...');
-        
-        const { data, error } = await supabase
-          .from('test_kits')
-          .select('*')
-          .eq('environment','prod')
-          .order('price', { ascending: true });
+  // In src/pages/TestKitsPage.jsx - Replace the fetchTestKits useEffect with this:
 
-        if (error) {
-          console.error('Error fetching test kits:', error);
-          throw error;
-        }
+useEffect(() => {
+  const fetchTestKits = async () => {
+    try {
+      setLoading(true);
+      setError(null);
+      
+      console.log('Fetching test kits from Supabase...');
+      
+      const { data, error } = await supabase
+        .from('test_kits')
+        .select('*')
+        .eq('environment','prod')
+        .order('price', { ascending: true });
 
-        console.log('Test kits fetched successfully:', data);
-        setTestKits(data || []);
-        
-        // Initialize quantities state with default value of 1 for each kit
-        const initialQuantities = {};
-        (data || []).forEach(kit => {
-          initialQuantities[kit.id] = 1;
-        });
-        setQuantities(initialQuantities);
-        
-      } catch (err) {
-        console.error('Exception fetching test kits:', err);
-        setError(err.message || 'Failed to load test kits');
-      } finally {
-        setLoading(false);
+      if (error) {
+        console.error('Error fetching test kits:', error);
+        throw error;
       }
-    };
 
-    fetchTestKits();
-  }, []);
+      console.log('Test kits fetched successfully:', data);
+      setTestKits(data || []);
+      
+      // Initialize quantities state
+      const initialQuantities = {};
+      (data || []).forEach(kit => {
+        initialQuantities[kit.id] = 1;
+      });
+      setQuantities(initialQuantities);
+      
+    } catch (err) {
+      console.error('Exception fetching test kits:', err);
+      setError(err.message || 'Failed to load test kits');
+    } finally {
+      // CRITICAL: Always set loading to false
+      console.log('Setting loading to false');
+      setLoading(false);
+    }
+  };
+
+  fetchTestKits();
+}, []); // Empty dependency array
 
   // Handle quantity change for a specific kit
   const handleQuantityChange = (kitId, newQuantity) => {

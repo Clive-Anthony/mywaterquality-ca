@@ -1,35 +1,45 @@
-// src/main.jsx
-// Import the hash handler first to ensure it runs before anything else
-import './utils/hashHandler';
+// In src/main.jsx - Replace the current content with this simplified version:
 
+import './utils/hashHandler';
 import React from 'react';
 import ReactDOM from 'react-dom/client';
 import App from './App';
-import './index.css'; // Tailwind CSS
+import './index.css';
 
-// For debugging Tailwind
-console.log('Main.jsx loaded - checking if Tailwind CSS is applied');
+console.log('Main.jsx loaded');
 
-// Add some inline styles to the root to ensure basic styling works
+// Simplified document styling
 document.documentElement.style.height = '100%';
 document.body.style.margin = '0';
 document.body.style.minHeight = '100%';
 document.body.style.fontFamily = 'sans-serif';
 
-// Function to check if Tailwind is working
+// Improved Tailwind check with proper timing
 const checkTailwind = () => {
-  const testElement = document.createElement('div');
-  testElement.className = 'hidden';
-  document.body.appendChild(testElement);
-  const computedStyle = window.getComputedStyle(testElement);
-  const isTailwindWorking = computedStyle.display === 'none';
-  document.body.removeChild(testElement);
-  console.log('Tailwind check result:', isTailwindWorking ? 'WORKING' : 'NOT WORKING');
-  return isTailwindWorking;
+  return new Promise((resolve) => {
+    const testElement = document.createElement('div');
+    testElement.className = 'hidden';
+    testElement.style.position = 'absolute';
+    testElement.style.top = '-9999px';
+    
+    document.body.appendChild(testElement);
+    
+    // Use requestAnimationFrame to ensure styles are computed
+    requestAnimationFrame(() => {
+      const computedStyle = window.getComputedStyle(testElement);
+      const isTailwindWorking = computedStyle.display === 'none';
+      
+      document.body.removeChild(testElement);
+      console.log('Tailwind CSS check result:', isTailwindWorking ? 'WORKING' : 'NOT WORKING');
+      resolve(isTailwindWorking);
+    });
+  });
 };
 
-// Run check after a small delay to ensure styles are loaded
-setTimeout(checkTailwind, 500);
+// Run check after React has rendered
+setTimeout(() => {
+  checkTailwind();
+}, 100);
 
 ReactDOM.createRoot(document.getElementById('root')).render(
   <React.StrictMode>

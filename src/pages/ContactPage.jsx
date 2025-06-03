@@ -265,7 +265,7 @@ export default function ContactPage() {
                   </div>
                   <div className="ml-3">
                     <h4 className="text-sm font-medium text-gray-900">Email Support</h4>
-                    <p className="mt-1 text-sm text-gray-600">support@mywaterquality.ca</p>
+                    <p className="mt-1 text-sm text-gray-600">info@mywaterquality.ca</p>
                     <p className="mt-1 text-xs text-gray-500">We respond within 24 hours</p>
                   </div>
                 </div>
