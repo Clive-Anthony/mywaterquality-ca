@@ -2,10 +2,8 @@
 import { useState, useEffect } from 'react';
 import { supabase } from '../lib/supabaseClient';
 import { useAuth } from '../contexts/AuthContext';
-import { useNavigate } from 'react-router-dom';
 
 export default function ProfileForm() {
-  const navigate = useNavigate();
   const { user, refreshAuth } = useAuth();
   const [loading, setLoading] = useState(false);
   const [fetchingProfile, setFetchingProfile] = useState(true);
@@ -216,15 +214,15 @@ export default function ProfileForm() {
       // DON'T refresh auth context - it's causing the hang
       // The auth state will update automatically due to the updateUser call above
       console.log('Skipping refreshAuth to prevent hanging');
-      
+
       // Show success message immediately
       console.log('Profile update completed successfully');
       setSuccess(true);
       
-      // Refresh and redirect to dashboard profile tab
+      // Clear success message after 5 seconds
       setTimeout(() => {
-        window.location.href = '/dashboard?tab=profile&success=true';
-      }, 500);
+        setSuccess(false);
+      }, 5000);
       
     } catch (error) {
       console.error('Error updating profile:', error);
@@ -526,6 +524,26 @@ export default function ProfileForm() {
                   'Save Profile'
                 )}
               </button>
+              
+              {/* Debug button - remove this after fixing the issue */}
+              {process.env.NODE_ENV === 'development' && (
+                <button
+                  type="button"
+                  onClick={() => {
+                    console.log('Debug: Current state:', {
+                      loading,
+                      success,
+                      error,
+                      profile
+                    });
+                    // Force reset loading state
+                    setLoading(false);
+                  }}
+                  className="bg-yellow-500 py-2 px-4 border border-transparent rounded-md shadow-sm text-sm font-medium text-white hover:bg-yellow-600"
+                >
+                  Debug Reset
+                </button>
+              )}
             </div>
           </div>
         </form>

@@ -8,10 +8,7 @@ import OrdersList from '../components/OrdersList';
 
 export default function UserPage() {
   const { user } = useAuth();
-  const [activeTab, setActiveTab] = useState(() => {
-    const urlParams = new URLSearchParams(window.location.search);
-    return urlParams.get('tab') || 'dashboard';
-  });
+  const [activeTab, setActiveTab] = useState('dashboard');
   
   // Hero component for the dashboard
   const DashboardHero = () => (
