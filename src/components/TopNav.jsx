@@ -1,4 +1,4 @@
-// src/components/TopNav.jsx - Enhanced with responsive hamburger menu
+// src/components/TopNav.jsx - Enhanced with Demo Report button
 import { useState, useRef, useEffect } from 'react';
 import { Link, useNavigate, useLocation } from 'react-router-dom';
 import { useAuth } from '../contexts/AuthContext';
@@ -213,6 +213,14 @@ export default function TopNav() {
               Browse Test Kits
             </Link>
 
+            {/* Demo Report - Always visible */}
+            <Link 
+              to="/demo-report" 
+              className={getLinkClassName('/demo-report')}
+            >
+              Demo Report
+            </Link>
+
             {/* User-only navigation links */}
             {user && (
               <>
@@ -230,7 +238,7 @@ export default function TopNav() {
               <button
                 onClick={() => setShowLearnDropdown(!showLearnDropdown)}
                 className={`px-3 py-2 rounded-md text-sm font-medium transition-colors duration-200 flex items-center ${
-                  location.pathname.includes('/learn') || location.pathname.includes('/water-sampling-instructions')
+                  location.pathname.includes('/learn') || location.pathname.includes('/water-sampling-instructions') || location.pathname.includes('/process') || location.pathname.includes('/about-us') || location.pathname.includes('/faq') || location.pathname.includes('/about-canadas-drinking-water')
                     ? 'text-blue-600 bg-blue-50'
                     : 'text-gray-700 hover:text-blue-600 hover:bg-blue-50'
                 }`}
@@ -256,9 +264,9 @@ export default function TopNav() {
                       className="block px-4 py-3 text-sm text-gray-700 hover:bg-blue-50 hover:text-blue-600 transition-colors duration-200"
                     >
                       <div className="flex items-center">
-                        <span className="text-lg mr-3"></span>
+                        <span className="text-lg mr-3">🧪</span>
                         <div>
-                          <div className="font-medium"><strong>Water Sampling Instructions</strong></div>
+                          <div className="font-medium">Water Sampling Instructions</div>
                           <div className="text-xs text-gray-500">Step-by-step sampling guide</div>
                         </div>
                       </div>
@@ -270,9 +278,9 @@ export default function TopNav() {
                       className="block px-4 py-3 text-sm text-gray-700 hover:bg-blue-50 hover:text-blue-600 transition-colors duration-200"
                     >
                       <div className="flex items-center">
-                        <span className="text-lg mr-3"></span>
+                        <span className="text-lg mr-3">⚙️</span>
                         <div>
-                          <div className="font-medium"><strong>MyWaterQuality Process</strong></div>
+                          <div className="font-medium">MyWaterQuality Process</div>
                           <div className="text-xs text-gray-500">Learn how our testing works</div>
                         </div>
                       </div>
@@ -284,9 +292,9 @@ export default function TopNav() {
                       className="block px-4 py-3 text-sm text-gray-700 hover:bg-blue-50 hover:text-blue-600 transition-colors duration-200"
                     >
                       <div className="flex items-center">
-                        <span className="text-lg mr-3"></span>
+                        <span className="text-lg mr-3">👥</span>
                         <div>
-                          <div className="font-medium"><strong>About Us</strong></div>
+                          <div className="font-medium">About Us</div>
                           <div className="text-xs text-gray-500">Meet our team!</div>
                         </div>
                       </div>
@@ -298,9 +306,9 @@ export default function TopNav() {
                       className="block px-4 py-3 text-sm text-gray-700 hover:bg-blue-50 hover:text-blue-600 transition-colors duration-200"
                     >
                       <div className="flex items-center">
-                        <span className="text-lg mr-3"></span>
+                        <span className="text-lg mr-3">❓</span>
                         <div>
-                          <div className="font-medium"><strong>FAQ</strong></div>
+                          <div className="font-medium">FAQ</div>
                           <div className="text-xs text-gray-500">Your questions - answered</div>
                         </div>
                       </div>
@@ -312,9 +320,9 @@ export default function TopNav() {
                       className="block px-4 py-3 text-sm text-gray-700 hover:bg-blue-50 hover:text-blue-600 transition-colors duration-200"
                     >
                       <div className="flex items-center">
-                        <span className="text-lg mr-3"></span>
+                        <span className="text-lg mr-3">🇨🇦</span>
                         <div>
-                          <div className="font-medium"><strong>About Canada's Water</strong></div>
+                          <div className="font-medium">About Canada's Water</div>
                           <div className="text-xs text-gray-500">Learn about your drinking water</div>
                         </div>
                       </div>
@@ -587,6 +595,15 @@ export default function TopNav() {
                 Browse Test Kits
               </Link>
 
+              {/* Demo Report */}
+              <Link
+                to="/demo-report"
+                onClick={() => handleMobileMenuClick()}
+                className={getMobileLinkClassName('/demo-report')}
+              >
+                Demo Report
+              </Link>
+
               {/* Dashboard - Only show when logged in */}
               {user && (
                 <Link
@@ -603,7 +620,7 @@ export default function TopNav() {
                 <button
                   onClick={handleMobileLearnToggle}
                   className={`w-full text-left px-4 py-3 text-base font-medium transition-colors duration-200 border-l-4 flex items-center justify-between ${
-                    location.pathname.includes('/learn') || location.pathname.includes('/sampling-instructions') || location.pathname.includes('/process') || location.pathname.includes('/about-us') || location.pathname.includes('/faq')
+                    location.pathname.includes('/learn') || location.pathname.includes('/sampling-instructions') || location.pathname.includes('/process') || location.pathname.includes('/about-us') || location.pathname.includes('/faq') || location.pathname.includes('/about-canadas-drinking-water')
                       ? 'text-blue-600 bg-blue-50 border-blue-600'
                       : 'text-gray-700 hover:text-blue-600 hover:bg-blue-50 border-transparent hover:border-blue-300'
                   }`}
