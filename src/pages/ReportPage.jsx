@@ -1,8 +1,12 @@
-// src/pages/ReportPage.jsx - IMPROVED VERSION with CWQI visualization and better layout
-import { useState, useEffect, useRef } from 'react';
+// src/pages/ReportPage.jsx - Updated with PDF download functionality
+import { useState, useEffect } from 'react';
 import { useParams } from 'react-router-dom';
 import { supabase } from '../lib/supabaseClient';
 import PageLayout from '../components/PageLayout';
+import { pdf } from '@react-pdf/renderer';
+import WaterQualityReportPDF from '../components/WaterQualityReportPDF';
+
+// ... (Keep all existing components like CWQIVisualization exactly as they are)
 
 // CWQI Visualization Component
 function CWQIVisualization({ cwqi, title }) {
@@ -94,38 +98,11 @@ export default function ReportPage() {
   const [reportData, setReportData] = useState(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
+  const [downloadingPDF, setDownloadingPDF] = useState(false);
 
   useEffect(() => {
     loadReportData();
   }, [sampleNumber]);
-
-  const reportRef = useRef();
-
-  const downloadPDF = () => {
-    const element = reportRef.current;
-    const opt = {
-      margin: [0.5, 0.5, 0.5, 0.5],
-      filename: `Water_Quality_Report_${sampleInfo?.sampleNumber || 'Demo'}.pdf`,
-      image: { type: 'jpeg', quality: 0.98 },
-      html2canvas: { 
-        scale: 2,
-        useCORS: true,
-        letterRendering: true
-      },
-      jsPDF: { 
-        unit: 'in', 
-        format: 'letter', 
-        orientation: 'portrait' 
-      }
-    };
-
-    // Generate PDF
-    if (window.html2pdf) {
-      window.html2pdf().set(opt).from(element).save();
-    } else {
-      alert('PDF generation is not available. Please refresh the page and try again.');
-    }
-  };
 
   const loadReportData = async () => {
     try {
@@ -148,6 +125,64 @@ export default function ReportPage() {
       setError(err.message);
     } finally {
       setLoading(false);
+    }
+  };
+
+  const formatLabResult = (param) => {
+    // Use lab's original varchar format - this preserves exact significant digits
+    if (param.result_value && param.result_value.trim() !== '') {
+      return param.result_value.trim();
+    }
+    
+    // Fall back to numeric if result_value is not available
+    const value = param.result_numeric;
+    if (value === null || value === undefined || isNaN(value)) return 'N/A';
+    
+    const num = parseFloat(value);
+    
+    // Handle very small numbers
+    if (Math.abs(num) < 0.001 && num !== 0) {
+      return num.toExponential(2);
+    }
+    
+    // Handle normal range - remove trailing zeros
+    let formatted = num.toString();
+    if (formatted.includes('.')) {
+      formatted = formatted.replace(/\.?0+$/, '');
+    }
+    
+    return formatted;
+  };
+
+  // PDF Download Function
+  const downloadPDF = async () => {
+    if (!reportData) return;
+    
+    try {
+      setDownloadingPDF(true);
+      
+      // Generate PDF blob
+      const blob = await pdf(<WaterQualityReportPDF reportData={reportData} />).toBlob();
+      
+      // Create download link
+      const url = URL.createObjectURL(blob);
+      const link = document.createElement('a');
+      link.href = url;
+      link.download = `Water_Quality_Report_${reportData.sampleInfo?.sampleNumber || 'Demo'}.pdf`;
+      
+      // Trigger download
+      document.body.appendChild(link);
+      link.click();
+      document.body.removeChild(link);
+      
+      // Clean up
+      URL.revokeObjectURL(url);
+      
+    } catch (error) {
+      console.error('Error generating PDF:', error);
+      alert('Error generating PDF. Please try again.');
+    } finally {
+      setDownloadingPDF(false);
     }
   };
 
@@ -197,6 +232,8 @@ export default function ReportPage() {
       rawData
     };
   };
+
+  // ... (Keep all other existing functions like calculateCWQI, formatValue, etc.)
 
   const calculateCWQI = (parameters) => {
     if (!parameters || parameters.length === 0) return null;
@@ -313,28 +350,78 @@ export default function ReportPage() {
 
   return (
     <PageLayout>
-        <div ref={reportRef} className="max-w-5xl mx-auto py-8 px-4 sm:px-6 lg:px-8">      
+      <div className="max-w-5xl mx-auto py-8 px-4 sm:px-6 lg:px-8">
+        {/* PDF Download Button */}
         <div className="mb-6 flex justify-end">
           <button
             onClick={downloadPDF}
-            className="inline-flex items-center px-4 py-2 border border-transparent text-sm font-medium rounded-md text-white bg-blue-600 hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500 transition-colors duration-200"
+            disabled={downloadingPDF}
+            className="inline-flex items-center px-4 py-2 border border-transparent text-sm font-medium rounded-md text-white bg-blue-600 hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500 transition-colors duration-200 disabled:opacity-50 disabled:cursor-not-allowed"
           >
-            <svg className="h-4 w-4 mr-2" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M12 10v6m0 0l-4-4m4 4l4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
-            </svg>
-            Download PDF
+            {downloadingPDF ? (
+              <>
+                <svg className="animate-spin -ml-1 mr-2 h-4 w-4 text-white" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+                  <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
+                  <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+                </svg>
+                Generating PDF...
+              </>
+            ) : (
+              <>
+                <svg className="h-4 w-4 mr-2" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M12 10v6m0 0l-4-4m4 4l4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
+                </svg>
+                Download PDF
+              </>
+            )}
           </button>
         </div>
-        {/* Report Header */}
-        <div className="bg-white rounded-lg shadow-sm border border-gray-200 mb-8">
-          <div className="bg-blue-600 text-white px-6 py-4 rounded-t-lg">
+
+        {/* PDF Download Button */}
+        <div className="mb-6 flex justify-end">
+          {/* ... existing PDF button code ... */}
+        </div>
+
+        {/* Water First Banner */}
+        <div className="bg-white border-2 border-blue-600 rounded-lg shadow-sm mb-8">
+          <div className="px-6 py-4">
+            <div className="flex items-center justify-between">
+              <div className="flex-1 pr-6">
+                <h2 className="text-xl font-bold text-gray-900 mb-2">
+                  Supporting Water First's Drinking Water Internship
+                </h2>
+                <p className="text-gray-700 text-base">
+                  $5 of every water quality package purchased through mywaterquality.ca will go to Water First.
+                </p>
+              </div>
+              <div className="flex-shrink-0">
+                <img 
+                  src="/images/water_first.png" 
+                  alt="Water First Logo" 
+                  className="h-16 w-auto"
+                />
+              </div>
+            </div>
+          </div>
+        </div>
+
+        {/* Report Document Container */}
+        <div className="bg-white rounded-lg shadow-lg border border-gray-200 p-8">
+          {/* Connected Report Container */}
+          <div className="bg-white">
+          {/* Report Header */}
+          <div className="bg-white border-b border-gray-200 px-6 py-4 rounded-t-lg">
             <div className="flex items-center justify-between">
               <div>
-                <h1 className="text-2xl font-bold">Water Quality Report</h1>
-                <p className="text-blue-100 mt-1">Comprehensive Analysis Results</p>
+                <h1 className="text-2xl font-bold text-gray-900">Water Quality Report</h1>
+                <p className="text-gray-600 mt-1">Comprehensive Analysis Results</p>
               </div>
-              <div className="text-right">
-                <div className="text-white text-lg font-bold">MyWaterQuality</div>
+              <div className="flex items-center">
+                <img 
+                  src="/MWQ-logo-final.png" 
+                  alt="MyWaterQuality Logo" 
+                  className="h-12 w-auto"
+                />
               </div>
             </div>
           </div>
@@ -342,7 +429,6 @@ export default function ReportPage() {
           <div className="px-6 py-6">
             {/* User and Sample Information - Priority Section */}
             <div className="mb-6">
-              <h3 className="text-lg font-semibold text-gray-900 mb-4">Sample Information</h3>
               <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
                 <div className="space-y-4">
                   <div>
@@ -369,7 +455,6 @@ export default function ReportPage() {
 
             {/* Dates Section - Secondary Priority */}
             <div className="border-t border-gray-200 pt-4">
-              <h3 className="text-base font-medium text-gray-700 mb-3">Testing Timeline</h3>
               <div className="grid grid-cols-1 md:grid-cols-3 gap-4">
                 <div>
                   <p className="text-sm font-medium text-gray-500">Collection Date</p>
@@ -389,11 +474,11 @@ export default function ReportPage() {
         </div>
 
         {/* Summary of Results with CWQI Visualizations */}
-        <div className="bg-white rounded-lg shadow-sm border border-gray-200 mb-8">
-          <div className="px-6 py-4 border-b border-gray-200">
-            <h2 className="text-xl font-bold text-gray-900">Summary of Results</h2>
-            <p className="text-gray-600 mt-1">Canadian Water Quality Index (CWQI) Scores</p>
+        <div className="bg-blue-600 px-6 py-4 -mx-8">
+            <h2 className="text-xl font-bold text-white">Summary of Results</h2>
+            <p className="text-blue-100 mt-1">Canadian Water Quality Index (CWQI) Scores</p>
           </div>
+          <div className="px-6 py-6">
           
           <div className="p-6">
             {/* CWQI Visualizations Grid */}
@@ -445,44 +530,24 @@ export default function ReportPage() {
                     </h4>
                     {healthConcerns.length > 0 && (
                       <div className="mt-4 px-4">
-                        <div className="overflow-x-auto">
-                          <table className="w-full divide-y divide-gray-200 bg-white rounded-lg border border-gray-200">
-                            <thead className="bg-gray-50">
-                              <tr>
-                                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Parameter</th>
-                                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Result</th>
-                                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Unit</th>
-                                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Limit</th>
-                              </tr>
-                            </thead>
-                            <tbody className="bg-white divide-y divide-gray-200">
-                              {healthConcerns.map((param, index) => (
-                                <tr key={index}>
-                                  <td className="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900">
-                                    {param.parameter_name}
-                                  </td>
-                                  <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
-                                    {formatValue(param.result_numeric, '', 3)}
-                                  </td>
-                                  <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
-                                    {param.result_units || param.parameter_unit || 'N/A'}
-                                  </td>
-                                  <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
-                                    {param.objective_display || formatValue(param.objective_value, '', 3)}
-                                  </td>
-                                </tr>
-                              ))}
-                            </tbody>
-                          </table>
+                        <div className="bg-white border border-gray-200 rounded-lg p-4">
+                          <ul className="space-y-2">
+                            {healthConcerns.map((param, index) => (
+                              <li key={index} className="text-gray-900 text-base">
+                                • {param.parameter_name}
+                              </li>
+                            ))}
+                          </ul>
                         </div>
                         
                         {/* Health Parameter Recommendations */}
                         <div className="mt-6 bg-white border border-gray-200 rounded-lg p-4">
                           <h4 className="text-lg font-semibold text-gray-900 mb-3">Recommendations</h4>
-                          <p className="text-gray-900 text-base">
-                            Some health-related parameters exceed recommended limits. We recommend consulting with a water treatment professional and retesting after any treatment is installed.
-                          </p>
-
+                          <div className="border border-red-200 rounded-lg p-4">
+                            <p className="text-gray-900 text-base">
+                              Some health-related parameters exceed recommended limits. We recommend consulting with a water treatment professional and retesting after any treatment is installed.
+                            </p>
+                          </div>
                         </div>
                       </div>
                     )}
@@ -551,43 +616,24 @@ export default function ReportPage() {
                     </h4>
                     {aoConcerns.length > 0 && (
                       <div className="mt-4 px-4">
-                        <div className="overflow-x-auto">
-                          <table className="w-full divide-y divide-gray-200 bg-white rounded-lg border border-gray-200">
-                            <thead className="bg-gray-50">
-                              <tr>
-                                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Parameter</th>
-                                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Result</th>
-                                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Unit</th>
-                                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Limit</th>
-                              </tr>
-                            </thead>
-                            <tbody className="bg-white divide-y divide-gray-200">
-                              {aoConcerns.map((param, index) => (
-                                <tr key={index}>
-                                  <td className="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900">
-                                    {param.parameter_name}
-                                  </td>
-                                  <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
-                                    {formatValue(param.result_numeric, '', 3)}
-                                  </td>
-                                  <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
-                                    {param.result_units || param.parameter_unit || 'N/A'}
-                                  </td>
-                                  <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
-                                    {param.objective_display || formatValue(param.objective_value, '', 3)}
-                                  </td>
-                                </tr>
-                              ))}
-                            </tbody>
-                          </table>
+                        <div className="bg-white border border-gray-200 rounded-lg p-4">
+                          <ul className="space-y-2">
+                            {aoConcerns.map((param, index) => (
+                              <li key={index} className="text-gray-900 text-base">
+                                • {param.parameter_name}
+                              </li>
+                            ))}
+                          </ul>
                         </div>
                         
                         {/* AO Parameter Recommendations */}
                         <div className="mt-6 bg-white border border-gray-200 rounded-lg p-4">
                           <h4 className="text-lg font-semibold text-gray-900 mb-3">Recommendations</h4>
-                          <p className="text-gray-900 text-base">
-                            Some aesthetic or operational parameters exceed recommended limits. While not necessarily health concerns, these may affect taste, odor, or water system performance.
-                          </p>
+                          <div className="border border-yellow-200 rounded-lg p-4">
+                            <p className="text-gray-900 text-base">
+                              Some aesthetic or operational parameters exceed recommended limits. While not necessarily health concerns, these may affect taste, odor, or water system performance.
+                            </p>
+                          </div>
                         </div>
                       </div>
                     )}
@@ -599,21 +645,25 @@ export default function ReportPage() {
         </div>
 
         {/* Recommendations */}
-        <div className="bg-blue-50 border border-blue-200 rounded-lg p-4">
-              <h4 className="font-medium text-blue-800 mb-2">General Recommendations</h4>
-              <ul className="text-blue-700 text-sm space-y-1">
+        {/* General Recommendations */}
+        <div className="bg-blue-600 px-6 py-4 -mx-8">
+            <h2 className="text-xl font-bold text-white">General Recommendations</h2>
+          </div>
+          <div className="px-6 py-6">
+              <ul className="text-gray-900 text-base space-y-2">
                 <li>• Test your water annually or when you notice changes in taste, odor, or appearance</li>
                 <li>• Maintain your well and water system according to manufacturer guidelines</li>
                 <li>• Keep potential contamination sources away from your well head</li>
                 <li>• Contact a water treatment professional for treatment options if needed</li>
               </ul>
-            </div>
+          </div>
 
         {/* Full Results Tables */}
-        <div className="bg-white rounded-lg shadow-sm border border-gray-200 mb-8">
-          <div className="px-6 py-4 border-b border-gray-200">
-            <h2 className="text-xl font-bold text-gray-900">Full Results</h2>
+        {/* Full Results */}
+        <div className="bg-blue-600 px-6 py-4 -mx-8">
+            <h2 className="text-xl font-bold text-white">Full Results</h2>
           </div>
+          <div className="px-6 py-6">
           
           <div className="p-6">
             {/* Health Parameters Table */}
@@ -624,11 +674,11 @@ export default function ReportPage() {
                   <table className="min-w-full divide-y divide-gray-200">
                     <thead className="bg-gray-50">
                       <tr>
-                        <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Parameter</th>
-                        <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Result</th>
-                        <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Unit</th>
-                        <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Objective</th>
-                        <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Status</th>
+                        <th className="w-1/4 px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Parameter</th>
+                        <th className="w-1/6 px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Result</th>
+                        <th className="w-1/6 px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Unit</th>
+                        <th className="w-1/4 px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Recommended Maximum Concentration</th>
+                        <th className="w-1/6 px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Status</th>
                       </tr>
                     </thead>
                     <tbody className="bg-white divide-y divide-gray-200">
@@ -640,7 +690,7 @@ export default function ReportPage() {
                               {param.parameter_name}
                             </td>
                             <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
-                              {formatValue(param.result_numeric, '', 3)}
+                                {formatLabResult(param)}
                             </td>
                             <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
                               {param.result_units || param.parameter_unit || 'N/A'}
@@ -673,23 +723,23 @@ export default function ReportPage() {
                   <table className="min-w-full divide-y divide-gray-200">
                     <thead className="bg-gray-50">
                       <tr>
-                        <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Parameter</th>
-                        <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Result</th>
-                        <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Unit</th>
-                        <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Objective</th>
-                        <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Status</th>
+                        <th className="w-1/4 px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Parameter</th>
+                        <th className="w-1/6 px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Result</th>
+                        <th className="w-1/6 px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Unit</th>
+                        <th className="w-1/4 px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Recommended Maximum Concentration</th>
+                        <th className="w-1/6 px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Status</th>
                       </tr>
                     </thead>
                     <tbody className="bg-white divide-y divide-gray-200">
-                      {aoParameters.map((param, index) => {
+                        {aoParameters.map((param, index) => {
                         const isExceeded = isParameterExceeded(param);
                         return (
-                          <tr key={index} className={isExceeded ? 'bg-yellow-50' : ''}>
+                          <tr key={index} className={isExceeded ? 'bg-red-50' : ''}>
                             <td className="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900">
                               {param.parameter_name}
                             </td>
                             <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
-                              {formatValue(param.result_numeric, '', 3)}
+                                {formatLabResult(param)}
                             </td>
                             <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
                               {param.result_units || param.parameter_unit || 'N/A'}
@@ -700,7 +750,7 @@ export default function ReportPage() {
                             <td className="px-6 py-4 whitespace-nowrap">
                               <div className="flex items-center">
                                 {getConcernIcon(isExceeded)}
-                                <span className={`ml-2 text-sm ${isExceeded ? 'text-yellow-600' : 'text-green-600'}`}>
+                                <span className={`ml-2 text-sm ${isExceeded ? 'text-red-600' : 'text-green-600'}`}>
                                   {param.compliance_status === 'MEETS' || param.compliance_status === 'WITHIN_RANGE' ? 'Within Limit' : 'Exceeds Limit'}
                                 </span>
                               </div>
@@ -717,7 +767,6 @@ export default function ReportPage() {
             {/* Parameters of Concern Details */}
             {(healthConcerns.length > 0 || aoConcerns.length > 0) && (
               <div>
-                <h3 className="text-lg font-semibold text-gray-900 mb-4">Parameters of Concern - Details</h3>
                 
                 {healthConcerns.length > 0 && (
                   <div className="mb-8">
@@ -726,11 +775,9 @@ export default function ReportPage() {
                       <table className="min-w-full divide-y divide-gray-200">
                         <thead className="bg-gray-50">
                           <tr>
-                            <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Parameter</th>
-                            <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Result</th>
-                            <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Unit</th>
-                            <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Objective</th>
-                            <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Health Effects</th>
+                            <th className="w-1/4 px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Parameter</th>
+                            <th className="w-1/3 px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Description</th>
+                            <th className="w-5/12 px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Health Effect</th>
                           </tr>
                         </thead>
                         <tbody className="bg-white divide-y divide-gray-200">
@@ -739,17 +786,11 @@ export default function ReportPage() {
                               <td className="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900">
                                 {param.parameter_name}
                               </td>
-                              <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
-                                {formatValue(param.result_numeric, '', 3)}
-                              </td>
-                              <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
-                                {param.result_units || param.parameter_unit || 'N/A'}
-                              </td>
-                              <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
-                                {param.objective_display || formatValue(param.objective_value, '', 3)}
+                              <td className="px-6 py-4 text-sm text-gray-900">
+                                {param.description || param.parameter_description || 'A water quality parameter that requires monitoring for health and safety compliance.'}
                               </td>
                               <td className="px-6 py-4 text-sm text-gray-900">
-                                {param.health_effects || 'Consult with a water treatment professional for specific health implications.'}
+                                {param.health_effects || 'Elevated levels may pose health risks. Consult with a water treatment professional for specific health implications and recommended actions.'}
                               </td>
                             </tr>
                           ))}
@@ -759,18 +800,17 @@ export default function ReportPage() {
                   </div>
                 )}
 
-{aoConcerns.length > 0 && (
-                  <div>
+             
+                {aoConcerns.length > 0 && (
+                  <div className="mb-8">
                     <h3 className="text-lg font-semibold text-gray-900 mb-4">Aesthetic/Operational Parameters of Concern - Details</h3>
                     <div className="overflow-x-auto">
                       <table className="min-w-full divide-y divide-gray-200">
                         <thead className="bg-gray-50">
                           <tr>
-                            <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Parameter</th>
-                            <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Result</th>
-                            <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Unit</th>
-                            <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Objective</th>
-                            <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Treatment Options</th>
+                            <th className="w-1/4 px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Parameter</th>
+                            <th className="w-1/3 px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Description</th>
+                            <th className="w-5/12 px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Treatment Options</th>
                           </tr>
                         </thead>
                         <tbody className="bg-white divide-y divide-gray-200">
@@ -779,17 +819,11 @@ export default function ReportPage() {
                               <td className="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900">
                                 {param.parameter_name}
                               </td>
-                              <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
-                                {formatValue(param.result_numeric, '', 3)}
-                              </td>
-                              <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
-                                {param.result_units || param.parameter_unit || 'N/A'}
-                              </td>
-                              <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
-                                {param.objective_display || formatValue(param.objective_value, '', 3)}
+                              <td className="px-6 py-4 text-sm text-gray-900">
+                                {param.description || param.parameter_description || 'A water quality parameter that affects the aesthetic or operational characteristics of your water system.'}
                               </td>
                               <td className="px-6 py-4 text-sm text-gray-900">
-                                {param.treatment_options || 'Various treatment options may be available. Consult with a water treatment professional.'}
+                                {param.treatment_options || 'Multiple treatment options are available including filtration, softening, and chemical treatment. Consult with a certified water treatment professional to determine the best solution for your specific situation.'}
                               </td>
                             </tr>
                           ))}
@@ -804,16 +838,17 @@ export default function ReportPage() {
         </div>
 
         {/* Footer Note */}
-        <div className="bg-gray-50 border border-gray-200 rounded-lg p-6 text-center">
-          <p className="text-sm text-gray-600">
-            This report is generated based on laboratory analysis results. For questions about your water quality or treatment options, 
-            please consult with a qualified water treatment professional.
-          </p>
-          <p className="text-xs text-gray-500 mt-2">
-            Report generated on {formatDate(new Date().toISOString())} | MyWaterQuality.ca
-          </p>
+        <div className="bg-gray-50 px-6 py-6 rounded-b-lg text-center">
+            <p className="text-sm text-gray-600">
+              This report is generated based on laboratory analysis results. For questions about your water quality or treatment options, 
+              please consult with a qualified water treatment professional.
+            </p>
+            <p className="text-xs text-gray-500 mt-2">
+              Report generated on {formatDate(new Date().toISOString())} | MyWaterQuality.ca
+            </p>
+            </div>
         </div>
-      </div>
+        </div>
     </PageLayout>
   );
 }
