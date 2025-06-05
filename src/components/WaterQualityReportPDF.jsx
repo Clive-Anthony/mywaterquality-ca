@@ -855,12 +855,12 @@ const WaterQualityReportPDF = ({ reportData }) => {
                 • Scope: The number of parameters that do not meet their designated objectives.
             </Text>
             
-            <Text style={styles.cwqiInfoList}>
+            {/* <Text style={styles.cwqiInfoList}>
                 • Frequency: The proportion of water samples that fail to meet these objectives.
-            </Text>
+            </Text> */}
             
             <Text style={styles.cwqiInfoList}>
-                • Magnitude: The degree to which each failed parameter exceeds its objective.
+                • Amplitude: The degree to which each failed parameter exceeds its objective.
             </Text>
             
             <Text style={styles.cwqiInfoText}>
