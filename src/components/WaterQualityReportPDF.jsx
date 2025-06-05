@@ -4,13 +4,14 @@ import { Document, Page, Text, View, StyleSheet, Image } from '@react-pdf/render
 
 // Create styles for PDF
 const styles = StyleSheet.create({
-  page: {
+page: {
     flexDirection: 'column',
     backgroundColor: '#FFFFFF',
     padding: 30,
+    paddingBottom: 50, // Add extra bottom padding for page numbers
     fontSize: 10,
     fontFamily: 'Helvetica',
-  },
+    },
   header: {
     flexDirection: 'row',
     justifyContent: 'space-between',
@@ -192,62 +193,65 @@ cwqiInfoTitle: {
     paddingHorizontal: 6,
   },
   cwqiRatingCellRating: {
-    width: '15%',
+    width: '18%',
     fontSize: 8,
     fontWeight: 'bold',
-    paddingRight: 5,
+    paddingRight: 3,
+    textAlign: 'left',
   },
   cwqiRatingCellScore: {
-    width: '15%',
+    width: '18%',
     fontSize: 8,
-    paddingRight: 5,
+    paddingRight: 3,
+    textAlign: 'center',
   },
   cwqiRatingCellDescription: {
-    width: '70%',
+    width: '64%',
     fontSize: 8,
-    paddingRight: 5,
+    paddingRight: 3,
+    textAlign: 'left',
   },
   table: {
     marginBottom: 15,
   },
-  tableHeader: {
+tableContainer: {
+    maxHeight: 650, // Limit table height to prevent page overflow
+    marginBottom: 20,
+  },
+tableHeader: {
     flexDirection: 'row',
     backgroundColor: '#F9FAFB',
     borderBottom: '1 solid #E5E7EB',
     paddingVertical: 8,
-    paddingHorizontal: 6,
+    paddingHorizontal: 3, // Reduced from 6 to 3
+    alignItems: 'flex-start',
   },
   tableRow: {
     flexDirection: 'row',
     borderBottom: '1 solid #E5E7EB',
     paddingVertical: 6,
-    paddingHorizontal: 6,
+    paddingHorizontal: 3, // Reduced from 6 to 3
+    alignItems: 'flex-start',
   },
   tableRowExceeded: {
     flexDirection: 'row',
     borderBottom: '1 solid #E5E7EB',
     paddingVertical: 6,
-    paddingHorizontal: 6,
+    paddingHorizontal: 3, // Reduced from 6 to 3
     backgroundColor: '#FEF2F2',
-  },
-  tableCell: {
-    flex: 1,
-    fontSize: 9,
-    paddingRight: 5,
+    alignItems: 'flex-start',
   },
   tableCellHeader: {
-    flex: 1,
-    fontSize: 8,
+    fontSize: 7,
     fontWeight: 'bold',
     color: '#6B7280',
     textTransform: 'uppercase',
-    paddingRight: 5,
+    lineHeight: 1.2,
   },
-  tableCellParameter: {
-    flex: 2,
+  tableCell: {
     fontSize: 9,
-    fontWeight: 'bold',
-    paddingRight: 5,
+    color: '#1F2937',
+    lineHeight: 1.2,
   },
   tableCellWide: {
     flex: 3,
@@ -328,11 +332,63 @@ cwqiInfoTitle: {
   pageNumber: {
     position: 'absolute',
     fontSize: 8,
-    bottom: 30,
+    bottom: 15, // Moved higher from 30
     left: 30,
     right: 30,
     textAlign: 'center',
     color: '#6B7280',
+    backgroundColor: 'white', // Add background to ensure visibility
+    paddingVertical: 2,
+  },
+  tableCellParameterName: {
+    fontSize: 9,
+    fontWeight: 'bold',
+    color: '#1F2937',
+    lineHeight: 1.1, 
+  },
+  tableCellUnit: {
+    width: '12%',
+    fontSize: 9,
+    paddingRight: 3,
+    textAlign: 'center',
+  },
+  tableCellObjective: {
+    width: '28%',
+    fontSize: 9,
+    paddingRight: 3,
+    textAlign: 'center',
+  },
+  tableCellStatus: {
+    width: '23%',
+    fontSize: 9,
+    paddingRight: 3,
+    textAlign: 'center',
+  },
+  tableCellDescription: {
+    width: '35%',
+    fontSize: 9,
+    paddingRight: 3,
+  },
+  tableCellHealthEffect: {
+    width: '40%',
+    fontSize: 9,
+    paddingRight: 3,
+  },
+alertBoxPlain: {
+    padding: 10,
+    marginBottom: 10,
+    borderRadius: 5,
+    borderLeft: '4 solid #E5E7EB', // Gray border instead of colored
+  },
+  alertTextPlain: {
+    fontSize: 10,
+    color: '#1F2937', // Black text
+  },
+  recommendationListBlack: {
+    fontSize: 9,
+    color: '#1F2937', // Black text
+    lineHeight: 1.6,
+    marginBottom: 15,
   },
 });
 
@@ -377,39 +433,69 @@ const CWQIComponent = ({ cwqi, title }) => {
   );
 };
 
-// Table Component
-const PDFTable = ({ headers, data, keyMapping, showExceeded = false }) => (
-  <View style={styles.table}>
-    <View style={styles.tableHeader}>
-      {headers.map((header, index) => (
-        <Text key={index} style={index === 0 ? styles.tableCellParameter : 
-                                   header.includes('Description') || header.includes('Effect') || header.includes('Treatment') ? 
-                                   styles.tableCellWide : styles.tableCellHeader}>
-          {header}
-        </Text>
-      ))}
-    </View>
-    {data.map((row, rowIndex) => {
-      const isExceeded = showExceeded && (row.compliance_status === 'EXCEEDS' || row.compliance_status === 'OUTSIDE_RANGE');
-      return (
-        <View key={rowIndex} style={isExceeded ? styles.tableRowExceeded : styles.tableRow}>
-          {keyMapping.map((key, cellIndex) => (
-            <Text 
-              key={cellIndex} 
-              style={cellIndex === 0 ? styles.tableCellParameter : 
-                     (typeof key === 'function' && key.toString().includes('Description')) ||
-                     (typeof key === 'function' && key.toString().includes('Effect')) ||
-                     (typeof key === 'function' && key.toString().includes('Treatment')) ? 
-                     styles.tableCellWide : styles.tableCell}
-            >
-              {typeof key === 'function' ? key(row) : row[key] || 'N/A'}
-            </Text>
-          ))}
+// Replace the PDFTable component with better break handling
+const PDFTable = ({ headers, data, keyMapping, showExceeded = false, tableType = 'default' }) => {
+  
+    const getColumnWidths = (tableType) => {
+      if (tableType === 'results') {
+        return [210, 40, 40, 110, 75];
+      } else if (tableType === 'concerns') {
+        return [150, 170, 150];
+      }
+      return [100, 100, 100, 100, 100];
+    };
+  
+    const columnWidths = getColumnWidths(tableType);
+  
+    return (
+      <View style={styles.tableContainer} break={data.length > 10}>
+        <View style={styles.table}>
+          {/* Header Row */}
+          <View style={styles.tableHeader}>
+            {headers.map((header, index) => (
+              <View key={index} style={{ width: columnWidths[index], paddingRight: 2 }}>
+                <Text 
+                  style={[styles.tableCellHeader, { textAlign: index === 0 ? 'left' : 'center' }]}
+                  wrap={false}
+                >
+                  {header}
+                </Text>
+              </View>
+            ))}
+          </View>
+          
+          {/* Data Rows */}
+          {data.map((row, rowIndex) => {
+            const isExceeded = showExceeded && (row.compliance_status === 'EXCEEDS' || row.compliance_status === 'OUTSIDE_RANGE');
+            return (
+              <View 
+                key={rowIndex} 
+                style={isExceeded ? styles.tableRowExceeded : styles.tableRow}
+                break={rowIndex > 0 && rowIndex % 15 === 0} // Break every 15 rows
+              >
+                {keyMapping.map((key, cellIndex) => (
+                  <View key={cellIndex} style={{ width: columnWidths[cellIndex], paddingRight: 2 }}>
+                    <Text 
+                      style={[
+                        cellIndex === 0 ? styles.tableCellParameterName : styles.tableCell,
+                        { 
+                          textAlign: cellIndex === 0 ? 'left' : 'center',
+                          fontWeight: cellIndex === 0 ? 'bold' : 'normal'
+                        }
+                      ]}
+                      wrap={cellIndex === 0 ? false : true}
+                    >
+                      {typeof key === 'function' ? key(row) : row[key] || 'N/A'}
+                    </Text>
+                  </View>
+                ))}
+              </View>
+            );
+          })}
         </View>
-      );
-    })}
-  </View>
-);
+      </View>
+    );
+  };
 
 // Main PDF Document Component
 const WaterQualityReportPDF = ({ reportData }) => {
@@ -557,51 +643,51 @@ const WaterQualityReportPDF = ({ reportData }) => {
         </View>
 
         {/* Health Parameters Summary */}
-        <Text style={styles.subsectionTitle}>Health Related Parameters</Text>
-        <View style={healthConcerns.length === 0 ? styles.alertSuccess : styles.alertWarning}>
-          <Text style={styles.alertTextLarge}>
-            {healthConcerns.length === 0 
-              ? 'All health-related parameters are within acceptable limits' 
-              : `${healthConcerns.length} health-related parameter(s) exceed recommended limits`
-            }
-          </Text>
-          {healthConcerns.length > 0 && (
-            <View style={styles.parameterList}>
-              {healthConcerns.map((param, index) => (
-                <Text key={index} style={styles.parameterListItem}>
-                  • {param.parameter_name}
-                </Text>
-              ))}
+            <Text style={styles.subsectionTitle}>Health Related Parameters</Text>
+            <View style={styles.alertBoxPlain}>
+            <Text style={styles.alertTextPlain}>
+                {healthConcerns.length === 0 
+                ? 'All health-related parameters are within acceptable limits' 
+                : `${healthConcerns.length} health-related parameter(s) exceed recommended limits`
+                }
+            </Text>
+            {healthConcerns.length > 0 && (
+                <View style={styles.parameterList}>
+                {healthConcerns.map((param, index) => (
+                    <Text key={index} style={[styles.parameterListItem, { color: '#1F2937' }]}>
+                    • {param.parameter_name}
+                    </Text>
+                ))}
+                </View>
+            )}
             </View>
-          )}
-        </View>
 
-        {/* AO Parameters Summary */}
-        <Text style={styles.subsectionTitle}>Aesthetic and Operational Parameters</Text>
-        <View style={aoConcerns.length === 0 ? styles.alertSuccess : styles.alertWarning}>
-          <Text style={styles.alertTextLarge}>
-            {aoConcerns.length === 0 
-              ? 'All aesthetic and operational parameters are within acceptable limits' 
-              : `${aoConcerns.length} aesthetic/operational parameter(s) exceed recommended limits`
-            }
-          </Text>
-          {aoConcerns.length > 0 && (
-            <View style={styles.parameterList}>
-              {aoConcerns.map((param, index) => (
-                <Text key={index} style={styles.parameterListItem}>
-                  • {param.parameter_name}
-                </Text>
-              ))}
+            {/* AO Parameters Summary */}
+            <Text style={styles.subsectionTitle}>Aesthetic and Operational Parameters</Text>
+            <View style={styles.alertBoxPlain}>
+            <Text style={styles.alertTextPlain}>
+                {aoConcerns.length === 0 
+                ? 'All aesthetic and operational parameters are within acceptable limits' 
+                : `${aoConcerns.length} aesthetic/operational parameter(s) exceed recommended limits`
+                }
+            </Text>
+            {aoConcerns.length > 0 && (
+                <View style={styles.parameterList}>
+                {aoConcerns.map((param, index) => (
+                    <Text key={index} style={[styles.parameterListItem, { color: '#1F2937' }]}>
+                    • {param.parameter_name}
+                    </Text>
+                ))}
+                </View>
+            )}
             </View>
-          )}
-        </View>
 
         {/* Bacteriological Results */}
         {bacteriological.length > 0 && (
           <View>
             <Text style={styles.subsectionTitle}>Bacteriological Results</Text>
-            <View style={styles.alertWarning}>
-              <Text style={styles.alertText}>
+            <View style={styles.alertBoxPlain}>
+            <Text style={styles.alertTextPlain}>
                 Bacterial contamination analysis:
                 {bacteriological.map((param, index) => (
                   `\n${param.parameter_name}: ${formatLabResult(param)} ${param.result_units || param.parameter_unit || ''}`
@@ -611,112 +697,103 @@ const WaterQualityReportPDF = ({ reportData }) => {
           </View>
         )}
 
+
         {/* Footer */}
         <Text style={styles.footer}>
           This report is generated based on laboratory analysis results. For questions about your water quality or treatment options, please consult with a qualified water treatment professional.
         </Text>
       </Page>
 
-      {/* Page 2: Full Results Tables */}
+      {/* Page 2: Parameters of Concern */}
+{(healthConcerns.length > 0 || aoConcerns.length > 0) && (
+  <Page size="A4" style={styles.page}>
+    <Text style={styles.sectionTitle}>Parameters of Concern</Text>
+    
+    {healthConcerns.length > 0 && (
+      <View>
+        <Text style={styles.subsectionTitle}>Health-Related Parameters of Concern</Text>
+        <PDFTable
+          headers={['Parameter', 'Health Effect', 'Treatment Options']}
+          data={healthConcerns}
+          keyMapping={[
+            'parameter_name',
+            (row) => row.health_effects || 'Elevated levels may pose health risks. Consult with a water treatment professional for specific health implications and recommended actions.',
+            (row) => row.treatment_options || 'Multiple treatment options are available including filtration, softening, and chemical treatment. Consult with a certified water treatment professional to determine the best solution for your specific situation.'
+          ]}
+          tableType="concerns"
+        />
+      </View>
+    )}
+
+    {aoConcerns.length > 0 && (
+      <View>
+        <Text style={styles.subsectionTitle}>Aesthetic/Operational Parameters of Concern</Text>
+        <PDFTable
+          headers={['Parameter', 'Description', 'Treatment Options']}
+          data={aoConcerns}
+          keyMapping={[
+            'parameter_name',
+            (row) => row.description || row.parameter_description || 'A water quality parameter that affects the aesthetic or operational characteristics of your water system.',
+            (row) => row.treatment_options || 'Multiple treatment options are available including filtration, softening, and chemical treatment. Consult with a certified water treatment professional to determine the best solution for your specific situation.'
+          ]}
+          tableType="concerns"
+        />
+      </View>
+    )}
+
+    <Text style={styles.pageNumber} render={({ pageNumber }) => `Page ${pageNumber}`} fixed />
+  </Page>
+)}
+
+      {/* Page 3: Full Results Tables */}
 <Page size="A4" style={styles.page}>
   <Text style={styles.sectionTitle}>Full Results</Text>
   
-  {/* Health Parameters Table */}
-  {healthParameters.length > 0 && (
-    <View>
-      <Text style={styles.subsectionTitle}>Health Parameter Results (MAC)</Text>
-      <PDFTable
-        headers={['Parameter', 'Result', 'Unit', 'Objective', 'Status']}
-        data={healthParameters}
-        keyMapping={[
-          'parameter_name',
-          (row) => formatLabResult(row),
-          (row) => row.result_units || row.parameter_unit || 'N/A',
-          (row) => row.objective_display || formatValue(row.objective_value, '', 3),
-          (row) => getComplianceStatus(row)
-        ]}
-        showExceeded={true}
-      />
-    </View>
-  )}
 
-  {/* AO Parameters Table */}
-  {aoParameters.length > 0 && (
-    <View>
-      <Text style={styles.subsectionTitle}>Aesthetic & Operational Parameter Results (AO)</Text>
-      <PDFTable
-        headers={['Parameter', 'Result', 'Unit', 'Objective', 'Status']}
-        data={aoParameters}
-        keyMapping={[
-          'parameter_name',
-          (row) => formatLabResult(row),
-          (row) => row.result_units || row.parameter_unit || 'N/A',
-          (row) => row.objective_display || formatValue(row.objective_value, '', 3),
-          (row) => getComplianceStatus(row)
-        ]}
-        showExceeded={true}
-      />
-    </View>
-  )}
+{/* Health Parameters Table */}
+{healthParameters.length > 0 && (
+  <View>
+    <Text style={styles.subsectionTitle}>Health Parameter Results (MAC)</Text>
+    <PDFTable
+      headers={['Parameter', 'Result', 'Unit', 'Recommended Maximum Concentration', 'Status']}
+      data={healthParameters}
+      keyMapping={[
+        'parameter_name',
+        (row) => formatLabResult(row),
+        (row) => row.result_units || row.parameter_unit || 'N/A',
+        (row) => row.objective_display || formatValue(row.objective_value, '', 3),
+        (row) => getComplianceStatus(row)
+      ]}
+      showExceeded={true}
+      tableType="results"
+    />
+  </View>
+)}
 
-  {/* Parameters of Concern Details */}
-  {(healthConcerns.length > 0 || aoConcerns.length > 0) && (
-    <View>
-      {healthConcerns.length > 0 && (
-        <View>
-          <Text style={styles.subsectionTitle}>Health Parameters of Concern - Details</Text>
-          <PDFTable
-            headers={['Parameter', 'Description', 'Health Effect']}
-            data={healthConcerns}
-            keyMapping={[
-              'parameter_name',
-              (row) => row.description || row.parameter_description || 'A water quality parameter that requires monitoring for health and safety compliance.',
-              (row) => row.health_effects || 'Elevated levels may pose health risks. Consult with a water treatment professional for specific health implications and recommended actions.'
-            ]}
-          />
-        </View>
-      )}
+{/* AO Parameters Table */}
+{aoParameters.length > 0 && (
+  <View>
+    <Text style={styles.subsectionTitle}>Aesthetic & Operational Parameter Results (AO)</Text>
+    <PDFTable
+      headers={['Parameter', 'Result', 'Unit', 'Recommended Maximum Concentration', 'Status']}
+      data={aoParameters}
+      keyMapping={[
+        'parameter_name',
+        (row) => formatLabResult(row),
+        (row) => row.result_units || row.parameter_unit || 'N/A',
+        (row) => row.objective_display || formatValue(row.objective_value, '', 3),
+        (row) => getComplianceStatus(row)
+      ]}
+      showExceeded={true}
+      tableType="results"
+    />
+  </View>
+)}
 
-      {aoConcerns.length > 0 && (
-        <View>
-          <Text style={styles.subsectionTitle}>Aesthetic/Operational Parameters of Concern - Details</Text>
-          <PDFTable
-            headers={['Parameter', 'Description', 'Treatment Options']}
-            data={aoConcerns}
-            keyMapping={[
-              'parameter_name',
-              (row) => row.description || row.parameter_description || 'A water quality parameter that affects the aesthetic or operational characteristics of your water system.',
-              (row) => row.treatment_options || 'Multiple treatment options are available including filtration, softening, and chemical treatment. Consult with a certified water treatment professional to determine the best solution for your specific situation.'
-            ]}
-          />
-        </View>
-      )}
-    </View>
-  )}
 
   <Text style={styles.pageNumber} render={({ pageNumber }) => `Page ${pageNumber}`} fixed />
 </Page>
 
-      {/* Page 3: General Recommendations */}
-        <Page size="A4" style={styles.page}>
-        <Text style={styles.sectionTitle}>General Recommendations</Text>
-        
-        <View style={styles.recommendationBox}>
-            <Text style={styles.recommendationTitle}>General Recommendations</Text>
-            <Text style={styles.recommendationList}>
-            • Test your water annually or when you notice changes in taste, odor, or appearance{'\n'}
-            • Maintain your well and water system according to manufacturer guidelines{'\n'}
-            • Keep potential contamination sources away from your well head{'\n'}
-            • Contact a water treatment professional for treatment options if needed
-            </Text>
-        </View>
-
-        <Text style={styles.footer}>
-            This report is generated based on laboratory analysis results. For questions about your water quality or treatment options, please consult with a qualified water treatment professional.{'\n\n'}
-            Report generated on {formatDate(new Date().toISOString())} | MyWaterQuality.ca
-        </Text>
-        <Text style={styles.pageNumber} render={({ pageNumber }) => `Page ${pageNumber}`} fixed />
-        </Page>
 
         {/* Page 4: CWQI Information */}
             <Page size="A4" style={styles.page}>
@@ -798,49 +875,40 @@ const WaterQualityReportPDF = ({ reportData }) => {
                 • Red: Concentration fails to meet the standards/guidelines
             </Text>
             
-            {/* CWQI Rating Table */}
+            {/* CWQI Rating Table - Replace the existing one */}
             <View style={styles.cwqiRatingTable}>
-                <View style={styles.cwqiRatingHeader}>
-                <Text style={[styles.cwqiRatingCellRating, styles.tableCellHeader]}>RATING</Text>
-                <Text style={[styles.cwqiRatingCellScore, styles.tableCellHeader]}>CWQI SCORE</Text>
-                <Text style={[styles.cwqiRatingCellDescription, styles.tableCellHeader]}>WHAT DOES THE SCORE MEAN?</Text>
+            <View style={styles.tableHeader}>
+                <View style={{ width: 80, paddingRight: 5 }}>
+                <Text style={[styles.tableCellHeader, { textAlign: 'left' }]}>RATING</Text>
                 </View>
-                
-                <View style={styles.cwqiRatingRow}>
-                <Text style={styles.cwqiRatingCellRating}>Excellent</Text>
-                <Text style={styles.cwqiRatingCellScore}>95-100</Text>
-                <Text style={styles.cwqiRatingCellDescription}>Water quality is protected with a virtual absence of impairment; conditions are very close to pristine levels. These index values can only be obtained if all measurements meet recommended guidelines virtually all the time.</Text>
+                <View style={{ width: 80, paddingRight: 5 }}>
+                <Text style={[styles.tableCellHeader, { textAlign: 'center' }]}>CWQI SCORE</Text>
                 </View>
-                
-                <View style={styles.cwqiRatingRow}>
-                <Text style={styles.cwqiRatingCellRating}>Very Good</Text>
-                <Text style={styles.cwqiRatingCellScore}>89-94</Text>
-                <Text style={styles.cwqiRatingCellDescription}>Water quality is protected with a slight presence of impairment. Conditions are close to pristine levels.</Text>
+                <View style={{ width: 300, paddingRight: 5 }}>
+                <Text style={[styles.tableCellHeader, { textAlign: 'left' }]}>WHAT DOES THE SCORE MEAN?</Text>
                 </View>
-                
-                <View style={styles.cwqiRatingRow}>
-                <Text style={styles.cwqiRatingCellRating}>Good</Text>
-                <Text style={styles.cwqiRatingCellScore}>80-88</Text>
-                <Text style={styles.cwqiRatingCellDescription}>Water quality is protected with only a minor degree of impairment. Conditions rarely depart from desirable levels.</Text>
+            </View>
+            
+            {[
+                { rating: 'Excellent', score: '95-100', description: 'Water quality is protected with a virtual absence of impairment; conditions are very close to pristine levels. These index values can only be obtained if all measurements meet recommended guidelines virtually all the time.' },
+                { rating: 'Very Good', score: '89-94', description: 'Water quality is protected with a slight presence of impairment. Conditions are close to pristine levels.' },
+                { rating: 'Good', score: '80-88', description: 'Water quality is protected with only a minor degree of impairment. Conditions rarely depart from desirable levels.' },
+                { rating: 'Fair', score: '65-79', description: 'Water quality is usually protected but occasionally impaired. Conditions sometimes depart from desirable levels.' },
+                { rating: 'Marginal', score: '45-64', description: 'Water quality is frequently impaired. Conditions often depart from desirable levels.' },
+                { rating: 'Poor', score: '0-44', description: 'Water quality is almost always impaired. Conditions usually depart from desirable levels.' }
+            ].map((item, index) => (
+                <View key={index} style={styles.tableRow}>
+                <View style={{ width: 80, paddingRight: 5 }}>
+                    <Text style={[styles.tableCell, { fontWeight: 'bold', textAlign: 'left' }]}>{item.rating}</Text>
                 </View>
-                
-                <View style={styles.cwqiRatingRow}>
-                <Text style={styles.cwqiRatingCellRating}>Fair</Text>
-                <Text style={styles.cwqiRatingCellScore}>65-79</Text>
-                <Text style={styles.cwqiRatingCellDescription}>Water quality is usually protected but occasionally impaired. Conditions sometimes depart from desirable levels.</Text>
+                <View style={{ width: 80, paddingRight: 5 }}>
+                    <Text style={[styles.tableCell, { textAlign: 'center' }]}>{item.score}</Text>
                 </View>
-                
-                <View style={styles.cwqiRatingRow}>
-                <Text style={styles.cwqiRatingCellRating}>Marginal</Text>
-                <Text style={styles.cwqiRatingCellScore}>45-64</Text>
-                <Text style={styles.cwqiRatingCellDescription}>Water quality is frequently impaired. Conditions often depart from desirable levels.</Text>
+                <View style={{ width: 300, paddingRight: 5 }}>
+                    <Text style={[styles.tableCell, { textAlign: 'left' }]}>{item.description}</Text>
                 </View>
-                
-                <View style={styles.cwqiRatingRow}>
-                <Text style={styles.cwqiRatingCellRating}>Poor</Text>
-                <Text style={styles.cwqiRatingCellScore}>0-44</Text>
-                <Text style={styles.cwqiRatingCellDescription}>Water quality is almost always impaired. Conditions usually depart from desirable levels.</Text>
                 </View>
+            ))}
             </View>
 
             <Text style={styles.pageNumber} render={({ pageNumber }) => `Page ${pageNumber}`} fixed />
