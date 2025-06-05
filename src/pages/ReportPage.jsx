@@ -1,4 +1,4 @@
-// src/pages/ReportPage.jsx - Updated with PDF download functionality
+// src/pages/ReportPage.jsx - Updated with correct CCME WQI calculation
 import { useState, useEffect } from 'react';
 import { useParams } from 'react-router-dom';
 import { supabase } from '../lib/supabaseClient';
@@ -6,29 +6,26 @@ import PageLayout from '../components/PageLayout';
 import { pdf } from '@react-pdf/renderer';
 import WaterQualityReportPDF from '../components/WaterQualityReportPDF';
 
-// ... (Keep all existing components like CWQIVisualization exactly as they are)
+// Import the correct CCME WQI calculation
+import { 
+  calculateCCMEWQIWithValidation,
+  getCWQIRating 
+} from '../lib/ccmeWQI'; // You'll need to create this file
 
-// CWQI Visualization Component
+// CWQI Visualization Component - Updated to show proper breakdown
 function CWQIVisualization({ cwqi, title }) {
   if (!cwqi) return null;
 
-  const { score, rating, color, totalTests, failedTests } = cwqi;
+  const { score, rating, color, totalTests, failedTests, components, warnings } = cwqi;
   
   // Calculate the position of the indicator on the scale
   const indicatorPosition = Math.max(0, Math.min(100, score));
   
-  // Define color ranges for the scale background
-  const getScaleColor = (position) => {
-    if (position < 60) return 'bg-red-500';
-    if (position < 80) return 'bg-yellow-500';
-    if (position < 95) return 'bg-blue-500';
-    return 'bg-green-500';
-  };
-
   const getTextColor = (rating) => {
     switch (rating) {
       case 'Poor': return 'text-red-600';
-      case 'Marginal': return 'text-yellow-600';
+      case 'Marginal': return 'text-orange-600';
+      case 'Fair': return 'text-yellow-600';
       case 'Good': return 'text-blue-600';
       case 'Excellent': return 'text-green-600';
       default: return 'text-gray-600';
@@ -54,10 +51,11 @@ function CWQIVisualization({ cwqi, title }) {
         <div className="relative">
           {/* Background scale with color segments */}
           <div className="h-4 bg-gray-200 rounded-full overflow-hidden flex">
-            <div className="w-[60%] bg-red-500"></div>
-            <div className="w-[20%] bg-yellow-500"></div>
+            <div className="w-[44%] bg-red-500"></div>
+            <div className="w-[20%] bg-orange-500"></div>
+            <div className="w-[15%] bg-yellow-500"></div>
             <div className="w-[15%] bg-blue-500"></div>
-            <div className="w-[5%] bg-green-500"></div>
+            <div className="w-[6%] bg-green-500"></div>
           </div>
           
           {/* Score indicator */}
@@ -73,22 +71,58 @@ function CWQIVisualization({ cwqi, title }) {
         
         {/* Scale labels */}
         <div className="flex justify-between text-xs text-gray-500 mt-2">
-          <span>0</span>
-          <span>100</span>
+          <span>0 (Poor)</span>
+          <span>45</span>
+          <span>65</span>
+          <span>80</span>
+          <span>95</span>
+          <span>100 (Excellent)</span>
+        </div>
+      </div>
+
+      {/* CCME Components Breakdown */}
+      <div className="mb-4 bg-gray-50 rounded-lg p-4">
+        <h5 className="text-sm font-semibold text-gray-700 mb-3">CCME WQI Components</h5>
+        <div className="grid grid-cols-3 gap-4 text-xs">
+          <div className="text-center">
+            <div className="font-semibold text-gray-900">F1: {components?.F1?.toFixed(1) || 'N/A'}</div>
+            <div className="text-gray-600">Scope</div>
+          </div>
+          <div className="text-center">
+            <div className="font-semibold text-gray-900">F2: {components?.F2?.toFixed(1) || 'N/A'}</div>
+            <div className="text-gray-600">Frequency</div>
+          </div>
+          <div className="text-center">
+            <div className="font-semibold text-gray-900">F3: {components?.F3?.toFixed(1) || 'N/A'}</div>
+            <div className="text-gray-600">Amplitude</div>
+          </div>
+        </div>
+        <div className="mt-2 text-xs text-gray-500 text-center">
+          Formula: 100 - (√(F1² + F2² + F3²) / 1.732)
         </div>
       </div>
 
       {/* Test Results Summary */}
       <div className="text-center">
         <p className="text-sm text-gray-600">
-          <span className="font-medium">{totalTests - failedTests}</span> of <span className="font-medium">{totalTests}</span> parameters passed
+          <span className="font-medium">{totalTests - failedTests}</span> of <span className="font-medium">{totalTests}</span> tests passed
         </p>
         {failedTests > 0 && (
           <p className="text-sm text-orange-600 mt-1">
-            {failedTests} parameter{failedTests !== 1 ? 's' : ''} exceeded recommended limits
+            {failedTests} test{failedTests !== 1 ? 's' : ''} exceeded recommended limits
           </p>
         )}
       </div>
+
+      {/* Warnings */}
+      {warnings && warnings.length > 0 && (
+        <div className="mt-4 p-3 bg-yellow-50 border border-yellow-200 rounded">
+          <h6 className="text-xs font-semibold text-yellow-800 mb-1">Data Quality Notes:</h6>
+          {warnings.map((warning, index) => (
+            <p key={index} className="text-xs text-yellow-700">{warning}</p>
+          ))}
+        </div>
+      )}
     </div>
   );
 }
@@ -208,9 +242,24 @@ export default function ReportPage() {
       row.compliance_status === 'EXCEEDS' || row.compliance_status === 'OUTSIDE_RANGE'
     );
 
-    // Calculate CWQI scores (simplified calculation)
-    const healthCWQI = calculateCWQI(healthParameters);
-    const aoCWQI = calculateCWQI(aoParameters);
+    // Calculate PROPER CCME WQI scores using the official method
+    console.log('Calculating CCME WQI for health parameters:', healthParameters.length);
+    const healthCWQI = calculateCCMEWQIWithValidation(healthParameters, { 
+      debug: true,
+      minParameters: 4,
+      minSamples: 4 
+    });
+    
+    console.log('Calculating CCME WQI for AO parameters:', aoParameters.length);
+    const aoCWQI = calculateCCMEWQIWithValidation(aoParameters, { 
+      debug: true,
+      minParameters: 4,
+      minSamples: 4 
+    });
+
+    // Log the results for debugging
+    console.log('Health CWQI Result:', healthCWQI);
+    console.log('AO CWQI Result:', aoCWQI);
 
     // Get sample info from first row using correct column names
     const sampleInfo = rawData[0] ? {
@@ -227,40 +276,10 @@ export default function ReportPage() {
       bacteriological,
       healthConcerns,
       aoConcerns,
-      healthCWQI,
-      aoCWQI,
+      healthCWQI: healthCWQI.isValid ? healthCWQI : null,
+      aoCWQI: aoCWQI.isValid ? aoCWQI : null,
       rawData
     };
-  };
-
-  // ... (Keep all other existing functions like calculateCWQI, formatValue, etc.)
-
-  const calculateCWQI = (parameters) => {
-    if (!parameters || parameters.length === 0) return null;
-
-    // Simplified CWQI calculation using correct column names
-    const totalTests = parameters.length;
-    const failedTests = parameters.filter(p => 
-      p.compliance_status === 'EXCEEDS' || p.compliance_status === 'OUTSIDE_RANGE'
-    ).length;
-    const passRate = ((totalTests - failedTests) / totalTests) * 100;
-
-    let rating = 'Excellent';
-    let score = Math.round(passRate);
-    let color = 'text-green-600';
-
-    if (passRate < 60) {
-      rating = 'Poor';
-      color = 'text-red-600';
-    } else if (passRate < 80) {
-      rating = 'Marginal';
-      color = 'text-yellow-600';
-    } else if (passRate < 95) {
-      rating = 'Good';
-      color = 'text-blue-600';
-    }
-
-    return { score, rating, color, totalTests, failedTests };
   };
 
   const formatValue = (value, unit, decimalPlaces = 2) => {
@@ -297,6 +316,7 @@ export default function ReportPage() {
     return param.compliance_status === 'EXCEEDS' || param.compliance_status === 'OUTSIDE_RANGE';
   };
 
+  // Rest of the component rendering logic remains the same...
   if (loading) {
     return (
       <PageLayout>
