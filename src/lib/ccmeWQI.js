@@ -54,11 +54,13 @@ const calculateCCMEWQI = (parameters) => {
     }
   
     // Step 5: Calculate final CCME WQI using vector approach
-    const vectorSum = Math.sqrt(F1 * F1 + F2 * F2 + F3 * F3);
-    const cwqiScore = 100 - (vectorSum / 1.732);
-    
+    // Since F1 = F2 for single samples, we use only F1 (scope) and F3 (amplitude) to avoid overweighting
+    const vectorSum = Math.sqrt(F1 * F1 + F3 * F3);
+    const cwqiScore = 100 - (vectorSum / Math.sqrt(2)); // Divide by √2 instead of √3
+
     // Ensure score is between 0 and 100
     const finalScore = Math.max(0, Math.min(100, Math.round(cwqiScore)));
+    
   
     // Determine rating category
     const rating = getCWQIRating(finalScore);
@@ -75,6 +77,7 @@ const calculateCCMEWQI = (parameters) => {
       totalTests,
       failedTests: failedTests.length,
       totalParameters,
+      Methodology:'Modified two-component formula for single samples (F1 + F3 only)',
       failedParameters: failedParameterNames.size,
       details: {
         failedParameterNames: Array.from(failedParameterNames),
@@ -231,7 +234,7 @@ const calculateCCMEWQI = (parameters) => {
     }
   
     if (debug) {
-      console.log('CCME WQI Calculation Debug:', {
+      console.log('CCME WQI Calculation Debug (Modified for Single Sample):', {
         totalParameters: result.totalParameters,
         totalTests: result.totalTests,
         F1: result.components.F1,

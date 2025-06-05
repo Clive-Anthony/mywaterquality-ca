@@ -81,26 +81,32 @@ function CWQIVisualization({ cwqi, title }) {
       </div>
 
       {/* CCME Components Breakdown */}
-      <div className="mb-4 bg-gray-50 rounded-lg p-4">
-        <h5 className="text-sm font-semibold text-gray-700 mb-3">CCME WQI Components</h5>
+        <div className="mb-4 bg-gray-50 rounded-lg p-4">
+        <h5 className="text-sm font-semibold text-gray-700 mb-3">CCME WQI Components (Modified for Single Sample)</h5>
         <div className="grid grid-cols-3 gap-4 text-xs">
-          <div className="text-center">
+            <div className="text-center">
             <div className="font-semibold text-gray-900">F1: {components?.F1?.toFixed(1) || 'N/A'}</div>
             <div className="text-gray-600">Scope</div>
-          </div>
-          <div className="text-center">
-            <div className="font-semibold text-gray-900">F2: {components?.F2?.toFixed(1) || 'N/A'}</div>
-            <div className="text-gray-600">Frequency</div>
-          </div>
-          <div className="text-center">
+            <div className="text-green-600 font-medium">✓ Used</div>
+            </div>
+            <div className="text-center opacity-60">
+            <div className="font-semibold text-gray-500">F2: {components?.F2?.toFixed(1) || 'N/A'}</div>
+            <div className="text-gray-500">Frequency</div>
+            <div className="text-gray-400 text-xs">Not used*</div>
+            </div>
+            <div className="text-center">
             <div className="font-semibold text-gray-900">F3: {components?.F3?.toFixed(1) || 'N/A'}</div>
             <div className="text-gray-600">Amplitude</div>
-          </div>
+            <div className="text-green-600 font-medium">✓ Used</div>
+            </div>
         </div>
         <div className="mt-2 text-xs text-gray-500 text-center">
-          Formula: 100 - (√(F1² + F2² + F3²) / 1.732)
+            Formula: 100 - (√(F1² + F3²) / √2)
         </div>
-      </div>
+        <div className="mt-1 text-xs text-gray-400 text-center">
+            *F2 = F1 for single samples, so only F1 is used to avoid double-weighting
+        </div>
+        </div>
 
       {/* Test Results Summary */}
       <div className="text-center">
