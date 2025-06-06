@@ -3,8 +3,6 @@
 
 /**
  * Calculate the proper CCME Water Quality Index (CWQI)
- * @param {Array} parameters - Array of water quality test results
- * @returns {Object} CWQI score and components
  */
 const calculateCCMEWQI = (parameters) => {
     if (!parameters || parameters.length === 0) return null;
@@ -20,7 +18,24 @@ const calculateCCMEWQI = (parameters) => {
     const allExcursions = [];
   
     parameters.forEach(param => {
-      const isFailed = param.compliance_status === 'EXCEEDS' || param.compliance_status === 'OUTSIDE_RANGE';
+      // Updated compliance status checking based on parameter category
+      let isFailed = false;
+      
+      if (param.parameter_category === 'health') {
+        isFailed = param.compliance_status === 'EXCEEDS_MAC';
+      } else if (param.parameter_category === 'ao') {
+        if (param.compliance_status === 'EXCEEDS_AO') {
+          isFailed = true;
+        } else if (param.compliance_status === 'AO_RANGE_VALUE') {
+          // For range values, check if the overall compliance is WARNING
+          // We need to access the original raw data to check overall compliance
+          // This assumes the original data is available in the parameter object
+          isFailed = param.overall_compliance_status === 'WARNING';
+        }
+      } else {
+        // For non-hybrid parameters
+        isFailed = param.compliance_status === 'FAIL';
+      }
       
       if (isFailed) {
         failedParameterNames.add(param.parameter_name);
@@ -34,35 +49,22 @@ const calculateCCMEWQI = (parameters) => {
       }
     });
   
-    // Step 2: Calculate F1 (Scope)
-    // Percentage of parameters that failed at least once
+    // Rest of the function remains the same...
+  
     const F1 = (failedParameterNames.size / totalParameters) * 100;
-  
-    // Step 3: Calculate F2 (Frequency) 
-    // Percentage of individual tests that failed
     const F2 = (failedTests.length / totalTests) * 100;
-  
-    // Step 4: Calculate F3 (Amplitude)
+    
     let F3 = 0;
     if (allExcursions.length > 0) {
-      // Calculate normalized sum of excursions (nse)
       const sumExcursions = allExcursions.reduce((sum, exc) => sum + exc, 0);
       const nse = sumExcursions / totalTests;
-      
-      // Apply asymptotic function
       F3 = (nse / (0.01 + nse)) * 100;
     }
   
-    // Step 5: Calculate final CCME WQI using vector approach
-    // Since F1 = F2 for single samples, we use only F1 (scope) and F3 (amplitude) to avoid overweighting
     const vectorSum = Math.sqrt(F1 * F1 + F3 * F3);
-    const cwqiScore = 100 - (vectorSum / Math.sqrt(2)); // Divide by √2 instead of √3
-
-    // Ensure score is between 0 and 100
+    const cwqiScore = 100 - (vectorSum / Math.sqrt(2));
     const finalScore = Math.max(0, Math.min(100, Math.round(cwqiScore)));
     
-  
-    // Determine rating category
     const rating = getCWQIRating(finalScore);
   
     return {
@@ -70,7 +72,7 @@ const calculateCCMEWQI = (parameters) => {
       rating: rating.name,
       color: rating.color,
       components: {
-        F1: Math.round(F1 * 10) / 10,  // Round to 1 decimal
+        F1: Math.round(F1 * 10) / 10,
         F2: Math.round(F2 * 10) / 10,
         F3: Math.round(F3 * 10) / 10
       },

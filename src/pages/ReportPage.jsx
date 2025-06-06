@@ -153,7 +153,7 @@ export default function ReportPage() {
       const { data, error } = await supabase
         .from('vw_test_results_with_parameters')
         .select('*')
-        .eq('sample_number', sampleNumber || '2131422')
+        .eq('sample_number', '2131422')
         .order('parameter_name');
 
       if (error) throw error;
@@ -228,27 +228,57 @@ export default function ReportPage() {
 
   const processReportData = (rawData) => {
     if (!rawData || rawData.length === 0) return null;
-
-    // Group parameters by type using correct column name
-    const healthParameters = rawData.filter(row => row.parameter_type === 'MAC');
-    const aoParameters = rawData.filter(row => row.parameter_type === 'AO');
+  
+    // Group parameters by whether they have MAC values (health) or AO values (aesthetic/operational)
+    // Hybrid parameters will appear in both arrays
+    const healthParameters = rawData.filter(row => 
+      (row.parameter_type === 'MAC' || row.parameter_type === 'Hybrid') &&
+      row.mac_value !== null && row.mac_value !== undefined && row.mac_value !== ''
+    ).map(row => ({
+      ...row,
+      // Use MAC-specific values for health parameters
+      objective_value: row.mac_value,
+      objective_display: row.mac_display,
+      compliance_status: row.mac_compliance_status,
+      parameter_category: 'health'
+    }));
+  
+    const aoParameters = rawData.filter(row => 
+        (row.parameter_type === 'AO' || row.parameter_type === 'Hybrid') &&
+        (row.ao_value !== null && row.ao_value !== undefined && row.ao_value !== '' ||
+         row.ao_display !== null && row.ao_display !== undefined && row.ao_display !== '')
+      ).map(row => ({
+        ...row,
+        // Use AO-specific values for aesthetic/operational parameters
+        objective_value: row.ao_value,
+        objective_display: row.ao_display,
+        compliance_status: row.ao_compliance_status,
+        overall_compliance_status: row.compliance_status, // Keep track of overall compliance
+        parameter_category: 'ao'
+      }));
+  
     const bacteriological = rawData.filter(row => 
       row.parameter_name?.toLowerCase().includes('coliform') ||
       row.parameter_name?.toLowerCase().includes('bacteria') ||
       row.parameter_name?.toLowerCase().includes('e. coli') ||
       row.parameter_name?.toLowerCase().includes('e.coli')
     );
-
-    // Calculate parameters of concern using correct column names
+  
+    // Calculate parameters of concern using the mapped compliance status
     const healthConcerns = healthParameters.filter(row => 
-      row.compliance_status === 'EXCEEDS' || row.compliance_status === 'OUTSIDE_RANGE'
+      row.compliance_status === 'EXCEEDS_MAC'
     );
     
     const aoConcerns = aoParameters.filter(row => 
-      row.compliance_status === 'EXCEEDS' || row.compliance_status === 'OUTSIDE_RANGE'
-    );
-
-    // Calculate PROPER CCME WQI scores using the official method
+        row.compliance_status === 'EXCEEDS_AO' ||
+        // For range values, check if the overall compliance is WARNING
+        (row.compliance_status === 'AO_RANGE_VALUE' && rawData.find(r => 
+          r.parameter_name === row.parameter_name && 
+          r.sample_number === row.sample_number
+        )?.compliance_status === 'WARNING')
+      );
+  
+    // Rest of the function remains the same...
     console.log('Calculating CCME WQI for health parameters:', healthParameters.length);
     const healthCWQI = calculateCCMEWQIWithValidation(healthParameters, { 
       debug: true,
@@ -262,11 +292,7 @@ export default function ReportPage() {
       minParameters: 4,
       minSamples: 4 
     });
-
-    // Log the results for debugging
-    console.log('Health CWQI Result:', healthCWQI);
-    console.log('AO CWQI Result:', aoCWQI);
-
+  
     // Get sample info from first row using correct column names
     const sampleInfo = rawData[0] ? {
       sampleNumber: rawData[0].sample_number,
@@ -274,7 +300,7 @@ export default function ReportPage() {
       receivedDate: rawData[0].received_date,
       reportDate: new Date().toISOString().split('T')[0]
     } : null;
-
+  
     return {
       sampleInfo,
       healthParameters,
@@ -319,9 +345,28 @@ export default function ReportPage() {
   };
 
   const isParameterExceeded = (param) => {
-    return param.compliance_status === 'EXCEEDS' || param.compliance_status === 'OUTSIDE_RANGE';
+    // Check based on parameter category and compliance status
+    if (param.parameter_category === 'health') {
+      return param.compliance_status === 'EXCEEDS_MAC';
+    } else if (param.parameter_category === 'ao') {
+      if (param.compliance_status === 'EXCEEDS_AO') {
+        return true;
+      }
+      // For range values, check the overall compliance status from original data
+      if (param.compliance_status === 'AO_RANGE_VALUE') {
+        const originalParam = reportData?.rawData?.find(r => 
+          r.parameter_name === param.parameter_name && 
+          r.sample_number === param.sample_number
+        );
+        return originalParam?.compliance_status === 'WARNING';
+      }
+      return false;
+    } else {
+      // For non-hybrid parameters, use the overall compliance status
+      return param.compliance_status === 'FAIL';
+    }
   };
-
+  
   // Rest of the component rendering logic remains the same...
   if (loading) {
     return (
@@ -708,33 +753,35 @@ export default function ReportPage() {
                       </tr>
                     </thead>
                     <tbody className="bg-white divide-y divide-gray-200">
-                      {healthParameters.map((param, index) => {
+                    {healthParameters.map((param, index) => {
                         const isExceeded = isParameterExceeded(param);
                         return (
-                          <tr key={index} className={isExceeded ? 'bg-red-50' : ''}>
+                            <tr key={index} className={isExceeded ? 'bg-red-50' : ''}>
                             <td className="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900">
-                              {param.parameter_name}
+                                {param.parameter_name}
                             </td>
                             <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
                                 {formatLabResult(param)}
                             </td>
                             <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
-                              {param.result_units || param.parameter_unit || 'N/A'}
+                                {param.result_units || param.parameter_unit || 'N/A'}
                             </td>
                             <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
-                              {param.objective_display || formatValue(param.objective_value, '', 3)}
+                                {param.mac_display || formatValue(param.mac_value, '', 3)}
                             </td>
                             <td className="px-6 py-4 whitespace-nowrap">
-                              <div className="flex items-center">
+                                <div className="flex items-center">
                                 {getConcernIcon(isExceeded)}
                                 <span className={`ml-2 text-sm ${isExceeded ? 'text-red-600' : 'text-green-600'}`}>
-                                  {param.compliance_status === 'MEETS' || param.compliance_status === 'WITHIN_RANGE' ? 'Within Limit' : 'Exceeds Limit'}
+                                    {param.compliance_status === 'MEETS_MAC' ? 'Within Limit' : 
+                                    param.compliance_status === 'EXCEEDS_MAC' ? 'Exceeds Limit' : 
+                                    'No Standard'}
                                 </span>
-                              </div>
+                                </div>
                             </td>
-                          </tr>
+                            </tr>
                         );
-                      })}
+                        })}
                     </tbody>
                   </table>
                 </div>
@@ -757,33 +804,58 @@ export default function ReportPage() {
                       </tr>
                     </thead>
                     <tbody className="bg-white divide-y divide-gray-200">
-                        {aoParameters.map((param, index) => {
-                        const isExceeded = isParameterExceeded(param);
-                        return (
-                          <tr key={index} className={isExceeded ? 'bg-red-50' : ''}>
-                            <td className="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900">
-                              {param.parameter_name}
-                            </td>
-                            <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
-                                {formatLabResult(param)}
-                            </td>
-                            <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
-                              {param.result_units || param.parameter_unit || 'N/A'}
-                            </td>
-                            <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
-                              {param.objective_display || formatValue(param.objective_value, '', 3)}
-                            </td>
-                            <td className="px-6 py-4 whitespace-nowrap">
-                              <div className="flex items-center">
-                                {getConcernIcon(isExceeded)}
-                                <span className={`ml-2 text-sm ${isExceeded ? 'text-red-600' : 'text-green-600'}`}>
-                                  {param.compliance_status === 'MEETS' || param.compliance_status === 'WITHIN_RANGE' ? 'Within Limit' : 'Exceeds Limit'}
-                                </span>
-                              </div>
-                            </td>
-                          </tr>
-                        );
-                      })}
+                {aoParameters.map((param, index) => {
+                    const isExceeded = isParameterExceeded(param);
+                    
+                    // Get the overall compliance status for range values
+                    const originalParam = reportData?.rawData?.find(r => 
+                        r.parameter_name === param.parameter_name && 
+                        r.sample_number === param.sample_number
+                    );
+                    
+                    const getStatusText = () => {
+                        if (param.compliance_status === 'MEETS_AO') {
+                        return 'Within Limit';
+                        } else if (param.compliance_status === 'EXCEEDS_AO') {
+                        return 'Exceeds Limit';
+                        } else if (param.compliance_status === 'AO_RANGE_VALUE') {
+                        if (originalParam?.compliance_status === 'WARNING') {
+                            return 'Outside Range';
+                        } else if (originalParam?.compliance_status === 'PASS') {
+                            return 'Within Range';
+                        } else {
+                            return 'Range Value';
+                        }
+                        } else {
+                        return 'No Standard';
+                        }
+                    };
+
+                    return (
+                        <tr key={index} className={isExceeded ? 'bg-red-50' : ''}>
+                        <td className="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900">
+                            {param.parameter_name}
+                        </td>
+                        <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
+                            {formatLabResult(param)}
+                        </td>
+                        <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
+                            {param.result_units || param.parameter_unit || 'N/A'}
+                        </td>
+                        <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
+                            {param.ao_display || formatValue(param.ao_value, '', 3)}
+                        </td>
+                        <td className="px-6 py-4 whitespace-nowrap">
+                            <div className="flex items-center">
+                            {getConcernIcon(isExceeded)}
+                            <span className={`ml-2 text-sm ${isExceeded ? 'text-red-600' : 'text-green-600'}`}>
+                                {getStatusText()}
+                            </span>
+                            </div>
+                        </td>
+                        </tr>
+                    );
+                    })}
                     </tbody>
                   </table>
                 </div>

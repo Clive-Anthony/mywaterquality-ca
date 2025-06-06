@@ -519,7 +519,8 @@ const WaterQualityReportPDF = ({ reportData }) => {
     return `${numValue.toFixed(decimalPlaces)} ${unit || ''}`.trim();
   };
 
-  const formatLabResult = (param) => {
+  // Update the formatLabResult function to handle hybrid parameters
+const formatLabResult = (param) => {
     // Use lab's original varchar format - this preserves exact significant digits
     if (param.result_value && param.result_value.trim() !== '') {
       return param.result_value.trim();
@@ -544,19 +545,35 @@ const WaterQualityReportPDF = ({ reportData }) => {
     
     return formatted;
   };
-
-  const formatDate = (dateString) => {
-    if (!dateString) return 'N/A';
-    return new Date(dateString).toLocaleDateString('en-CA', {
-      year: 'numeric',
-      month: 'long',
-      day: 'numeric'
-    });
-  };
-
+  
+  // Update the getComplianceStatus function
   const getComplianceStatus = (param) => {
-    const isCompliant = param.compliance_status === 'MEETS' || param.compliance_status === 'WITHIN_RANGE';
-    return isCompliant ? 'Within Limit' : 'Exceeds Limit';
+    if (param.parameter_category === 'health') {
+      return param.compliance_status === 'MEETS_MAC' ? 'Within Limit' : 
+             param.compliance_status === 'EXCEEDS_MAC' ? 'Exceeds Limit' : 
+             'No Standard';
+    } else if (param.parameter_category === 'ao') {
+      if (param.compliance_status === 'MEETS_AO') {
+        return 'Within Limit';
+      } else if (param.compliance_status === 'EXCEEDS_AO') {
+        return 'Exceeds Limit';
+      } else if (param.compliance_status === 'AO_RANGE_VALUE') {
+        if (param.overall_compliance_status === 'WARNING') {
+          return 'Outside Range';
+        } else if (param.overall_compliance_status === 'PASS') {
+          return 'Within Range';
+        } else {
+          return 'Range Value';
+        }
+      } else {
+        return 'No Standard';
+      }
+    } else {
+      // For non-hybrid parameters
+      return param.compliance_status === 'PASS' ? 'Within Limit' : 
+             param.compliance_status === 'FAIL' ? 'Exceeds Limit' : 
+             'No Standard';
+    }
   };
 
   return (
@@ -761,7 +778,13 @@ const WaterQualityReportPDF = ({ reportData }) => {
         'parameter_name',
         (row) => formatLabResult(row),
         (row) => row.result_units || row.parameter_unit || 'N/A',
-        (row) => row.objective_display || formatValue(row.objective_value, '', 3),
+        (row) => {
+          // For hybrid parameters in health table, use MAC values
+          if (row.parameter_category === 'health') {
+            return row.mac_display || formatValue(row.mac_value, '', 3);
+          }
+          return row.objective_display || formatValue(row.objective_value, '', 3);
+        },
         (row) => getComplianceStatus(row)
       ]}
       showExceeded={true}
@@ -781,7 +804,13 @@ const WaterQualityReportPDF = ({ reportData }) => {
         'parameter_name',
         (row) => formatLabResult(row),
         (row) => row.result_units || row.parameter_unit || 'N/A',
-        (row) => row.objective_display || formatValue(row.objective_value, '', 3),
+        (row) => {
+          // For hybrid parameters in AO table, use AO values
+          if (row.parameter_category === 'ao') {
+            return row.ao_display || formatValue(row.ao_value, '', 3);
+          }
+          return row.objective_display || formatValue(row.objective_value, '', 3);
+        },
         (row) => getComplianceStatus(row)
       ]}
       showExceeded={true}
