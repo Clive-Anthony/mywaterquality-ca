@@ -465,33 +465,53 @@ const PDFTable = ({ headers, data, keyMapping, showExceeded = false, tableType =
           </View>
           
           {/* Data Rows */}
-          {data.map((row, rowIndex) => {
-            const isExceeded = showExceeded && (row.compliance_status === 'EXCEEDS' || row.compliance_status === 'OUTSIDE_RANGE');
+            {data.map((row, rowIndex) => {
+            // Function to determine if a parameter is exceeded (matches web logic)
+            const isParameterExceeded = (param) => {
+                if (param.parameter_category === 'health') {
+                return param.compliance_status === 'EXCEEDS_MAC';
+                } else if (param.parameter_category === 'ao') {
+                if (param.compliance_status === 'EXCEEDS_AO') {
+                    return true;
+                }
+                // For range values, check the overall compliance status
+                if (param.compliance_status === 'AO_RANGE_VALUE') {
+                    return param.overall_compliance_status === 'WARNING';
+                }
+                return false;
+                } else {
+                // For non-hybrid parameters, use the overall compliance status
+                return param.compliance_status === 'FAIL';
+                }
+            };
+
+            const isExceeded = showExceeded && isParameterExceeded(row);
+            
             return (
-              <View 
+                <View 
                 key={rowIndex} 
                 style={isExceeded ? styles.tableRowExceeded : styles.tableRow}
                 break={rowIndex > 0 && rowIndex % 15 === 0} // Break every 15 rows
-              >
+                >
                 {keyMapping.map((key, cellIndex) => (
-                  <View key={cellIndex} style={{ width: columnWidths[cellIndex], paddingRight: 2 }}>
+                    <View key={cellIndex} style={{ width: columnWidths[cellIndex], paddingRight: 2 }}>
                     <Text 
-                      style={[
+                        style={[
                         cellIndex === 0 ? styles.tableCellParameterName : styles.tableCell,
                         { 
-                          textAlign: cellIndex === 0 ? 'left' : 'center',
-                          fontWeight: cellIndex === 0 ? 'bold' : 'normal'
+                            textAlign: cellIndex === 0 ? 'left' : 'center',
+                            fontWeight: cellIndex === 0 ? 'bold' : 'normal'
                         }
-                      ]}
-                      wrap={cellIndex === 0 ? false : true}
+                        ]}
+                        wrap={cellIndex === 0 ? false : true}
                     >
-                      {typeof key === 'function' ? key(row) : row[key] || 'N/A'}
+                        {typeof key === 'function' ? key(row) : row[key] || 'N/A'}
                     </Text>
-                  </View>
+                    </View>
                 ))}
-              </View>
+                </View>
             );
-          })}
+            })}
         </View>
       </View>
     );
@@ -519,8 +539,17 @@ const WaterQualityReportPDF = ({ reportData }) => {
     return `${numValue.toFixed(decimalPlaces)} ${unit || ''}`.trim();
   };
 
+  const formatDate = (dateString) => {
+    if (!dateString) return 'N/A';
+    return new Date(dateString).toLocaleDateString('en-CA', {
+      year: 'numeric',
+      month: 'long',
+      day: 'numeric'
+    });
+  };
+
   // Update the formatLabResult function to handle hybrid parameters
-const formatLabResult = (param) => {
+    const formatLabResult = (param) => {
     // Use lab's original varchar format - this preserves exact significant digits
     if (param.result_value && param.result_value.trim() !== '') {
       return param.result_value.trim();
@@ -613,20 +642,20 @@ const formatLabResult = (param) => {
         <View style={styles.infoGrid}>
           <View style={styles.infoItem}>
             <Text style={styles.infoLabel}>Customer Name</Text>
-            <Text style={styles.infoValue}>John Smith</Text>
+            <Text style={styles.infoValue}>Cleason Martin</Text>
           </View>
           <View style={styles.infoItem}>
-            <Text style={styles.infoLabel}>Sample Location</Text>
-            <Text style={styles.infoValue}>Kitchen Tap - Main Floor</Text>
+            <Text style={styles.infoLabel}>Test Kit</Text>
+            <Text style={styles.infoValue}>Advanced Water Test Kit</Text>
           </View>
           <View style={styles.infoItem}>
             <Text style={styles.infoLabel}>Sample Description</Text>
-            <Text style={styles.infoValue}>Residential Well Water</Text>
+            <Text style={styles.infoValue}>Tap Water</Text>
           </View>
-          <View style={styles.infoItem}>
+          {/* <View style={styles.infoItem}>
             <Text style={styles.infoLabel}>Property Address</Text>
             <Text style={styles.infoValue}>123 Maple Street, Toronto, ON</Text>
-          </View>
+          </View> */}
         </View>
 
         {/* Testing Timeline */}
@@ -905,7 +934,7 @@ const formatLabResult = (param) => {
             </Text>
             
             {/* CWQI Rating Table - Replace the existing one */}
-            <View style={styles.cwqiRatingTable}>
+            <View style={styles.cwqiRatingTable} break={false} wrap={false}>
             <View style={styles.tableHeader}>
                 <View style={{ width: 80, paddingRight: 5 }}>
                 <Text style={[styles.tableCellHeader, { textAlign: 'left' }]}>RATING</Text>
@@ -926,7 +955,7 @@ const formatLabResult = (param) => {
                 { rating: 'Marginal', score: '45-64', description: 'Water quality is frequently impaired. Conditions often depart from desirable levels.' },
                 { rating: 'Poor', score: '0-44', description: 'Water quality is almost always impaired. Conditions usually depart from desirable levels.' }
             ].map((item, index) => (
-                <View key={index} style={styles.tableRow}>
+                <View key={index} style={styles.tableRow} wrap={false}>
                 <View style={{ width: 80, paddingRight: 5 }}>
                     <Text style={[styles.tableCell, { fontWeight: 'bold', textAlign: 'left' }]}>{item.rating}</Text>
                 </View>
