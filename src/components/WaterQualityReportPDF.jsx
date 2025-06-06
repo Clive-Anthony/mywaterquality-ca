@@ -437,13 +437,15 @@ const CWQIComponent = ({ cwqi, title }) => {
 const PDFTable = ({ headers, data, keyMapping, showExceeded = false, tableType = 'default' }) => {
   
     const getColumnWidths = (tableType) => {
-      if (tableType === 'results') {
-        return [210, 40, 40, 110, 75];
-      } else if (tableType === 'concerns') {
-        return [150, 170, 150];
-      }
-      return [100, 100, 100, 100, 100];
-    };
+        if (tableType === 'results') {
+          return [210, 40, 40, 110, 75];
+        } else if (tableType === 'concerns') {
+          return [150, 170, 150];
+        } else if (tableType === 'general') {  // Add this block
+          return [250,150];
+        }
+        return [100, 100, 100, 100, 100];
+      };
   
     const columnWidths = getColumnWidths(tableType);
   
@@ -524,7 +526,8 @@ const WaterQualityReportPDF = ({ reportData }) => {
   const { 
     sampleInfo, 
     healthParameters, 
-    aoParameters, 
+    aoParameters,
+    generalParameters, 
     bacteriological, 
     healthConcerns, 
     aoConcerns, 
@@ -642,15 +645,15 @@ const WaterQualityReportPDF = ({ reportData }) => {
         <View style={styles.infoGrid}>
           <View style={styles.infoItem}>
             <Text style={styles.infoLabel}>Customer Name</Text>
-            <Text style={styles.infoValue}>Cleason Martin</Text>
+            <Text style={styles.infoValue}>John Smith</Text>
           </View>
           <View style={styles.infoItem}>
             <Text style={styles.infoLabel}>Test Kit</Text>
-            <Text style={styles.infoValue}>Advanced Water Test Kit</Text>
+            <Text style={styles.infoValue}>General Water Test Kit</Text>
           </View>
           <View style={styles.infoItem}>
             <Text style={styles.infoLabel}>Sample Description</Text>
-            <Text style={styles.infoValue}>Tap Water</Text>
+            <Text style={styles.infoValue}>Water Tap</Text>
           </View>
           {/* <View style={styles.infoItem}>
             <Text style={styles.infoLabel}>Property Address</Text>
@@ -848,6 +851,26 @@ const WaterQualityReportPDF = ({ reportData }) => {
   </View>
 )}
 
+{/* Add General Parameters Table here */}
+{generalParameters && generalParameters.length > 0 && (
+  <View break={generalParameters.length > 15}>
+    <Text style={styles.subsectionTitle}>General Parameter Results</Text>
+    <PDFTable
+      headers={['Parameter', 'Result']}
+      data={generalParameters}
+      keyMapping={[
+        'parameter_name',
+        (row) => {
+          const result = formatLabResult(row);
+          const unit = row.result_units || row.parameter_unit || '';
+          return unit ? `${result} ${unit}` : result;
+        }
+      ]}
+      showExceeded={false}
+      tableType="general"
+    />
+  </View>
+)}
 
   <Text style={styles.pageNumber} render={({ pageNumber }) => `Page ${pageNumber}`} fixed />
 </Page>

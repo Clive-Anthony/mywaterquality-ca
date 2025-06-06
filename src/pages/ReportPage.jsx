@@ -153,7 +153,7 @@ export default function ReportPage() {
       const { data, error } = await supabase
         .from('vw_test_results_with_parameters')
         .select('*')
-        .eq('sample_number', '2147059')
+        .eq('sample_number', '2131422')
         .order('parameter_name');
 
       if (error) throw error;
@@ -256,6 +256,10 @@ export default function ReportPage() {
         overall_compliance_status: row.compliance_status, // Keep track of overall compliance
         parameter_category: 'ao'
       }));
+
+      const generalParameters = rawData.filter(row => 
+        row.parameter_type === 'GENERAL'
+      );
   
     const bacteriological = rawData.filter(row => 
       row.parameter_name?.toLowerCase().includes('coliform') ||
@@ -305,6 +309,7 @@ export default function ReportPage() {
       sampleInfo,
       healthParameters,
       aoParameters,
+      generalParameters,
       bacteriological,
       healthConcerns,
       aoConcerns,
@@ -417,7 +422,7 @@ export default function ReportPage() {
     );
   }
 
-  const { sampleInfo, healthParameters, aoParameters, bacteriological, healthConcerns, aoConcerns, healthCWQI, aoCWQI } = reportData;
+  const { sampleInfo, healthParameters, aoParameters, generalParameters,bacteriological, healthConcerns, aoConcerns, healthCWQI, aoCWQI } = reportData;
 
   return (
     <PageLayout>
