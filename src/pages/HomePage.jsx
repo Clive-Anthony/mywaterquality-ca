@@ -18,7 +18,7 @@ export default function HomePage() {
               <div className="relative">
                 <img
                   src="/images/MWQ_Home_Hero.jpg"
-                  alt="MyWaterQuality.ca - Professional Water Testing"
+                  alt="My Water Quality - Professional Drinking Water Testing"
                   className="w-full h-auto rounded-lg shadow-2xl"
                 />
               </div>
@@ -27,10 +27,10 @@ export default function HomePage() {
             {/* Hero Content - Right side */}
             <div className="order-1 lg:order-2 text-center lg:text-left">
               <h1 className="text-4xl font-bold text-white sm:text-5xl lg:text-6xl">
-                Can You Trust Your Drinking Water?
+                Curious about what is in your drinking water?
               </h1>
               <p className="mt-6 text-xl text-blue-100 lg:max-w-none">
-                We can tell you! My Water Quality provides comprehensive water testing results in an understandable report card format that gives you the knowledge to make informed decisions about the safety of drinking water.
+                We can tell you! My Water Quality provides comprehensive drinking water testing results in an understandable report card format that gives you the knowledge to make informed decisions about the safety of drinking water.
               </p>
               <div className="mt-10 flex flex-col sm:flex-row justify-center lg:justify-start space-y-4 sm:space-y-0 sm:space-x-4">
                 <Link
@@ -50,10 +50,10 @@ export default function HomePage() {
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
           <div className="text-center">
             <h2 className="text-3xl font-bold text-gray-900 sm:text-4xl">
-              Why Choose MyWaterQuality?
+              Why Choose My Water Quality?
             </h2>
             <p className="mt-4 text-lg text-gray-600">
-              Professional water testing made simple and accessible for everyone
+              Professional drinking water testing made simple and accessible for everyone
             </p>
           </div>
 
@@ -69,7 +69,7 @@ export default function HomePage() {
               </div>
               <h3 className="mt-4 text-lg font-medium text-gray-900">Comprehensive Testing</h3>
               <p className="mt-2 text-gray-600">
-                Test for over 100 contaminants including bacteria, heavy metals, pesticides, and more.
+                Test for natural and man-made contaminants including bacteria, heavy metals, pesticides, and more.
               </p>
             </div>
 
@@ -168,7 +168,7 @@ export default function HomePage() {
             Ready to Test Your Water?
           </h2>
           <p className="mt-4 text-xl text-blue-100">
-            Join thousands of Canadians who trust MyWaterQuality for their water testing needs.
+            Join thousands of Canadians who trust My Water Quality for their water testing needs.
           </p>
           <div className="mt-8 flex flex-col sm:flex-row gap-4 justify-center">
             <Link
@@ -197,7 +197,7 @@ export default function HomePage() {
                 Why Should I Sample My Water?
               </h2>
               <p className="text-lg text-gray-600 mb-8 leading-relaxed">
-                Testing the quality of your well water on a regular basis is an important part of maintaining a safe and reliable source. This will help ensure that the water source is being properly protected from potential contamination.
+                Testing the quality of your drinking water on a regular basis is an important part of maintaining a safe and reliable source. This will help ensure that the water source is being properly protected from potential contamination.
               </p>
               <Link
                 to="/process"
@@ -216,7 +216,7 @@ export default function HomePage() {
                 <div className="aspect-w-16 aspect-h-9">
                   <iframe
                     src="https://www.youtube.com/embed/wuNShId7NGE"
-                    title="Why Should I Sample My Water - MyWaterQuality.ca"
+                    title="Why Should I Sample My Water - My Water Quality"
                     frameBorder="0"
                     allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture; web-share"
                     allowFullScreen

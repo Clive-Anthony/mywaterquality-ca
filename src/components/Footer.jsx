@@ -7,10 +7,10 @@ export default function Footer() {
       <div className="max-w-7xl mx-auto py-12 px-4 sm:px-6 lg:px-8">
         <div className="grid grid-cols-1 md:grid-cols-4 gap-8">
           <div className="col-span-1 md:col-span-2">
-            <h3 className="text-lg font-bold text-white mb-4">MyWaterQuality</h3>
+            <h3 className="text-lg font-bold text-white mb-4">My Water Quality</h3>
             <p className="text-gray-300 mb-4">
-              Professional water testing services for Canadian homes and businesses. 
-              Get the knowledge you need to make informed decisions about your water quality.
+              Professional drinking water testing services for Canadian homes and businesses. 
+              Get the knowledge you need to make informed decisions about your drinking water quality.
             </p>
           </div>
           
@@ -37,7 +37,7 @@ export default function Footer() {
         <div className="mt-8 pt-8 border-t border-gray-700">
           <div className="flex flex-col md:flex-row justify-between items-center">
             <p className="text-center text-gray-300 mb-4 md:mb-0">
-              © 2025 MyWaterQuality.ca. All rights reserved.
+              © 2025 My Water Quality. All rights reserved.
             </p>
             
             {/* Quick Contact Info */}

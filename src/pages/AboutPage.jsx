@@ -8,10 +8,10 @@ export default function AboutPage() {
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
         <div className="text-center">
           <h1 className="text-4xl font-bold text-white sm:text-5xl">
-            About MyWaterQuality
+            About My Water Quality
           </h1>
           <p className="mt-4 text-xl text-blue-100 max-w-3xl mx-auto">
-            Meet our founder and learn about our mission to make water testing accessible to all Canadians
+            Meet our founder and learn about our mission to make drinking water testing accessible to all Canadians
           </p>
         </div>
       </div>
@@ -89,7 +89,7 @@ export default function AboutPage() {
                     </p>
                     
                     <p className="text-gray-700 text-lg leading-relaxed mb-6">
-                      Over the years I have seen an increase in rural and city homeowners looking to learn more about the quality of their water supply. To do this, they are retaining experts, like myself, to complete the testing and to provide an explanation of the results in a detailed hydrogeological report.
+                      Over the years I have seen an increase in rural and city homeowners looking to learn more about the quality of their drinking water supply. To do this, they are retaining experts, like myself, to complete the testing and to provide an explanation of the results in a detailed hydrogeological report.
                     </p>
                     
                     <p className="text-gray-700 text-lg leading-relaxed mb-8">

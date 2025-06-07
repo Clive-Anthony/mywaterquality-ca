@@ -9,10 +9,10 @@ export default function ProcessPage() {
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
         <div className="text-center">
           <h1 className="text-4xl font-bold text-white sm:text-5xl">
-            MyWaterQuality Process
+            My Water Quality Process
           </h1>
           <p className="mt-4 text-xl text-blue-100 max-w-3xl mx-auto">
-            Understanding how we test your water and grade your results
+            Understanding how we test your drinking water and grade your results
           </p>
         </div>
       </div>
@@ -23,23 +23,23 @@ export default function ProcessPage() {
     {
       number: 1,
       title: "Create a User Account",
-      content: "Get started by creating your MyWaterQuality account to access our testing services and track your results.",
+      content: "Get started by creating your My Water Quality account to access our testing services and track your results.",
       hasButton: true
     },
     {
       number: 2,
-      title: "Select Your Water Quality Package",
-      content: "Complete our wizard to select the appropriate water quality package OR manually select the appropriate water quality package that suits your needs."
+      title: "Select Your Drinking Water Quality Test Kit",
+      content: "Complete our wizard to select the appropriate drinking water test kit OR manually select the appropriate drinking water test kit that suits your needs."
     },
     {
       number: 3,
       title: "Complete Check-out",
-      content: "Purchase your desired water quality package. Look for a confirmation email with details on the water quality package ordered and sampling instructions."
+      content: "Purchase your desired drinking water test kit. Look for a confirmation email with details on the drinking water test kit ordered and sampling instructions."
     },
     {
       number: 4,
       title: "Receive Your Testing Kit",
-      content: "Your water quality package (testing kit and cooler) will arrive by Purolator within 3-5 days."
+      content: "Your drinking water test kit will arrive by courier within 3-5 days."
     },
     {
       number: 5,
@@ -48,13 +48,18 @@ export default function ProcessPage() {
     },
     {
       number: 6,
-      title: "Collect Your Water Sample",
-      content: "Following the instructions, collect the water sample. Pack water bottles back into the cooler with the ice pack provided. Seal the cooler with tape provided and stick the return Purolator slip on the cooler for shipping. Arrange for Purolator to pick up the water quality package on the day the sample was taken."
+      title: "Collect Your Drinking Water Sample",
+      content: "The day before the drinking water sample is collected, put the foam lid from the drinking water test kit into the freezer, which contains an ice-pack, \
+      and arrange with the courier service to pick up sample the follow day. The following day, collect the water \
+      sample, pack water bottles back into the drinking water test kit and replace lid from freezer. Place the drinking water test kit in \
+      the shipping bag with the return coureri label provided and leave for courier to pick up."
     },
     {
       number: 7,
       title: "Receive Your Results",
-      content: "You will receive an email confirming that your sample has been received at the laboratory for analysis within 20 days, and you will receive a follow-up email to notify you that your results and report card are available by logging into your User Account."
+      content: "You will receive an email confirming that your sample has been received at the laboratory for analysis, and you will receive a \
+      follow-up email that will contain your drinking water quality results which will be in the form of a Report Card. Your results will \
+      also be saved and accessible by logging into your User Account."
     }
   ];
 
@@ -75,7 +80,7 @@ export default function ProcessPage() {
           <div className="bg-white rounded-lg shadow-lg overflow-hidden">
             <div className="bg-blue-50 px-8 py-6 border-b border-blue-100">
               <h2 className="text-3xl font-bold text-gray-900 text-center">
-                Water Ordering, Sampling & Reporting Process
+                Drinking Water Test Kit Ordering, Sampling & Reporting Process
               </h2>
               <p className="mt-2 text-lg text-gray-600 text-center">
                 There are only 7 simple steps
@@ -127,7 +132,7 @@ export default function ProcessPage() {
           <div className="bg-white rounded-lg shadow-lg overflow-hidden">
             <div className="bg-blue-50 px-8 py-6 border-b border-blue-100">
               <h2 className="text-3xl font-bold text-gray-900 text-center">
-                How We Grade Your Water Supply Source
+                How We Grade Your Drinking Water Supply Source
               </h2>
             </div>
             
@@ -196,10 +201,10 @@ export default function ProcessPage() {
         {/* Call to Action */}
         <div className="mt-16 bg-blue-600 rounded-lg p-8 text-center">
           <h2 className="text-2xl font-bold text-white sm:text-3xl mb-4">
-            Ready to Test Your Water Quality?
+            Ready to Test Your Drinking Water Quality?
           </h2>
           <p className="text-xl text-blue-100 mb-6 max-w-3xl mx-auto">
-            Join thousands of Canadians who trust MyWaterQuality for their water testing needs. 
+            Join thousands of Canadians who trust My Water Quality for their drinking water testing needs. 
             Get started today and receive your comprehensive water quality report.
           </p>
           <div className="flex flex-col sm:flex-row gap-4 justify-center">
@@ -213,7 +218,7 @@ export default function ProcessPage() {
               to="/test-kits"
               className="inline-flex items-center px-8 py-3 border border-white text-base font-medium rounded-md text-white bg-transparent hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-white transition-colors duration-200"
             >
-              View Test Kits
+              View Drinking Water Test Kits
             </Link>
           </div>
         </div>

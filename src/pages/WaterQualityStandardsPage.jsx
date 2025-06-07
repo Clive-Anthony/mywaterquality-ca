@@ -63,7 +63,7 @@ export default function WaterQualityStandardsPage() {
                   </svg>
                   <div>
                     <h3 className="text-lg font-semibold text-green-900 mb-2">
-                      MyWaterQuality's Commitment
+                      My Water Quality's Commitment
                     </h3>
                     <p className="text-green-800 text-sm leading-relaxed">
                       We apply the most stringent standards to ensure your water quality assessment 
@@ -111,7 +111,6 @@ export default function WaterQualityStandardsPage() {
                       <li>• Naturally occurring minerals (iron, manganese)</li>
                       <li>• Bacteria and microorganisms</li>
                       <li>• Heavy metals from geological sources</li>
-                      <li>• Radon and other naturally occurring radioactive elements</li>
                       <li>• Dissolved solids and salts</li>
                     </ul>
                   </div>
@@ -143,7 +142,7 @@ export default function WaterQualityStandardsPage() {
           <div className="bg-gradient-to-r from-blue-600 to-blue-700 rounded-lg shadow-lg text-white p-8">
             <div className="text-center">
               <h2 className="text-2xl font-bold mb-4">
-                Why Regular Water Testing Matters
+                Why Regular Drinking Water Testing Matters
               </h2>
               <p className="text-blue-100 mb-6 max-w-3xl mx-auto">
                 Understanding these standards and potential contaminants is the first step toward 
@@ -183,7 +182,7 @@ export default function WaterQualityStandardsPage() {
                     <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M12 6.253v13m0-13C10.832 5.477 9.246 5 7.5 5S4.168 5.477 3 6.253v13C4.168 18.477 5.754 18 7.5 18s3.332.477 4.5 1.253m0-13C13.168 5.477 14.754 5 16.5 5c1.747 0 3.332.477 4.5 1.253v13C19.832 18.477 18.247 18 16.5 18c-1.746 0-3.332.477-4.5 1.253" />
                   </svg>
                   <h3 className="font-semibold text-gray-900 mb-2">Sampling Guide</h3>
-                  <p className="text-gray-600 text-sm mb-4">Learn proper water sampling techniques</p>
+                  <p className="text-gray-600 text-sm mb-4">Learn proper drinking water sampling techniques</p>
                   <a href="/sampling-instructions" className="text-blue-600 hover:text-blue-800 text-sm font-medium">
                     View Guide →
                   </a>
@@ -196,7 +195,7 @@ export default function WaterQualityStandardsPage() {
                     <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M8.228 9c.549-1.165 2.03-2 3.772-2 2.21 0 4 1.343 4 3 0 1.4-1.278 2.575-3.006 2.907-.542.104-.994.54-.994 1.093m0 3h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
                   </svg>
                   <h3 className="font-semibold text-gray-900 mb-2">FAQ</h3>
-                  <p className="text-gray-600 text-sm mb-4">Common questions about water testing</p>
+                  <p className="text-gray-600 text-sm mb-4">Common questions about drinking water testing</p>
                   <a href="/faq" className="text-blue-600 hover:text-blue-800 text-sm font-medium">
                     Read FAQ →
                   </a>
@@ -209,7 +208,7 @@ export default function WaterQualityStandardsPage() {
                     <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
                   </svg>
                   <h3 className="font-semibold text-gray-900 mb-2">Our Process</h3>
-                  <p className="text-gray-600 text-sm mb-4">How MyWaterQuality testing works</p>
+                  <p className="text-gray-600 text-sm mb-4">How My Water Quality drinking water testing works</p>
                   <a href="/process" className="text-blue-600 hover:text-blue-800 text-sm font-medium">
                     Learn More →
                   </a>
