@@ -80,33 +80,33 @@ function CWQIVisualization({ cwqi, title }) {
         </div>
       </div>
 
-      {/* CCME Components Breakdown */}
-        <div className="mb-4 bg-gray-50 rounded-lg p-4">
-        <h5 className="text-sm font-semibold text-gray-700 mb-3">CCME WQI Components (Modified for Single Sample)</h5>
-        <div className="grid grid-cols-3 gap-4 text-xs">
-            <div className="text-center">
-            <div className="font-semibold text-gray-900">F1: {components?.F1?.toFixed(1) || 'N/A'}</div>
-            <div className="text-gray-600">Scope</div>
-            <div className="text-green-600 font-medium">✓ Used</div>
-            </div>
-            <div className="text-center opacity-60">
-            <div className="font-semibold text-gray-500">F2: {components?.F2?.toFixed(1) || 'N/A'}</div>
-            <div className="text-gray-500">Frequency</div>
-            <div className="text-gray-400 text-xs">Not used*</div>
-            </div>
-            <div className="text-center">
-            <div className="font-semibold text-gray-900">F3: {components?.F3?.toFixed(1) || 'N/A'}</div>
-            <div className="text-gray-600">Amplitude</div>
-            <div className="text-green-600 font-medium">✓ Used</div>
-            </div>
+    {/* CCME Components Breakdown */}
+    <div className="mb-4 bg-gray-50 rounded-lg p-4">
+    <h5 className="text-sm font-semibold text-gray-700 mb-3">CCME WQI Components (Standard Three-Factor Formula)</h5>
+    <div className="grid grid-cols-3 gap-4 text-xs">
+        <div className="text-center">
+        <div className="font-semibold text-gray-900">F1: {components?.F1?.toFixed(1) || 'N/A'}</div>
+        <div className="text-gray-600">Scope</div>
+        <div className="text-green-600 font-medium">✓ Used</div>
         </div>
-        <div className="mt-2 text-xs text-gray-500 text-center">
-            Formula: 100 - (√(F1² + F3²) / √2)
+        <div className="text-center">
+        <div className="font-semibold text-gray-900">F2: {components?.F2?.toFixed(1) || 'N/A'}</div>
+        <div className="text-gray-600">Frequency</div>
+        <div className="text-green-600 font-medium">✓ Used</div>
         </div>
-        <div className="mt-1 text-xs text-gray-400 text-center">
-            *F2 = F1 for single samples, so only F1 is used to avoid double-weighting
+        <div className="text-center">
+        <div className="font-semibold text-gray-900">F3: {components?.F3?.toFixed(3) || 'N/A'}</div>
+        <div className="text-gray-600">Amplitude</div>
+        <div className="text-green-600 font-medium">✓ Used</div>
         </div>
-        </div>
+    </div>
+    <div className="mt-2 text-xs text-gray-500 text-center">
+        Formula: 100 - √((F1² + F2² + F3²) / 1.732)
+    </div>
+    <div className="mt-1 text-xs text-gray-400 text-center">
+        Standard CCME three-factor formula using all components
+    </div>
+    </div>
 
       {/* Test Results Summary */}
       <div className="text-center">
@@ -153,7 +153,7 @@ export default function ReportPage() {
       const { data, error } = await supabase
         .from('vw_test_results_with_parameters')
         .select('*')
-        .eq('sample_number', '2131422')
+        .eq('sample_number', '2147059')
         .order('parameter_name');
 
       if (error) throw error;

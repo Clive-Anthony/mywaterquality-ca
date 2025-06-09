@@ -1,8 +1,8 @@
-// Correct CCME Water Quality Index Calculation
-// Based on official CCME documentation: https://ccme.ca/en/res/wqimanualen.pdf
+// Updated CCME Water Quality Index Calculation
+// Based on official CCME documentation and provided example
 
 /**
- * Calculate the proper CCME Water Quality Index (CWQI)
+ * Calculate the CCME Water Quality Index (CWQI) using the standard three-factor formula
  */
 const calculateCCMEWQI = (parameters) => {
     if (!parameters || parameters.length === 0) return null;
@@ -28,8 +28,6 @@ const calculateCCMEWQI = (parameters) => {
           isFailed = true;
         } else if (param.compliance_status === 'AO_RANGE_VALUE') {
           // For range values, check if the overall compliance is WARNING
-          // We need to access the original raw data to check overall compliance
-          // This assumes the original data is available in the parameter object
           isFailed = param.overall_compliance_status === 'WARNING';
         }
       } else {
@@ -49,21 +47,22 @@ const calculateCCMEWQI = (parameters) => {
       }
     });
   
-    // Rest of the function remains the same...
-  
+    // Calculate the three CWQI factors using standard formula
     const F1 = (failedParameterNames.size / totalParameters) * 100;
     const F2 = (failedTests.length / totalTests) * 100;
     
     let F3 = 0;
     if (allExcursions.length > 0) {
       const sumExcursions = allExcursions.reduce((sum, exc) => sum + exc, 0);
-      const nse = sumExcursions / totalTests;
-      F3 = (nse / (0.01 + nse)) * 100;
+      // CORRECTED: Divide by number of failed tests, not total tests
+      const nse = sumExcursions / failedTests.length;
+      // CORRECTED: Don't multiply by 100 for F3
+      F3 = nse / (0.01 * nse + 1);
     }
   
-    const vectorSum = Math.sqrt(F1 * F1 + F3 * F3);
-    const cwqiScore = 100 - (vectorSum / Math.sqrt(2));
-    const finalScore = Math.max(0, Math.min(100, Math.round(cwqiScore)));
+    // CORRECTED: Use standard three-factor formula
+    const cwqiScore = 100 - Math.sqrt((F1 * F1 + F2 * F2 + F3 * F3) / 1.732);
+    const finalScore = Math.max(0, Math.min(100, Math.round(cwqiScore * 10) / 10)); // Round to 1 decimal place
     
     const rating = getCWQIRating(finalScore);
   
@@ -74,16 +73,17 @@ const calculateCCMEWQI = (parameters) => {
       components: {
         F1: Math.round(F1 * 10) / 10,
         F2: Math.round(F2 * 10) / 10,
-        F3: Math.round(F3 * 10) / 10
+        F3: Math.round(F3 * 1000) / 1000 // More precision for F3 since it's not multiplied by 100
       },
       totalTests,
       failedTests: failedTests.length,
       totalParameters,
-      Methodology:'Modified two-component formula for single samples (F1 + F3 only)',
       failedParameters: failedParameterNames.size,
+      methodology: 'Standard three-factor CCME WQI formula (F1 + F2 + F3)',
       details: {
         failedParameterNames: Array.from(failedParameterNames),
-        excursions: allExcursions
+        excursions: allExcursions,
+        nse: allExcursions.length > 0 ? allExcursions.reduce((sum, exc) => sum + exc, 0) / failedTests.length : 0
       }
     };
   };
@@ -236,14 +236,18 @@ const calculateCCMEWQI = (parameters) => {
     }
   
     if (debug) {
-      console.log('CCME WQI Calculation Debug (Modified for Single Sample):', {
+      console.log('CCME WQI Calculation Debug (Standard Three-Factor Formula):', {
         totalParameters: result.totalParameters,
         totalTests: result.totalTests,
+        failedParameters: result.failedParameters,
+        failedTests: result.failedTests,
         F1: result.components.F1,
         F2: result.components.F2,
         F3: result.components.F3,
+        nse: result.details.nse,
         finalScore: result.score,
-        failedParameters: result.details.failedParameterNames
+        excursions: result.details.excursions,
+        failedParameterNames: result.details.failedParameterNames
       });
     }
   

@@ -631,7 +631,7 @@ const WaterQualityReportPDF = ({ reportData }) => {
             Supporting Water First's Drinking Water Internship
             </Text>
             <Text style={styles.waterFirstText}>
-            $5 of every water quality package purchased through mywaterquality.ca will go to Water First.
+            $5 of every water quality package purchased through My Water Quality will go to Water First.
             </Text>
         </View>
         <Image 
@@ -936,9 +936,9 @@ const WaterQualityReportPDF = ({ reportData }) => {
                 • Scope: The number of parameters that do not meet their designated objectives.
             </Text>
             
-            {/* <Text style={styles.cwqiInfoList}>
+            <Text style={styles.cwqiInfoList}>
                 • Frequency: The proportion of water samples that fail to meet these objectives.
-            </Text> */}
+            </Text>
             
             <Text style={styles.cwqiInfoList}>
                 • Amplitude: The degree to which each failed parameter exceeds its objective.
