@@ -36,8 +36,8 @@ page: {
   sectionTitle: {
     fontSize: 14,
     fontWeight: 'bold',
-    marginTop: 20,
-    marginBottom: 10,
+    marginTop: 15,
+    marginBottom: 8,
     backgroundColor: '#2563EB',
     color: 'white',
     padding: 10,
@@ -50,28 +50,6 @@ page: {
     marginTop: 15,
     marginBottom: 8,
     color: '#374151',
-  },
-  infoGrid: {
-    flexDirection: 'row',
-    flexWrap: 'wrap',
-    marginBottom: 15,
-  },
-  infoItem: {
-    width: '50%',
-    marginBottom: 10,
-    paddingRight: 10,
-  },
-  infoLabel: {
-    fontSize: 8,
-    color: '#6B7280',
-    textTransform: 'uppercase',
-    fontWeight: 'bold',
-  },
-  infoValue: {
-    fontSize: 11,
-    fontWeight: 'bold',
-    color: '#1F2937',
-    marginTop: 2,
   },
 logoImage: {
     height: 40,
@@ -89,7 +67,8 @@ logoImage: {
     border: '2 solid #2563EB',
     borderRadius: 5,
     padding: 12,
-    marginBottom: 20,
+    marginBottom: 15,
+    marginTop: 10,
   },
   waterFirstContent: {
     flex: 1,
@@ -390,7 +369,395 @@ alertBoxPlain: {
     lineHeight: 1.6,
     marginBottom: 15,
   },
+  sampleInfoContainer: {
+    flexDirection: 'row',
+    marginBottom: 15,
+    gap: 15,
+  },
+  
+  sampleInfoTableLeft: {
+    width: '65%', // 2/3 of container
+    border: '1 solid #E5E7EB',
+    borderRadius: 5,
+  },
+  
+  sampleInfoTableRight: {
+    width: '30%', // 1/3 of container
+    border: '1 solid #E5E7EB',
+    borderRadius: 5,
+  },
+  
+  tableRowSample: {
+    flexDirection: 'row',
+    borderBottom: '1 solid #E5E7EB',
+    paddingVertical: 8,
+    paddingHorizontal: 8,
+  },
+  
+  tableRowSampleLast: {
+    flexDirection: 'row',
+    paddingVertical: 8,
+    paddingHorizontal: 8,
+  },
+  
+  tableCellSampleLabel: {
+    width: '45%',
+    fontSize: 9,
+    fontWeight: 'bold',
+    color: '#374151',
+    paddingRight: 8,
+  },
+  
+  tableCellSampleValue: {
+    width: '55%',
+    fontSize: 10,
+    color: '#1F2937',
+  },
+  
+  tableCellDateLabel: {
+    width: '50%',
+    fontSize: 9,
+    fontWeight: 'bold',
+    color: '#374151',
+    paddingRight: 4,
+  },
+  
+  tableCellDateValue: {
+    width: '50%',
+    fontSize: 9,
+    color: '#1F2937',
+  },
+  summaryCardsContainer: {
+    flexDirection: 'row',
+    marginBottom: 20,
+    gap: 10,
+  },
+  
+  summaryCard: {
+    flex: 1,
+    backgroundColor: '#F9FAFB',
+    border: '1 solid #E5E7EB',
+    borderRadius: 8,
+    padding: 12,
+    textAlign: 'center',
+  },
+  
+  summaryCardTitle: {
+    fontSize: 10,
+    fontWeight: 'bold',
+    color: '#374151',
+    marginBottom: 8,
+    textAlign: 'center',
+  },
+  
+  summaryCardNumber: {
+    fontSize: 24,
+    fontWeight: 'bold',
+    textAlign: 'center',
+    marginBottom: 4,
+  },
+  
+  summaryCardText: {
+    fontSize: 10,
+    textAlign: 'center',
+    color: '#6B7280',
+  },
+  
+  summaryCardNumberGreen: {
+    fontSize: 24,
+    fontWeight: 'bold',
+    textAlign: 'center',
+    marginBottom: 4,
+    color: '#059669',
+  },
+  
+  summaryCardNumberRed: {
+    fontSize: 24,
+    fontWeight: 'bold',
+    textAlign: 'center',
+    marginBottom: 4,
+    color: '#DC2626',
+  },
+  
+  summaryCardTextGreen: {
+    fontSize: 10,
+    textAlign: 'center',
+    color: '#059669',
+  },
+  
+  summaryCardTextRed: {
+    fontSize: 10,
+    textAlign: 'center',
+    color: '#DC2626',
+  },
+  parametersContainer: {
+    flexDirection: 'row',
+    marginBottom: 20,
+    gap: 15,
+    minHeight: 180,
+  },
+  
+  parameterCwqiSection: {
+    width: '38%', // 2/5 of container
+    marginRight: 10,
+  },
+  
+  parameterTextSection: {
+    width: '57%', // 3/5 of container
+    backgroundColor: '#F9FAFB',
+    border: '1 solid #E5E7EB',
+    borderRadius: 8,
+    padding: 12,
+    justifyContent: 'flex-start',
+  },
+  
+  qualityStatement: {
+    fontSize: 11,
+    color: '#1F2937',
+    marginBottom: 12,
+    lineHeight: 1.4,
+  },
+  
+  qualityLevel: {
+    fontWeight: 'bold',
+  },
+  
+  parametersList: {
+    marginTop: 8,
+  },
+  
+  parametersListTitle: {
+    fontSize: 10,
+    fontWeight: 'bold',
+    color: '#374151',
+    marginBottom: 6,
+  },
+  
+  parametersListItem: {
+    fontSize: 10,
+    marginBottom: 3,
+  },
+  
+  parametersListItemHealth: {
+    fontSize: 10,
+    color: '#DC2626',
+    marginBottom: 3,
+  },
+  
+  parametersListItemAO: {
+    fontSize: 10,
+    color: '#F59E0B',
+    marginBottom: 3,
+  },
+  
+  recommendationsSection: {
+    marginBottom: 20,
+  },
+  
+  recommendationsHeaderHealth: {
+    fontSize: 12,
+    fontWeight: 'bold',
+    color: '#DC2626',
+    marginBottom: 8,
+    backgroundColor: '#FEF2F2',
+    padding: 8,
+    borderRadius: 4,
+    border: '1 solid #FECACA',
+  },
+  
+  recommendationsHeaderAO: {
+    fontSize: 12,
+    fontWeight: 'bold',
+    color: '#F59E0B',
+    marginBottom: 8,
+    backgroundColor: '#FFFBEB',
+    padding: 8,
+    borderRadius: 4,
+    border: '1 solid #FED7AA',
+  },
+  
+  recommendationsHeaderGreen: {
+    fontSize: 12,
+    fontWeight: 'bold',
+    color: '#059669',
+    marginBottom: 8,
+    backgroundColor: '#F0FDF4',
+    padding: 8,
+    borderRadius: 4,
+    border: '1 solid #BBF7D0',
+  },
+  
+  recommendationsText: {
+    fontSize: 10,
+    color: '#374151',
+    lineHeight: 1.4,
+    marginBottom: 12,
+  },
 });
+
+// Generic Parameters Section Component
+const ParametersSection = ({ cwqi, concerns, type, title }) => {
+    if (!cwqi) return null;
+  
+    const getQualityDescription = (rating) => {
+      switch (rating) {
+        case 'Excellent':
+          return 'water quality is protected with a virtual absence of threat or impairment; conditions are very close to natural or pristine levels.';
+        case 'Very Good':
+          return 'water quality is protected with a slight presence of impairment. Conditions are close to pristine levels.';
+        case 'Good':
+          return 'water quality is protected with only a minor degree of threat or impairment; conditions rarely depart from natural or desirable levels.';
+        case 'Fair':
+          return 'water quality is usually protected but occasionally threatened or impaired; conditions sometimes depart from natural or desirable levels.';
+        case 'Marginal':
+          return 'water quality is frequently threatened or impaired; conditions often depart from natural or desirable levels.';
+        case 'Poor':
+          return 'water quality is almost always threatened or impaired; conditions usually depart from natural or desirable levels.';
+        default:
+          return 'the water quality assessment is based on Canadian Water Quality Index standards.';
+      }
+    };
+  
+    const hasConcerns = concerns.length > 0;
+    const isHealthType = type === 'health';
+  
+    return (
+      <View>
+        {/* Parameters Layout */}
+        <View style={styles.parametersContainer}>
+          {/* CWQI Score Card - Left Side (2/5) */}
+          <View style={styles.parameterCwqiSection}>
+            <CWQIComponent cwqi={cwqi} title={title} />
+          </View>
+  
+          {/* Text Section - Right Side (3/5) */}
+          <View style={styles.parameterTextSection}>
+            <Text style={styles.qualityStatement}>
+              <Text style={styles.qualityLevel}>With health-related parameters, your water quality is {cwqi.rating}</Text>
+              <Text>, this means that {getQualityDescription(cwqi.rating)}</Text>
+            </Text>
+  
+            {hasConcerns && (
+              <View style={styles.parametersList}>
+                <Text style={styles.parametersListTitle}>
+                  Parameters over the limit ({concerns.length}):
+                </Text>
+                {concerns.map((param, index) => (
+                  <Text 
+                    key={index} 
+                    style={isHealthType ? styles.parametersListItemHealth : styles.parametersListItemAO}
+                  >
+                    • {param.parameter_name}
+                  </Text>
+                ))}
+              </View>
+            )}
+  
+            {!hasConcerns && (
+              <Text style={[styles.qualityStatement, { color: '#059669', marginTop: 8 }]}>
+                All {isHealthType ? 'health-related' : 'aesthetic and operational'} parameters are within acceptable limits.
+              </Text>
+            )}
+          </View>
+        </View>
+      </View>
+    );
+  };
+
+  // Generic Recommendations Section Component
+const RecommendationsSection = ({ concerns, type }) => {
+    const hasConcerns = concerns.length > 0;
+    const isHealthType = type === 'health';
+  
+    const getRecommendationsConfig = () => {
+      if (!hasConcerns) {
+        return {
+          headerStyle: styles.recommendationsHeaderGreen,
+          headerText: 'Recommendations: Continue Monitoring',
+          bodyText: `Your ${isHealthType ? 'health-related' : 'aesthetic and operational'} parameters are within acceptable limits. Continue regular testing to maintain water quality and monitor for any changes.`
+        };
+      }
+  
+      if (isHealthType) {
+        return {
+          headerStyle: styles.recommendationsHeaderHealth,
+          headerText: 'Recommendations: Actions Needed',
+          bodyText: 'The following health-related parameters exceed safe limits. We strongly recommend consulting with a water treatment professional and retesting after any treatment is installed.'
+        };
+      } else {
+        return {
+          headerStyle: styles.recommendationsHeaderAO,
+          headerText: 'Recommendations: Consider Treatment',
+          bodyText: 'Some aesthetic or operational parameters exceed recommended limits. While not necessarily health concerns, these may affect taste, odor, or water system performance. Consider treatment options to improve water quality.'
+        };
+      }
+    };
+  
+    const config = getRecommendationsConfig();
+  
+    return (
+      <View style={styles.recommendationsSection}>
+        <Text style={config.headerStyle}>
+          {config.headerText}
+        </Text>
+        <Text style={styles.recommendationsText}>
+          {config.bodyText}
+        </Text>
+      </View>
+    );
+  };
+
+// Summary Cards Component
+const SummaryCards = ({ bacteriological, healthConcerns, aoConcerns }) => {
+    // Check if any bacteriological parameters exceed limits
+    const bacteriologicalExceeded = bacteriological.some(param => {
+      if (param.parameter_category === 'health') {
+        return param.compliance_status === 'EXCEEDS_MAC';
+      } else if (param.parameter_category === 'ao') {
+        return param.compliance_status === 'EXCEEDS_AO' || 
+               (param.compliance_status === 'AO_RANGE_VALUE' && param.overall_compliance_status === 'WARNING');
+      } else {
+        return param.compliance_status === 'FAIL';
+      }
+    });
+  
+    const healthConcernsCount = healthConcerns.length;
+    const aoConcernsCount = aoConcerns.length;
+  
+    return (
+      <View style={styles.summaryCardsContainer}>
+        {/* Bacteriological Results Card */}
+        <View style={styles.summaryCard}>
+          <Text style={styles.summaryCardTitle}>Bacteriological Results</Text>
+          <Text style={bacteriologicalExceeded ? styles.summaryCardTextRed : styles.summaryCardTextGreen}>
+            {bacteriologicalExceeded ? 'Coliforms present' : 'No coliforms present'}
+          </Text>
+        </View>
+  
+        {/* Health-Related Results Card */}
+        <View style={styles.summaryCard}>
+          <Text style={styles.summaryCardTitle}>Health-Related Results</Text>
+          <Text style={healthConcernsCount > 0 ? styles.summaryCardNumberRed : styles.summaryCardNumberGreen}>
+            {healthConcernsCount}
+          </Text>
+          <Text style={healthConcernsCount > 0 ? styles.summaryCardTextRed : styles.summaryCardTextGreen}>
+            concerns present
+          </Text>
+        </View>
+  
+        {/* Aesthetic and Operational Results Card */}
+        <View style={styles.summaryCard}>
+          <Text style={styles.summaryCardTitle}>Aesthetic and Operational Results</Text>
+          <Text style={aoConcernsCount > 0 ? styles.summaryCardNumberRed : styles.summaryCardNumberGreen}>
+            {aoConcernsCount}
+          </Text>
+          <Text style={aoConcernsCount > 0 ? styles.summaryCardTextRed : styles.summaryCardTextGreen}>
+            concerns present
+          </Text>
+        </View>
+      </View>
+    );
+  };
 
 // CWQI Component
 const CWQIComponent = ({ cwqi, title }) => {
@@ -402,6 +769,7 @@ const CWQIComponent = ({ cwqi, title }) => {
       case 'Marginal': return '#F59E0B';
       case 'Good': return '#2563EB';
       case 'Excellent': return '#059669';
+      case 'Very Good': return '#0D9488';
       default: return '#6B7280';
     }
   };
@@ -625,7 +993,7 @@ const WaterQualityReportPDF = ({ reportData }) => {
         </View>
 
         {/* Water First Banner */}
-        <View style={styles.waterFirstBanner}>
+        {/* <View style={styles.waterFirstBanner}>
         <View style={styles.waterFirstContent}>
             <Text style={styles.waterFirstTitle}>
             Supporting Water First's Drinking Water Internship
@@ -638,98 +1006,65 @@ const WaterQualityReportPDF = ({ reportData }) => {
             src="/images/water_first.png" 
             style={styles.waterFirstLogoImage}
         />
-        </View>
+        </View> */}
 
         {/* Sample Information */}
-        <Text style={styles.sectionTitle}>Sample Information</Text>
-        <View style={styles.infoGrid}>
-          <View style={styles.infoItem}>
-            <Text style={styles.infoLabel}>Customer Name</Text>
-            <Text style={styles.infoValue}>John Smith</Text>
-          </View>
-          <View style={styles.infoItem}>
-            <Text style={styles.infoLabel}>Test Kit</Text>
-            <Text style={styles.infoValue}>General Water Test Kit</Text>
-          </View>
-          <View style={styles.infoItem}>
-            <Text style={styles.infoLabel}>Sample Description</Text>
-            <Text style={styles.infoValue}>Water Tap</Text>
-          </View>
-          {/* <View style={styles.infoItem}>
-            <Text style={styles.infoLabel}>Property Address</Text>
-            <Text style={styles.infoValue}>123 Maple Street, Toronto, ON</Text>
-          </View> */}
+        {/* <Text style={styles.sectionTitle}>Sample Information</Text> */}
+        <View style={styles.sampleInfoContainer}>
+        {/* Left Table - Sample Details */}
+        <View style={styles.sampleInfoTableLeft}>
+            <View style={styles.tableRowSample}>
+            <Text style={styles.tableCellSampleLabel}>Location Name</Text>
+            <Text style={styles.tableCellSampleValue}>Kitchen Tap - Main Floor</Text>
+            </View>
+            <View style={styles.tableRowSample}>
+            <Text style={styles.tableCellSampleLabel}>Sample Description</Text>
+            <Text style={styles.tableCellSampleValue}>Residential Well Water</Text>
+            </View>
+            <View style={styles.tableRowSampleLast}>
+            <Text style={styles.tableCellSampleLabel}>Address of Sample</Text>
+            <Text style={styles.tableCellSampleValue}>123 Maple Street, Toronto, ON M5V 3A8</Text>
+            </View>
         </View>
-
-        {/* Testing Timeline */}
-        <Text style={styles.subsectionTitle}>Testing Timeline</Text>
-        <View style={styles.infoGrid}>
-          <View style={styles.infoItem}>
-            <Text style={styles.infoLabel}>Collection Date</Text>
-            <Text style={styles.infoValue}>{formatDate(sampleInfo?.collectionDate)}</Text>
-          </View>
-          <View style={styles.infoItem}>
-            <Text style={styles.infoLabel}>Received Date</Text>
-            <Text style={styles.infoValue}>{formatDate(sampleInfo?.receivedDate)}</Text>
-          </View>
-          <View style={styles.infoItem}>
-            <Text style={styles.infoLabel}>Report Date</Text>
-            <Text style={styles.infoValue}>{formatDate(sampleInfo?.reportDate)}</Text>
-          </View>
+        
+        {/* Right Table - Dates */}
+        <View style={styles.sampleInfoTableRight}>
+            <View style={styles.tableRowSample}>
+            <Text style={styles.tableCellDateLabel}>Collection Date</Text>
+            <Text style={styles.tableCellDateValue}>{formatDate(sampleInfo?.collectionDate)}</Text>
+            </View>
+            <View style={styles.tableRowSample}>
+            <Text style={styles.tableCellDateLabel}>Received Date</Text>
+            <Text style={styles.tableCellDateValue}>{formatDate(sampleInfo?.receivedDate)}</Text>
+            </View>
+            <View style={styles.tableRowSampleLast}>
+            <Text style={styles.tableCellDateLabel}>Report Date</Text>
+            <Text style={styles.tableCellDateValue}>{formatDate(sampleInfo?.reportDate)}</Text>
+            </View>
+        </View>
         </View>
 
         
 
-        {/* CWQI Scores */}
+        {/* Summary of Results with Summary Cards and CWQI Scores */}
         <Text style={styles.sectionTitle}>Summary of Results - CWQI Scores</Text>
+
+        {/* Summary Cards */}
+        <SummaryCards 
+        bacteriological={bacteriological}
+        healthConcerns={healthConcerns}
+        aoConcerns={aoConcerns}
+        />
+
+        {/* CWQI Scores */}
         <View style={styles.cwqiContainer}>
-          {healthCWQI && (
+        {healthCWQI && (
             <CWQIComponent cwqi={healthCWQI} title="Health Related Parameters" />
-          )}
-          {aoCWQI && (
+        )}
+        {aoCWQI && (
             <CWQIComponent cwqi={aoCWQI} title="Aesthetic & Operational Parameters" />
-          )}
+        )}
         </View>
-
-        {/* Health Parameters Summary */}
-            <Text style={styles.subsectionTitle}>Health Related Parameters</Text>
-            <View style={styles.alertBoxPlain}>
-            <Text style={styles.alertTextPlain}>
-                {healthConcerns.length === 0 
-                ? 'All health-related parameters are within acceptable limits' 
-                : `${healthConcerns.length} health-related parameter(s) exceed recommended limits`
-                }
-            </Text>
-            {healthConcerns.length > 0 && (
-                <View style={styles.parameterList}>
-                {healthConcerns.map((param, index) => (
-                    <Text key={index} style={[styles.parameterListItem, { color: '#1F2937' }]}>
-                    • {param.parameter_name}
-                    </Text>
-                ))}
-                </View>
-            )}
-            </View>
-
-            {/* AO Parameters Summary */}
-            <Text style={styles.subsectionTitle}>Aesthetic and Operational Parameters</Text>
-            <View style={styles.alertBoxPlain}>
-            <Text style={styles.alertTextPlain}>
-                {aoConcerns.length === 0 
-                ? 'All aesthetic and operational parameters are within acceptable limits' 
-                : `${aoConcerns.length} aesthetic/operational parameter(s) exceed recommended limits`
-                }
-            </Text>
-            {aoConcerns.length > 0 && (
-                <View style={styles.parameterList}>
-                {aoConcerns.map((param, index) => (
-                    <Text key={index} style={[styles.parameterListItem, { color: '#1F2937' }]}>
-                    • {param.parameter_name}
-                    </Text>
-                ))}
-                </View>
-            )}
-            </View>
 
         {/* Bacteriological Results */}
         {bacteriological.length > 0 && (
@@ -746,21 +1081,21 @@ const WaterQualityReportPDF = ({ reportData }) => {
           </View>
         )}
 
+        {/* Health Parameters Summary - Updated Layout */}
+        <Text style={styles.subsectionTitle}>Health Related Parameters</Text>
+            <ParametersSection 
+            cwqi={healthCWQI} 
+            concerns={healthConcerns}
+            type="health"
+            title="Health Related Parameters"
+            />
+            <RecommendationsSection 
+            concerns={healthConcerns}
+            type="health"
+            />
 
-        {/* Footer */}
-        <Text style={styles.footer}>
-          This report is generated based on laboratory analysis results. For questions about your water quality or treatment options, please consult with a qualified water treatment professional.
-        </Text>
-      </Page>
-
-      {/* Page 2: Parameters of Concern */}
-{(healthConcerns.length > 0 || aoConcerns.length > 0) && (
-  <Page size="A4" style={styles.page}>
-    <Text style={styles.sectionTitle}>Parameters of Concern</Text>
-    
-    {healthConcerns.length > 0 && (
+{healthConcerns.length > 0 && (
       <View>
-        <Text style={styles.subsectionTitle}>Health-Related Parameters of Concern</Text>
         <PDFTable
           headers={['Parameter', 'Health Effect', 'Treatment Options']}
           data={healthConcerns}
@@ -772,11 +1107,23 @@ const WaterQualityReportPDF = ({ reportData }) => {
           tableType="concerns"
         />
       </View>
-    )}
+        )}      
 
-    {aoConcerns.length > 0 && (
+            {/* AO Parameters Summary - New Layout */}
+            <Text style={styles.subsectionTitle}>Aesthetic and Operational Parameters</Text>
+            <ParametersSection 
+            cwqi={aoCWQI} 
+            concerns={aoConcerns}
+            type="ao"
+            title="Aesthetic & Operational Parameters"
+            />
+            <RecommendationsSection 
+            concerns={aoConcerns}
+            type="ao"
+            />
+
+{aoConcerns.length > 0 && (
       <View>
-        <Text style={styles.subsectionTitle}>Aesthetic/Operational Parameters of Concern</Text>
         <PDFTable
           headers={['Parameter', 'Description', 'Treatment Options']}
           data={aoConcerns}
@@ -790,9 +1137,13 @@ const WaterQualityReportPDF = ({ reportData }) => {
       </View>
     )}
 
-    <Text style={styles.pageNumber} render={({ pageNumber }) => `Page ${pageNumber}`} fixed />
-  </Page>
-)}
+
+        {/* Footer */}
+        <Text style={styles.footer}>
+          This report is generated based on laboratory analysis results. For questions about your water quality or treatment options, please consult with a qualified water treatment professional.
+        </Text>
+      </Page>
+
 
       {/* Page 3: Full Results Tables */}
 <Page size="A4" style={styles.page}>
@@ -971,12 +1322,12 @@ const WaterQualityReportPDF = ({ reportData }) => {
             </View>
             
             {[
-                { rating: 'Excellent', score: '95-100', description: 'Water quality is protected with a virtual absence of impairment; conditions are very close to pristine levels. These index values can only be obtained if all measurements meet recommended guidelines virtually all the time.' },
-                { rating: 'Very Good', score: '89-94', description: 'Water quality is protected with a slight presence of impairment. Conditions are close to pristine levels.' },
-                { rating: 'Good', score: '80-88', description: 'Water quality is protected with only a minor degree of impairment. Conditions rarely depart from desirable levels.' },
-                { rating: 'Fair', score: '65-79', description: 'Water quality is usually protected but occasionally impaired. Conditions sometimes depart from desirable levels.' },
-                { rating: 'Marginal', score: '45-64', description: 'Water quality is frequently impaired. Conditions often depart from desirable levels.' },
-                { rating: 'Poor', score: '0-44', description: 'Water quality is almost always impaired. Conditions usually depart from desirable levels.' }
+                { rating: 'Excellent', score: '95-100', description: 'Almost all parameters meet the guidelines, and any exceedances are very small. Water quality is considered extremely high.' },
+                { rating: 'Very Good', score: '89-94', description: 'One or more parameters slightly exceed guidelines, but overall water quality remains very safe and clean.' },
+                { rating: 'Good', score: '80-88', description: 'Some parameters exceed guidelines, usually by small to moderate amounts. Water is generally acceptable, but attention may be needed.' },
+                { rating: 'Fair', score: '65-79', description: 'Several parameters exceed guidelines, and some by larger amounts. Water quality may require treatment or monitoring.' },
+                { rating: 'Marginal', score: '45-64', description: 'Many parameters exceed guidelines, and/or some exceed them by significant amounts. Water quality is likely to pose issues without treatment.' },
+                { rating: 'Poor', score: '0-44', description: 'Most parameters exceed guidelines by large amounts. Water quality is poor and likely unsafe without corrective action.' }
             ].map((item, index) => (
                 <View key={index} style={styles.tableRow} wrap={false}>
                 <View style={{ width: 80, paddingRight: 5 }}>

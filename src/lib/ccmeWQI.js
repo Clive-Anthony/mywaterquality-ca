@@ -164,6 +164,12 @@ const calculateCCMEWQI = (parameters) => {
         color: 'text-green-600',
         description: 'Water quality is protected with a virtual absence of threat or impairment; conditions very close to natural or pristine levels.'
       };
+    } else if (score >= 89) {
+        return { 
+          name: 'Very Good', 
+          color: 'text-teal-600',
+          description: 'Water quality is protected with a slight presence of impairment. Conditions are close to pristine levels.'
+        };  
     } else if (score >= 80) {
       return { 
         name: 'Good', 

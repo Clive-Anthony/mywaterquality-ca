@@ -12,25 +12,28 @@ import {
   getCWQIRating 
 } from '../lib/ccmeWQI'; // You'll need to create this file
 
-// CWQI Visualization Component - Updated to show proper breakdown
+// CWQIVisualization Component - Update the getTextColor function
 function CWQIVisualization({ cwqi, title }) {
-  if (!cwqi) return null;
-
-  const { score, rating, color, totalTests, failedTests, components, warnings } = cwqi;
+    if (!cwqi) return null;
   
-  // Calculate the position of the indicator on the scale
-  const indicatorPosition = Math.max(0, Math.min(100, score));
+    const { score, rating, color, totalTests, failedTests, components, warnings } = cwqi;
+    
+    // Calculate the position of the indicator on the scale
+    const indicatorPosition = Math.max(0, Math.min(100, score));
+    
+    const getTextColor = (rating) => {
+      switch (rating) {
+        case 'Poor': return 'text-red-600';
+        case 'Marginal': return 'text-orange-600';
+        case 'Fair': return 'text-yellow-600';
+        case 'Good': return 'text-blue-600';
+        case 'Very Good': return 'text-teal-600';
+        case 'Excellent': return 'text-green-600';
+        default: return 'text-gray-600';
+      }
+    };
   
-  const getTextColor = (rating) => {
-    switch (rating) {
-      case 'Poor': return 'text-red-600';
-      case 'Marginal': return 'text-orange-600';
-      case 'Fair': return 'text-yellow-600';
-      case 'Good': return 'text-blue-600';
-      case 'Excellent': return 'text-green-600';
-      default: return 'text-gray-600';
-    }
-  };
+    // ... rest of the component remains the same
 
   return (
     <div className="bg-white border border-gray-200 rounded-lg p-6">
@@ -46,39 +49,41 @@ function CWQIVisualization({ cwqi, title }) {
         </div>
       </div>
 
-      {/* Visual Scale */}
-      <div className="mb-4">
+      {/* Visual Scale - Update with Very Good segment */}
+        <div className="mb-4">
         <div className="relative">
-          {/* Background scale with color segments */}
-          <div className="h-4 bg-gray-200 rounded-full overflow-hidden flex">
-            <div className="w-[44%] bg-red-500"></div>
-            <div className="w-[20%] bg-orange-500"></div>
-            <div className="w-[15%] bg-yellow-500"></div>
-            <div className="w-[15%] bg-blue-500"></div>
-            <div className="w-[6%] bg-green-500"></div>
-          </div>
-          
-          {/* Score indicator */}
-          <div 
+            {/* Background scale with color segments */}
+            <div className="h-4 bg-gray-200 rounded-full overflow-hidden flex">
+            <div className="w-[44%] bg-red-500"></div>     {/* Poor: 0-44 */}
+            <div className="w-[20%] bg-orange-500"></div>   {/* Marginal: 45-64 */}
+            <div className="w-[15%] bg-yellow-500"></div>   {/* Fair: 65-79 */}
+            <div className="w-[9%] bg-blue-500"></div>      {/* Good: 80-88 */}
+            <div className="w-[6%] bg-teal-500"></div>      {/* Very Good: 89-94 */}
+            <div className="w-[6%] bg-green-500"></div>     {/* Excellent: 95-100 */}
+            </div>
+            
+            {/* Score indicator */}
+            <div 
             className="absolute top-0 w-1 h-4 bg-gray-800 transform -translate-x-0.5"
             style={{ left: `${indicatorPosition}%` }}
-          >
+            >
             <div className="absolute -top-2 left-1/2 transform -translate-x-1/2">
-              <div className="w-0 h-0 border-l-2 border-r-2 border-b-4 border-transparent border-b-gray-800"></div>
+                <div className="w-0 h-0 border-l-2 border-r-2 border-b-4 border-transparent border-b-gray-800"></div>
             </div>
-          </div>
+            </div>
         </div>
         
-        {/* Scale labels */}
+        {/* Scale labels - Update with Very Good */}
         <div className="flex justify-between text-xs text-gray-500 mt-2">
-          <span>0 (Poor)</span>
-          <span>45</span>
-          <span>65</span>
-          <span>80</span>
-          <span>95</span>
-          <span>100 (Excellent)</span>
+            <span>0</span>
+            <span>45</span>
+            <span>65</span>
+            <span>80</span>
+            <span>89</span>
+            <span>95</span>
+            <span>100</span>
         </div>
-      </div>
+        </div>
 
     {/* CCME Components Breakdown */}
     <div className="mb-4 bg-gray-50 rounded-lg p-4">
