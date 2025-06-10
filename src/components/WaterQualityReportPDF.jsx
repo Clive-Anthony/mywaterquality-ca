@@ -16,7 +16,7 @@ page: {
     flexDirection: 'row',
     justifyContent: 'space-between',
     alignItems: 'center',
-    marginBottom: 20,
+    marginBottom: 15,
     padding: 15,
   },
   headerTitle: {
@@ -45,7 +45,7 @@ page: {
     marginRight: -10,
   },
   subsectionTitle: {
-    fontSize: 12,
+    fontSize: 16,
     fontWeight: 'bold',
     marginTop: 15,
     marginBottom: 8,
@@ -96,9 +96,8 @@ logoImage: {
   },
   cwqiBox: {
     flex: 1,
-    border: '1 solid #E5E7EB',
-    borderRadius: 5,
     padding: 15,
+    width: '100%', // Ensure it takes full width of its container
   },
   cwqiTitle: {
     fontSize: 12,
@@ -427,72 +426,151 @@ alertBoxPlain: {
     fontSize: 9,
     color: '#1F2937',
   },
+  
   summaryCardsContainer: {
     flexDirection: 'row',
     marginBottom: 20,
     gap: 10,
   },
-  
   summaryCard: {
     flex: 1,
-    backgroundColor: '#F9FAFB',
-    border: '1 solid #E5E7EB',
+    backgroundColor: '#FFFFFF',
     borderRadius: 8,
-    padding: 12,
+    padding: 20, // Increased padding
     textAlign: 'center',
+    minHeight: 120, // Increased height for better proportions
+    justifyContent: 'space-between',
+    flexDirection: 'column',
   },
   
+  // Green border variant
+  summaryCardGreen: {
+    flex: 1,
+    backgroundColor: '#FFFFFF',
+    border: '2 solid #059669', // Green border
+    borderRadius: 8,
+    padding: 20,
+    textAlign: 'center',
+    minHeight: 120,
+    justifyContent: 'space-between',
+    flexDirection: 'column',
+  },
+  
+  // Red border variant
+  summaryCardRed: {
+    flex: 1,
+    backgroundColor: '#FFFFFF',
+    border: '2 solid #DC2626', // Red border
+    borderRadius: 8,
+    padding: 20,
+    textAlign: 'center',
+    minHeight: 120,
+    justifyContent: 'space-between',
+    flexDirection: 'column',
+  },
+  
+  // Consistent title positioning
   summaryCardTitle: {
     fontSize: 10,
     fontWeight: 'bold',
     color: '#374151',
-    marginBottom: 8,
     textAlign: 'center',
+    lineHeight: 1.3,
+    marginBottom: 0, // Remove margin since we're using flex spacing
   },
   
+  // Container for the main content (number or status)
+  summaryCardContent: {
+    flex: 1,
+    justifyContent: 'center',
+    alignItems: 'center',
+    paddingVertical: 10,
+  },
+  
+  // Container for bottom text
+  summaryCardFooter: {
+    justifyContent: 'flex-end',
+  },
+  
+  // Number styling
   summaryCardNumber: {
-    fontSize: 24,
+    fontSize: 32, // Increased font size
     fontWeight: 'bold',
     textAlign: 'center',
-    marginBottom: 4,
-  },
-  
-  summaryCardText: {
-    fontSize: 10,
-    textAlign: 'center',
-    color: '#6B7280',
+    marginBottom: 0,
   },
   
   summaryCardNumberGreen: {
-    fontSize: 24,
+    fontSize: 32,
     fontWeight: 'bold',
     textAlign: 'center',
-    marginBottom: 4,
+    marginBottom: 0,
     color: '#059669',
   },
   
   summaryCardNumberRed: {
-    fontSize: 24,
+    fontSize: 32,
     fontWeight: 'bold',
     textAlign: 'center',
-    marginBottom: 4,
+    marginBottom: 0,
     color: '#DC2626',
+  },
+  
+  // Status text for bacteriological (replaces number)
+  summaryCardStatus: {
+    fontSize: 12,
+    fontWeight: 'bold',
+    textAlign: 'center',
+    marginBottom: 0,
+  },
+  
+  summaryCardStatusGreen: {
+    fontSize: 12,
+    fontWeight: 'bold',
+    textAlign: 'center',
+    marginBottom: 0,
+    color: '#059669',
+  },
+  
+  summaryCardStatusRed: {
+    fontSize: 12,
+    fontWeight: 'bold',
+    textAlign: 'center',
+    marginBottom: 0,
+    color: '#DC2626',
+  },
+  
+  // Bottom text styling
+  summaryCardText: {
+    fontSize: 10,
+    textAlign: 'center',
+    color: '#6B7280',
+    marginTop: 0,
   },
   
   summaryCardTextGreen: {
     fontSize: 10,
     textAlign: 'center',
     color: '#059669',
+    marginTop: 0,
   },
   
   summaryCardTextRed: {
     fontSize: 10,
     textAlign: 'center',
     color: '#DC2626',
+    marginTop: 0,
+  },
+  parametersUnifiedContainer: {
+    backgroundColor: '#FFFFFF',
+    border: '1 solid #E5E7EB',
+    borderRadius: 8,
+    padding: 15,
+    marginBottom: 20,
   },
   parametersContainer: {
     flexDirection: 'row',
-    marginBottom: 20,
+    marginBottom: 0,
     gap: 15,
     minHeight: 180,
   },
@@ -500,12 +578,13 @@ alertBoxPlain: {
   parameterCwqiSection: {
     width: '38%', // 2/5 of container
     marginRight: 10,
+    justifyContent: 'center', // Center content vertically
+    alignItems: 'center', // Center content horizontally
   },
   
   parameterTextSection: {
     width: '57%', // 3/5 of container
-    backgroundColor: '#F9FAFB',
-    border: '1 solid #E5E7EB',
+    backgroundColor: 'transparent',
     borderRadius: 8,
     padding: 12,
     justifyContent: 'flex-start',
@@ -540,13 +619,11 @@ alertBoxPlain: {
   
   parametersListItemHealth: {
     fontSize: 10,
-    color: '#DC2626',
     marginBottom: 3,
   },
   
   parametersListItemAO: {
     fontSize: 10,
-    color: '#F59E0B',
     marginBottom: 3,
   },
   
@@ -595,24 +672,24 @@ alertBoxPlain: {
   },
 });
 
-// Generic Parameters Section Component
+// Generic Parameters Section Component - Update with unified container and new definitions
 const ParametersSection = ({ cwqi, concerns, type, title }) => {
     if (!cwqi) return null;
   
     const getQualityDescription = (rating) => {
       switch (rating) {
         case 'Excellent':
-          return 'water quality is protected with a virtual absence of threat or impairment; conditions are very close to natural or pristine levels.';
+          return 'almost all parameters meet the guidelines, and any exceedances are very small. Water quality is considered extremely high.';
         case 'Very Good':
-          return 'water quality is protected with a slight presence of impairment. Conditions are close to pristine levels.';
+          return 'one or more parameters slightly exceed guidelines, but overall water quality remains very safe and clean.';
         case 'Good':
-          return 'water quality is protected with only a minor degree of threat or impairment; conditions rarely depart from natural or desirable levels.';
+          return 'some parameters exceed guidelines, usually by small to moderate amounts. Water is generally acceptable, but attention may be needed.';
         case 'Fair':
-          return 'water quality is usually protected but occasionally threatened or impaired; conditions sometimes depart from natural or desirable levels.';
+          return 'several parameters exceed guidelines, and some by larger amounts. Water quality may require treatment or monitoring.';
         case 'Marginal':
-          return 'water quality is frequently threatened or impaired; conditions often depart from natural or desirable levels.';
+          return 'many parameters exceed guidelines, and/or some exceed them by significant amounts. Water quality is likely to pose issues without treatment.';
         case 'Poor':
-          return 'water quality is almost always threatened or impaired; conditions usually depart from natural or desirable levels.';
+          return 'most parameters exceed guidelines by large amounts. Water quality is poor and likely unsafe without corrective action.';
         default:
           return 'the water quality assessment is based on Canadian Water Quality Index standards.';
       }
@@ -623,41 +700,49 @@ const ParametersSection = ({ cwqi, concerns, type, title }) => {
   
     return (
       <View>
-        {/* Parameters Layout */}
-        <View style={styles.parametersContainer}>
-          {/* CWQI Score Card - Left Side (2/5) */}
-          <View style={styles.parameterCwqiSection}>
-            <CWQIComponent cwqi={cwqi} title={title} />
-          </View>
+        {/* Unified Container wrapping both score and text */}
+        <View style={styles.parametersUnifiedContainer}>
+          {/* Parameters Layout */}
+          <View style={styles.parametersContainer}>
+            {/* CWQI Score Card - Left Side (2/5) */}
+            <View style={styles.parameterCwqiSection}>
+              <CWQIComponent cwqi={cwqi} title={title} />
+            </View>
   
-          {/* Text Section - Right Side (3/5) */}
-          <View style={styles.parameterTextSection}>
-            <Text style={styles.qualityStatement}>
-              <Text style={styles.qualityLevel}>With health-related parameters, your water quality is {cwqi.rating}</Text>
-              <Text>, this means that {getQualityDescription(cwqi.rating)}</Text>
-            </Text>
-  
-            {hasConcerns && (
-              <View style={styles.parametersList}>
-                <Text style={styles.parametersListTitle}>
-                  Parameters over the limit ({concerns.length}):
+            {/* Text Section - Right Side (3/5) */}
+            <View style={styles.parameterTextSection}>
+              <Text style={styles.qualityStatement}>
+                <Text style={styles.qualityLevel}>
+                  {isHealthType 
+                    ? `With health-related parameters, your water quality is ${cwqi.rating}` 
+                    : `For aesthetic and operational parameters, your water quality is ${cwqi.rating}`
+                  }
                 </Text>
-                {concerns.map((param, index) => (
-                  <Text 
-                    key={index} 
-                    style={isHealthType ? styles.parametersListItemHealth : styles.parametersListItemAO}
-                  >
-                    • {param.parameter_name}
-                  </Text>
-                ))}
-              </View>
-            )}
-  
-            {!hasConcerns && (
-              <Text style={[styles.qualityStatement, { color: '#059669', marginTop: 8 }]}>
-                All {isHealthType ? 'health-related' : 'aesthetic and operational'} parameters are within acceptable limits.
+                <Text>, this means that {getQualityDescription(cwqi.rating)}</Text>
               </Text>
-            )}
+  
+              {hasConcerns && (
+                <View style={styles.parametersList}>
+                  <Text style={styles.parametersListTitle}>
+                    Parameters over the limit ({concerns.length}):
+                  </Text>
+                  {concerns.map((param, index) => (
+                    <Text 
+                      key={index} 
+                      style={isHealthType ? styles.parametersListItemHealth : styles.parametersListItemAO}
+                    >
+                      • {param.parameter_name}
+                    </Text>
+                  ))}
+                </View>
+              )}
+  
+              {!hasConcerns && (
+                <Text style={[styles.qualityStatement, { color: '#059669', marginTop: 8 }]}>
+                  All {isHealthType ? 'health-related' : 'aesthetic and operational'} parameters are within acceptable limits.
+                </Text>
+              )}
+            </View>
           </View>
         </View>
       </View>
@@ -707,7 +792,7 @@ const RecommendationsSection = ({ concerns, type }) => {
     );
   };
 
-// Summary Cards Component
+// Summary Cards Component - Updated with consistent structure and colored borders
 const SummaryCards = ({ bacteriological, healthConcerns, aoConcerns }) => {
     // Check if any bacteriological parameters exceed limits
     const bacteriologicalExceeded = bacteriological.some(param => {
@@ -727,33 +812,67 @@ const SummaryCards = ({ bacteriological, healthConcerns, aoConcerns }) => {
     return (
       <View style={styles.summaryCardsContainer}>
         {/* Bacteriological Results Card */}
-        <View style={styles.summaryCard}>
-          <Text style={styles.summaryCardTitle}>Bacteriological Results</Text>
-          <Text style={bacteriologicalExceeded ? styles.summaryCardTextRed : styles.summaryCardTextGreen}>
-            {bacteriologicalExceeded ? 'Coliforms present' : 'No coliforms present'}
-          </Text>
+        <View style={bacteriologicalExceeded ? styles.summaryCardRed : styles.summaryCardGreen}>
+          {/* Title Section */}
+          <View>
+            <Text style={styles.summaryCardTitle}>Bacteriological Results</Text>
+          </View>
+          
+          {/* Content Section - Status instead of number */}
+          <View style={styles.summaryCardContent}>
+            <Text style={bacteriologicalExceeded ? styles.summaryCardStatusRed : styles.summaryCardStatusGreen}>
+              {bacteriologicalExceeded ? 'Coliforms Present' : 'No Coliforms Present'}
+            </Text>
+          </View>
+          
+          {/* Footer Section - Empty for consistency */}
+          <View style={styles.summaryCardFooter}>
+            <Text style={styles.summaryCardText}> </Text>
+          </View>
         </View>
   
         {/* Health-Related Results Card */}
-        <View style={styles.summaryCard}>
-          <Text style={styles.summaryCardTitle}>Health-Related Results</Text>
-          <Text style={healthConcernsCount > 0 ? styles.summaryCardNumberRed : styles.summaryCardNumberGreen}>
-            {healthConcernsCount}
-          </Text>
-          <Text style={healthConcernsCount > 0 ? styles.summaryCardTextRed : styles.summaryCardTextGreen}>
-            concerns present
-          </Text>
+        <View style={healthConcernsCount > 0 ? styles.summaryCardRed : styles.summaryCardGreen}>
+          {/* Title Section */}
+          <View>
+            <Text style={styles.summaryCardTitle}>Health-Related Results</Text>
+          </View>
+          
+          {/* Content Section - Number */}
+          <View style={styles.summaryCardContent}>
+            <Text style={healthConcernsCount > 0 ? styles.summaryCardNumberRed : styles.summaryCardNumberGreen}>
+              {healthConcernsCount}
+            </Text>
+          </View>
+          
+          {/* Footer Section */}
+          <View style={styles.summaryCardFooter}>
+            <Text style={healthConcernsCount > 0 ? styles.summaryCardTextRed : styles.summaryCardTextGreen}>
+              concerns present
+            </Text>
+          </View>
         </View>
   
         {/* Aesthetic and Operational Results Card */}
-        <View style={styles.summaryCard}>
-          <Text style={styles.summaryCardTitle}>Aesthetic and Operational Results</Text>
-          <Text style={aoConcernsCount > 0 ? styles.summaryCardNumberRed : styles.summaryCardNumberGreen}>
-            {aoConcernsCount}
-          </Text>
-          <Text style={aoConcernsCount > 0 ? styles.summaryCardTextRed : styles.summaryCardTextGreen}>
-            concerns present
-          </Text>
+        <View style={aoConcernsCount > 0 ? styles.summaryCardRed : styles.summaryCardGreen}>
+          {/* Title Section */}
+          <View>
+            <Text style={styles.summaryCardTitle}>Aesthetic and Operational</Text>
+          </View>
+          
+          {/* Content Section - Number */}
+          <View style={styles.summaryCardContent}>
+            <Text style={aoConcernsCount > 0 ? styles.summaryCardNumberRed : styles.summaryCardNumberGreen}>
+              {aoConcernsCount}
+            </Text>
+          </View>
+          
+          {/* Footer Section */}
+          <View style={styles.summaryCardFooter}>
+            <Text style={aoConcernsCount > 0 ? styles.summaryCardTextRed : styles.summaryCardTextGreen}>
+              concerns present
+            </Text>
+          </View>
         </View>
       </View>
     );
@@ -983,8 +1102,8 @@ const WaterQualityReportPDF = ({ reportData }) => {
         {/* Header */}
         <View style={styles.header}>
         <View>
-            <Text style={styles.headerTitle}>Water Quality Report</Text>
-            <Text style={styles.headerSubtitle}>Comprehensive Analysis Results</Text>
+            <Text style={styles.headerTitle}>Cleason's Water Quality Report</Text>
+            <Text style={styles.headerSubtitle}>Cleason Martin - Order No 1000</Text>
         </View>
         <Image 
             src="/MWQ-logo-final.png" 
@@ -1047,7 +1166,7 @@ const WaterQualityReportPDF = ({ reportData }) => {
         
 
         {/* Summary of Results with Summary Cards and CWQI Scores */}
-        <Text style={styles.sectionTitle}>Summary of Results - CWQI Scores</Text>
+        <Text style={styles.sectionTitle}>Summary of Results</Text>
 
         {/* Summary Cards */}
         <SummaryCards 
@@ -1055,16 +1174,6 @@ const WaterQualityReportPDF = ({ reportData }) => {
         healthConcerns={healthConcerns}
         aoConcerns={aoConcerns}
         />
-
-        {/* CWQI Scores */}
-        <View style={styles.cwqiContainer}>
-        {healthCWQI && (
-            <CWQIComponent cwqi={healthCWQI} title="Health Related Parameters" />
-        )}
-        {aoCWQI && (
-            <CWQIComponent cwqi={aoCWQI} title="Aesthetic & Operational Parameters" />
-        )}
-        </View>
 
         {/* Bacteriological Results */}
         {bacteriological.length > 0 && (
@@ -1087,7 +1196,6 @@ const WaterQualityReportPDF = ({ reportData }) => {
             cwqi={healthCWQI} 
             concerns={healthConcerns}
             type="health"
-            title="Health Related Parameters"
             />
             <RecommendationsSection 
             concerns={healthConcerns}
@@ -1115,7 +1223,6 @@ const WaterQualityReportPDF = ({ reportData }) => {
             cwqi={aoCWQI} 
             concerns={aoConcerns}
             type="ao"
-            title="Aesthetic & Operational Parameters"
             />
             <RecommendationsSection 
             concerns={aoConcerns}
