@@ -154,11 +154,12 @@ export default function ReportPage() {
       setLoading(true);
       setError(null);
 
+      // TEST SAMPLE 2131422
       // Fetch data from the view using correct sample number
       const { data, error } = await supabase
         .from('vw_test_results_with_parameters')
         .select('*')
-        .eq('sample_number', '2147059')
+        .eq('sample_number', '2131422')
         .order('parameter_name');
 
       if (error) throw error;

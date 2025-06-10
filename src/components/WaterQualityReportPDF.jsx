@@ -48,7 +48,7 @@ page: {
     fontSize: 16,
     fontWeight: 'bold',
     marginTop: 15,
-    marginBottom: 8,
+    marginBottom: 15,
     color: '#374151',
   },
 logoImage: {
@@ -363,7 +363,7 @@ alertBoxPlain: {
     color: '#1F2937', // Black text
   },
   recommendationListBlack: {
-    fontSize: 9,
+    fontSize: 12,
     color: '#1F2937', // Black text
     lineHeight: 1.6,
     marginBottom: 15,
@@ -426,7 +426,10 @@ alertBoxPlain: {
     fontSize: 9,
     color: '#1F2937',
   },
-  
+  tableContainerSummary: {
+    marginBottom: 15,
+    // Remove maxHeight constraint for summary tables
+},
   summaryCardsContainer: {
     flexDirection: 'row',
     marginBottom: 20,
@@ -670,7 +673,73 @@ alertBoxPlain: {
     lineHeight: 1.4,
     marginBottom: 12,
   },
+  generalRecommendationsTitle: {
+    fontSize: 14,
+    fontWeight: 'bold',
+    color: 'white',
+    marginTop: 20,
+    marginBottom: 12,
+    backgroundColor: '#2563EB',
+    padding: 10,
+    borderRadius: 4,
+  },
+  centeredTableContainer: {
+    flexDirection: 'row',
+    justifyContent: 'center',
+    alignItems: 'center',
+    width: '100%',
+    marginBottom: 15,
+  },
+  summaryCardsContainerTwoCards: {
+    flexDirection: 'row',
+    marginBottom: 20,
+    gap: 20, // Increased gap for better spacing with 2 cards
+    justifyContent: 'center', // Center the cards when only 2 are shown
+  },
+  alertBoxContamination: {
+    flexDirection: 'row',
+    padding: 12,
+    marginBottom: 15,
+    borderRadius: 5,
+    backgroundColor: '#FEF2F2',
+    border: '2 solid #DC2626', // Red border
+    alignItems: 'flex-start',
+  },
+  
+  alertIconContainer: {
+    marginRight: 10,
+    marginTop: 2,
+  },
+  
+  alertIcon: {
+    fontSize: 16,
+    color: '#DC2626',
+    fontWeight: 'bold',
+  },
+  
+  alertContentContainer: {
+    flex: 1,
+  },
+  
+  alertTextContamination: {
+    fontSize: 11,
+    color: '#1F2937',
+    lineHeight: 1.4,
+  },
+  
+  alertTextBold: {
+    fontSize: 11,
+    color: '#1F2937',
+    lineHeight: 1.4,
+    fontWeight: 'bold',
+  },
 });
+
+const customer_first = "John"
+const customer_name = "John Smith";
+const order_number = 1478;
+const sample_description = "Water from Tap";
+const TEST_KIT = "Advanced Water Test Kit";
 
 // Generic Parameters Section Component - Update with unified container and new definitions
 const ParametersSection = ({ cwqi, concerns, type, title }) => {
@@ -781,7 +850,7 @@ const RecommendationsSection = ({ concerns, type }) => {
     const config = getRecommendationsConfig();
   
     return (
-      <View style={styles.recommendationsSection}>
+      <View style={styles.recommendationsSection} wrap = {false}>
         <Text style={config.headerStyle}>
           {config.headerText}
         </Text>
@@ -792,8 +861,11 @@ const RecommendationsSection = ({ concerns, type }) => {
     );
   };
 
-// Summary Cards Component - Updated with consistent structure and colored borders
-const SummaryCards = ({ bacteriological, healthConcerns, aoConcerns }) => {
+
+
+
+// Summary Cards Component - Updated with test kit logic
+const SummaryCards = ({ bacteriological, healthConcerns, aoConcerns, testKit }) => {
     // Check if any bacteriological parameters exceed limits
     const bacteriologicalExceeded = bacteriological.some(param => {
       if (param.parameter_category === 'health') {
@@ -808,30 +880,35 @@ const SummaryCards = ({ bacteriological, healthConcerns, aoConcerns }) => {
   
     const healthConcernsCount = healthConcerns.length;
     const aoConcernsCount = aoConcerns.length;
+    
+    // Determine if bacteriological card should be shown
+    const showBacteriologicalCard = testKit === "Advanced Water Test Kit";
   
     return (
-      <View style={styles.summaryCardsContainer}>
-        {/* Bacteriological Results Card */}
-        <View style={bacteriologicalExceeded ? styles.summaryCardRed : styles.summaryCardGreen}>
-          {/* Title Section */}
-          <View>
-            <Text style={styles.summaryCardTitle}>Bacteriological Results</Text>
+        <View style={showBacteriologicalCard ? styles.summaryCardsContainer : styles.summaryCardsContainerTwoCards}>
+        {/* Bacteriological Results Card - Only show for Advanced Water Test Kit */}
+        {showBacteriologicalCard && (
+          <View style={bacteriologicalExceeded ? styles.summaryCardRed : styles.summaryCardGreen}>
+            {/* Title Section */}
+            <View>
+              <Text style={styles.summaryCardTitle}>Bacteriological Results</Text>
+            </View>
+            
+            {/* Content Section - Status instead of number */}
+            <View style={styles.summaryCardContent}>
+              <Text style={bacteriologicalExceeded ? styles.summaryCardStatusRed : styles.summaryCardStatusGreen}>
+                {bacteriologicalExceeded ? 'Coliforms Present' : 'No Coliforms Present'}
+              </Text>
+            </View>
+            
+            {/* Footer Section - Empty for consistency */}
+            <View style={styles.summaryCardFooter}>
+              <Text style={styles.summaryCardText}> </Text>
+            </View>
           </View>
-          
-          {/* Content Section - Status instead of number */}
-          <View style={styles.summaryCardContent}>
-            <Text style={bacteriologicalExceeded ? styles.summaryCardStatusRed : styles.summaryCardStatusGreen}>
-              {bacteriologicalExceeded ? 'Coliforms Present' : 'No Coliforms Present'}
-            </Text>
-          </View>
-          
-          {/* Footer Section - Empty for consistency */}
-          <View style={styles.summaryCardFooter}>
-            <Text style={styles.summaryCardText}> </Text>
-          </View>
-        </View>
+        )}
   
-        {/* Health-Related Results Card */}
+        {/* Health-Related Results Card - Always show */}
         <View style={healthConcernsCount > 0 ? styles.summaryCardRed : styles.summaryCardGreen}>
           {/* Title Section */}
           <View>
@@ -853,7 +930,7 @@ const SummaryCards = ({ bacteriological, healthConcerns, aoConcerns }) => {
           </View>
         </View>
   
-        {/* Aesthetic and Operational Results Card */}
+        {/* Aesthetic and Operational Results Card - Always show */}
         <View style={aoConcernsCount > 0 ? styles.summaryCardRed : styles.summaryCardGreen}>
           {/* Title Section */}
           <View>
@@ -921,26 +998,32 @@ const CWQIComponent = ({ cwqi, title }) => {
 };
 
 // Replace the PDFTable component with better break handling
-const PDFTable = ({ headers, data, keyMapping, showExceeded = false, tableType = 'default' }) => {
+const PDFTable = ({ headers, data, keyMapping, showExceeded = false, tableType = 'default', allowBreak = true }) => {
   
     const getColumnWidths = (tableType) => {
         if (tableType === 'results') {
           return [210, 40, 40, 110, 75];
         } else if (tableType === 'concerns') {
           return [150, 170, 150];
-        } else if (tableType === 'general') {  // Add this block
-          return [250,150];
+        } else if (tableType === 'general') {
+          return [180,120,80];
         }
+        else if (tableType === 'general3col') {
+            return [120, 80, 60]; // Smaller overall width: Parameter, Result, Unit
+          }
         return [100, 100, 100, 100, 100];
       };
   
     const columnWidths = getColumnWidths(tableType);
+    
+    // For concerns tables, force to next page if more than 3 rows to avoid breaking
+    const shouldForceNewPage = tableType === 'concerns' && data.length > 3;
   
     return (
-      <View style={styles.tableContainer} break={data.length > 10}>
+      <View style={styles.tableContainer} wrap={false} break={shouldForceNewPage}>
         <View style={styles.table}>
           {/* Header Row */}
-          <View style={styles.tableHeader}>
+          <View style={styles.tableHeader} wrap={false}>
             {headers.map((header, index) => (
               <View key={index} style={{ width: columnWidths[index], paddingRight: 2 }}>
                 <Text 
@@ -955,7 +1038,6 @@ const PDFTable = ({ headers, data, keyMapping, showExceeded = false, tableType =
           
           {/* Data Rows */}
             {data.map((row, rowIndex) => {
-            // Function to determine if a parameter is exceeded (matches web logic)
             const isParameterExceeded = (param) => {
                 if (param.parameter_category === 'health') {
                 return param.compliance_status === 'EXCEEDS_MAC';
@@ -963,13 +1045,11 @@ const PDFTable = ({ headers, data, keyMapping, showExceeded = false, tableType =
                 if (param.compliance_status === 'EXCEEDS_AO') {
                     return true;
                 }
-                // For range values, check the overall compliance status
                 if (param.compliance_status === 'AO_RANGE_VALUE') {
                     return param.overall_compliance_status === 'WARNING';
                 }
                 return false;
                 } else {
-                // For non-hybrid parameters, use the overall compliance status
                 return param.compliance_status === 'FAIL';
                 }
             };
@@ -980,7 +1060,7 @@ const PDFTable = ({ headers, data, keyMapping, showExceeded = false, tableType =
                 <View 
                 key={rowIndex} 
                 style={isExceeded ? styles.tableRowExceeded : styles.tableRow}
-                break={rowIndex > 0 && rowIndex % 15 === 0} // Break every 15 rows
+                wrap={false}
                 >
                 {keyMapping.map((key, cellIndex) => (
                     <View key={cellIndex} style={{ width: columnWidths[cellIndex], paddingRight: 2 }}>
@@ -1102,8 +1182,8 @@ const WaterQualityReportPDF = ({ reportData }) => {
         {/* Header */}
         <View style={styles.header}>
         <View>
-            <Text style={styles.headerTitle}>Cleason's Water Quality Report</Text>
-            <Text style={styles.headerSubtitle}>Cleason Martin - Order No 1000</Text>
+            <Text style={styles.headerTitle}>{customer_first}'s Water Quality Report</Text>
+            <Text style={styles.headerSubtitle}>Order No {order_number}  - {TEST_KIT}</Text>
         </View>
         <Image 
             src="/MWQ-logo-final.png" 
@@ -1111,38 +1191,22 @@ const WaterQualityReportPDF = ({ reportData }) => {
         />
         </View>
 
-        {/* Water First Banner */}
-        {/* <View style={styles.waterFirstBanner}>
-        <View style={styles.waterFirstContent}>
-            <Text style={styles.waterFirstTitle}>
-            Supporting Water First's Drinking Water Internship
-            </Text>
-            <Text style={styles.waterFirstText}>
-            $5 of every water quality package purchased through My Water Quality will go to Water First.
-            </Text>
-        </View>
-        <Image 
-            src="/images/water_first.png" 
-            style={styles.waterFirstLogoImage}
-        />
-        </View> */}
-
         {/* Sample Information */}
         {/* <Text style={styles.sectionTitle}>Sample Information</Text> */}
         <View style={styles.sampleInfoContainer}>
         {/* Left Table - Sample Details */}
         <View style={styles.sampleInfoTableLeft}>
             <View style={styles.tableRowSample}>
-            <Text style={styles.tableCellSampleLabel}>Location Name</Text>
-            <Text style={styles.tableCellSampleValue}>Kitchen Tap - Main Floor</Text>
+            <Text style={styles.tableCellSampleLabel}>Customer Name</Text>
+            <Text style={styles.tableCellSampleValue}>{customer_name}</Text>
             </View>
             <View style={styles.tableRowSample}>
             <Text style={styles.tableCellSampleLabel}>Sample Description</Text>
-            <Text style={styles.tableCellSampleValue}>Residential Well Water</Text>
+            <Text style={styles.tableCellSampleValue}>{sample_description}</Text>
             </View>
             <View style={styles.tableRowSampleLast}>
-            <Text style={styles.tableCellSampleLabel}>Address of Sample</Text>
-            <Text style={styles.tableCellSampleValue}>123 Maple Street, Toronto, ON M5V 3A8</Text>
+            <Text style={styles.tableCellSampleLabel}>Test Kit</Text>
+            <Text style={styles.tableCellSampleValue}>{TEST_KIT}</Text>
             </View>
         </View>
         
@@ -1173,22 +1237,55 @@ const WaterQualityReportPDF = ({ reportData }) => {
         bacteriological={bacteriological}
         healthConcerns={healthConcerns}
         aoConcerns={aoConcerns}
+        testKit={TEST_KIT}
         />
 
         {/* Bacteriological Results */}
-        {bacteriological.length > 0 && (
-          <View>
-            <Text style={styles.subsectionTitle}>Bacteriological Results</Text>
-            <View style={styles.alertBoxPlain}>
-            <Text style={styles.alertTextPlain}>
-                Bacterial contamination analysis:
-                {bacteriological.map((param, index) => (
-                  `\n${param.parameter_name}: ${formatLabResult(param)} ${param.result_units || param.parameter_unit || ''}`
-                ))}
-              </Text>
+        {/* Bacteriological Results - Updated Logic */}
+        {bacteriological.length > 0 && (() => {
+        // Check for NDOGT readings in Total Coliform or E. coli
+        const contaminatedParams = bacteriological.filter(param => 
+            (param.parameter_name?.toLowerCase().includes('coliform') || 
+            param.parameter_name?.toLowerCase().includes('escherichia') ||
+            param.parameter_name?.toLowerCase().includes('e. coli') ||
+            param.parameter_name?.toLowerCase().includes('e.coli')) &&
+            (param.result_value?.includes('NDOGT') || param.result_numeric?.toString().includes('NDOGT'))
+        );
+
+        if (contaminatedParams.length > 0) {
+            // Show contamination warning
+            const parameterName = contaminatedParams[0].parameter_name;
+            return (
+            <View style={styles.alertBoxContamination}>
+                <View style={styles.alertIconContainer}>
+                <Text style={styles.alertIcon}>⚠</Text>
+                </View>
+                <View style={styles.alertContentContainer}>
+                <Text style={styles.alertTextContamination}>
+                    A reading of NDOGT for {parameterName} was detected in your water, this means there's{' '}
+                    <Text style={styles.alertTextBold}>evidence of bacterial and/or sewage contamination. Water is unsafe to drink unless boiled or treated.</Text>
+                    {' '}Please see health-related recommendations below for treatment options.
+                </Text>
+                </View>
             </View>
-          </View>
-        )}
+            );
+        } else {
+            // Show normal bacteriological results
+            return (
+            <View>
+                <Text style={styles.subsectionTitle}>Bacteriological Results</Text>
+                <View style={styles.alertBoxPlain}>
+                <Text style={styles.alertTextPlain}>
+                    Bacterial contamination analysis:
+                    {bacteriological.map((param, index) => (
+                    `\n${param.parameter_name}: ${formatLabResult(param)} ${param.result_units || param.parameter_unit || ''}`
+                    ))}
+                </Text>
+                </View>
+            </View>
+            );
+        }
+        })()}
 
         {/* Health Parameters Summary - Updated Layout */}
         <Text style={styles.subsectionTitle}>Health Related Parameters</Text>
@@ -1202,20 +1299,21 @@ const WaterQualityReportPDF = ({ reportData }) => {
             type="health"
             />
 
-{healthConcerns.length > 0 && (
-      <View>
-        <PDFTable
-          headers={['Parameter', 'Health Effect', 'Treatment Options']}
-          data={healthConcerns}
-          keyMapping={[
-            'parameter_name',
-            (row) => row.health_effects || 'Elevated levels may pose health risks. Consult with a water treatment professional for specific health implications and recommended actions.',
-            (row) => row.treatment_options || 'Multiple treatment options are available including filtration, softening, and chemical treatment. Consult with a certified water treatment professional to determine the best solution for your specific situation.'
-          ]}
-          tableType="concerns"
-        />
-      </View>
-        )}      
+            {healthConcerns.length > 0 && (
+            <View wrap={false} break={healthConcerns.length > 3}>
+                <PDFTable
+                headers={['Parameter', 'Health Effect', 'Treatment Options']}
+                data={healthConcerns}
+                keyMapping={[
+                    'parameter_name',
+                    (row) => row.health_effects || 'Elevated levels may pose health risks. Consult with a water treatment professional for specific health implications and recommended actions.',
+                    (row) => row.treatment_options || 'Multiple treatment options are available including filtration, softening, and chemical treatment. Consult with a certified water treatment professional to determine the best solution for your specific situation.'
+                ]}
+                tableType="concerns"
+                allowBreak={false}
+                />
+            </View>
+            )}
 
             {/* AO Parameters Summary - New Layout */}
             <Text style={styles.subsectionTitle}>Aesthetic and Operational Parameters</Text>
@@ -1229,21 +1327,36 @@ const WaterQualityReportPDF = ({ reportData }) => {
             type="ao"
             />
 
-{aoConcerns.length > 0 && (
-      <View>
-        <PDFTable
-          headers={['Parameter', 'Description', 'Treatment Options']}
-          data={aoConcerns}
-          keyMapping={[
-            'parameter_name',
-            (row) => row.description || row.parameter_description || 'A water quality parameter that affects the aesthetic or operational characteristics of your water system.',
-            (row) => row.treatment_options || 'Multiple treatment options are available including filtration, softening, and chemical treatment. Consult with a certified water treatment professional to determine the best solution for your specific situation.'
-          ]}
-          tableType="concerns"
-        />
-      </View>
-    )}
+            {aoConcerns.length > 0 && (
+            <View wrap={false} break={aoConcerns.length > 3 || (healthConcerns.length > 0 && aoConcerns.length > 2)}>
+                <PDFTable
+                headers={['Parameter', 'Description', 'Treatment Options']}
+                data={aoConcerns}
+                keyMapping={[
+                    'parameter_name',
+                    (row) => row.description || row.parameter_description || 'A water quality parameter that affects the aesthetic or operational characteristics of your water system.',
+                    (row) => row.treatment_options || 'Multiple treatment options are available including filtration, softening, and chemical treatment. Consult with a certified water treatment professional to determine the best solution for your specific situation.'
+                ]}
+                tableType="concerns"
+                allowBreak={false}
+                />
+            </View>
+            )}
 
+        {/* General Recommendations Section */}
+<View style={styles.recommendationsSection} break={true}>
+  <Text style={styles.generalRecommendationsTitle}>
+    General Recommendations
+  </Text>
+  <View style={styles.recommendationListBlack}>
+    <Text style={styles.recommendationListBlack}>
+      1. The water quality results presented in this Report Card should be carefully reviewed by a water treatment expert if treatment is necessary to improve the potability of the drinking water supply. A qualified professional can assess the results, recommend appropriate treatment solutions, and ensure that the water meets established drinking water standards or guidelines for safety and quality.
+    </Text>
+    <Text style={[styles.recommendationListBlack, { marginTop: 10 }]}>
+      2. If you have any questions on your drinking water quality results, please schedule a meeting with our professional hydrogeologist.
+    </Text>
+  </View>
+</View>
 
         {/* Footer */}
         <Text style={styles.footer}>
@@ -1260,7 +1373,7 @@ const WaterQualityReportPDF = ({ reportData }) => {
 {/* Health Parameters Table */}
 {healthParameters.length > 0 && (
   <View>
-    <Text style={styles.subsectionTitle}>Health Parameter Results (MAC)</Text>
+    <Text style={styles.subsectionTitle}>Health-Related Parameter Results </Text>
     <PDFTable
       headers={['Parameter', 'Result', 'Unit', 'Recommended Maximum Concentration', 'Status']}
       data={healthParameters}
@@ -1285,8 +1398,8 @@ const WaterQualityReportPDF = ({ reportData }) => {
 
 {/* AO Parameters Table */}
 {aoParameters.length > 0 && (
-  <View>
-    <Text style={styles.subsectionTitle}>Aesthetic & Operational Parameter Results (AO)</Text>
+  <View break={true}>
+    <Text style={styles.subsectionTitle}>Aesthetic & Operational Parameter Results</Text>
     <PDFTable
       headers={['Parameter', 'Result', 'Unit', 'Recommended Maximum Concentration', 'Status']}
       data={aoParameters}
@@ -1309,24 +1422,23 @@ const WaterQualityReportPDF = ({ reportData }) => {
   </View>
 )}
 
-{/* Add General Parameters Table here */}
+{/* General Parameters Table - Centered and Smaller */}
 {generalParameters && generalParameters.length > 0 && (
   <View break={generalParameters.length > 15}>
     <Text style={styles.subsectionTitle}>General Parameter Results</Text>
-    <PDFTable
-      headers={['Parameter', 'Result']}
-      data={generalParameters}
-      keyMapping={[
-        'parameter_name',
-        (row) => {
-          const result = formatLabResult(row);
-          const unit = row.result_units || row.parameter_unit || '';
-          return unit ? `${result} ${unit}` : result;
-        }
-      ]}
-      showExceeded={false}
-      tableType="general"
-    />
+    <View style={styles.centeredTableContainer}>
+      <PDFTable
+        headers={['Parameter', 'Result', 'Unit']}
+        data={generalParameters}
+        keyMapping={[
+          'parameter_name',
+          (row) => formatLabResult(row),
+          (row) => row.result_units || row.parameter_unit || ''
+        ]}
+        showExceeded={false}
+        tableType="general3col"
+      />
+    </View>
   </View>
 )}
 
@@ -1448,6 +1560,22 @@ const WaterQualityReportPDF = ({ reportData }) => {
                 </View>
                 </View>
             ))}
+            </View>
+
+            {/* Water First Banner */}
+            <View style={styles.waterFirstBanner}>
+            <View style={styles.waterFirstContent}>
+                <Text style={styles.waterFirstTitle}>
+                Supporting Water First's Drinking Water Internship
+                </Text>
+                <Text style={styles.waterFirstText}>
+                $5 of every water quality package purchased through My Water Quality will go to Water First.
+                </Text>
+            </View>
+            <Image 
+                src="/images/water_first.png" 
+                style={styles.waterFirstLogoImage}
+            />
             </View>
 
             <Text style={styles.pageNumber} render={({ pageNumber }) => `Page ${pageNumber}`} fixed />
