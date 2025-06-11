@@ -262,7 +262,7 @@ export default function ReportPage() {
         overall_compliance_status: row.compliance_status, // Keep track of overall compliance
         parameter_category: 'ao'
       }));
-
+  
       const generalParameters = rawData.filter(row => 
         row.parameter_type === 'GENERAL'
       );
@@ -288,13 +288,35 @@ export default function ReportPage() {
         )?.compliance_status === 'WARNING')
       );
   
-    // Rest of the function remains the same...
+    // Check for coliform bacteria presence in health parameters
+    const hasColiformBacteria = healthParameters.some(param => 
+      (param.parameter_name?.toLowerCase().includes('coliform') || 
+       param.parameter_name?.toLowerCase().includes('escherichia') ||
+       param.parameter_name?.toLowerCase().includes('e. coli') ||
+       param.parameter_name?.toLowerCase().includes('e.coli')) &&
+      (param.result_value?.includes('NDOGT') || 
+       param.result_numeric?.toString().includes('NDOGT') ||
+       param.compliance_status === 'EXCEEDS_MAC')
+    );
+  
+    // Calculate CWQI for health parameters
     console.log('Calculating CCME WQI for health parameters:', healthParameters.length);
-    const healthCWQI = calculateCCMEWQIWithValidation(healthParameters, { 
+    let healthCWQI = calculateCCMEWQIWithValidation(healthParameters, { 
       debug: true,
       minParameters: 4,
       minSamples: 4 
     });
+  
+    // Override health CWQI if coliform bacteria detected
+    if (hasColiformBacteria && healthCWQI.isValid) {
+      healthCWQI = {
+        ...healthCWQI,
+        score: 0,
+        rating: 'Poor - Coliform Present',
+        color: 'text-red-600',
+        coliformDetected: true
+      };
+    }
     
     console.log('Calculating CCME WQI for AO parameters:', aoParameters.length);
     const aoCWQI = calculateCCMEWQIWithValidation(aoParameters, { 

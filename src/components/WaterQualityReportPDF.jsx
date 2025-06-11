@@ -733,19 +733,30 @@ alertBoxPlain: {
     lineHeight: 1.4,
     fontWeight: 'bold',
   },
+  alertTextLink: {
+    fontSize: 11,
+    color: '#2563EB', // Blue color
+    textDecoration: 'underline',
+    lineHeight: 1.4,
+  },
 });
 
 const customer_first = "John"
 const customer_name = "John Smith";
-const order_number = 1478;
+const order_number = 1450;
 const sample_description = "Water from Tap";
 const TEST_KIT = "Advanced Water Test Kit";
 
 // Generic Parameters Section Component - Update with unified container and new definitions
 const ParametersSection = ({ cwqi, concerns, type, title }) => {
     if (!cwqi) return null;
-  
-    const getQualityDescription = (rating) => {
+
+    const getQualityDescription = (rating, hasColiform = false) => {
+      // Special case for coliform detection - return complete message
+      if (hasColiform || rating === 'Poor - Coliform Present') {
+        return 'With health-related parameters, your water quality score is Poor because coliform bacteria have been detected in your water sample. The presence of coliform bacteria indicates potential contamination and renders the water unsafe for consumption, resulting in a score of 0/100.';
+      }
+      
       switch (rating) {
         case 'Excellent':
           return 'almost all parameters meet the guidelines, and any exceedances are very small. Water quality is considered extremely high.';
@@ -763,10 +774,11 @@ const ParametersSection = ({ cwqi, concerns, type, title }) => {
           return 'the water quality assessment is based on Canadian Water Quality Index standards.';
       }
     };
-  
+
     const hasConcerns = concerns.length > 0;
     const isHealthType = type === 'health';
-  
+    const hasColiform = cwqi.coliformDetected || false;
+
     return (
       <View>
         {/* Unified Container wrapping both score and text */}
@@ -777,20 +789,28 @@ const ParametersSection = ({ cwqi, concerns, type, title }) => {
             <View style={styles.parameterCwqiSection}>
               <CWQIComponent cwqi={cwqi} title={title} />
             </View>
-  
+
             {/* Text Section - Right Side (3/5) */}
             <View style={styles.parameterTextSection}>
-              <Text style={styles.qualityStatement}>
-                <Text style={styles.qualityLevel}>
-                  {isHealthType 
-                    ? `With health-related parameters, your water quality is ${cwqi.rating}` 
-                    : `For aesthetic and operational parameters, your water quality is ${cwqi.rating}`
-                  }
+              {hasColiform && isHealthType ? (
+                // Special handling for coliform - show complete message
+                <Text style={styles.qualityStatement}>
+                  {getQualityDescription(cwqi.rating, hasColiform)}
                 </Text>
-                <Text>, this means that {getQualityDescription(cwqi.rating)}</Text>
-              </Text>
-  
-              {hasConcerns && (
+              ) : (
+                // Normal handling for non-coliform cases
+                <Text style={styles.qualityStatement}>
+                  <Text style={styles.qualityLevel}>
+                    {isHealthType 
+                      ? `With health-related parameters, your water quality is ${cwqi.rating}` 
+                      : `For aesthetic and operational parameters, your water quality is ${cwqi.rating}`
+                    }
+                  </Text>
+                  <Text>, this means that {getQualityDescription(cwqi.rating, hasColiform)}</Text>
+                </Text>
+              )}
+
+              {hasConcerns && !hasColiform && (
                 <View style={styles.parametersList}>
                   <Text style={styles.parametersListTitle}>
                     Parameters over the limit ({concerns.length}):
@@ -805,8 +825,8 @@ const ParametersSection = ({ cwqi, concerns, type, title }) => {
                   ))}
                 </View>
               )}
-  
-              {!hasConcerns && (
+
+              {!hasConcerns && !hasColiform && (
                 <Text style={[styles.qualityStatement, { color: '#059669', marginTop: 8 }]}>
                   All {isHealthType ? 'health-related' : 'aesthetic and operational'} parameters are within acceptable limits.
                 </Text>
@@ -816,7 +836,7 @@ const ParametersSection = ({ cwqi, concerns, type, title }) => {
         </View>
       </View>
     );
-  };
+};
 
   // Generic Recommendations Section Component
 const RecommendationsSection = ({ concerns, type }) => {
@@ -957,45 +977,55 @@ const SummaryCards = ({ bacteriological, healthConcerns, aoConcerns, testKit }) 
 
 // CWQI Component
 const CWQIComponent = ({ cwqi, title }) => {
-  if (!cwqi) return null;
-
-  const getScoreColor = (rating) => {
-    switch (rating) {
-      case 'Poor': return '#DC2626';
-      case 'Marginal': return '#F59E0B';
-      case 'Good': return '#2563EB';
-      case 'Excellent': return '#059669';
-      case 'Very Good': return '#0D9488';
-      default: return '#6B7280';
-    }
-  };
-
-  const getBarWidth = (score) => `${Math.max(5, Math.min(100, score))}%`;
-
-  return (
-    <View style={styles.cwqiBox}>
-      <Text style={styles.cwqiTitle}>{title}</Text>
-      <Text style={[styles.cwqiScore, { color: getScoreColor(cwqi.rating) }]}>
-        {cwqi.score}/100
-      </Text>
-      <Text style={[styles.cwqiRating, { color: getScoreColor(cwqi.rating) }]}>
-        {cwqi.rating}
-      </Text>
-      <View style={styles.cwqiBar}>
-        <View style={[
-          styles.cwqiBarFill, 
-          { 
-            backgroundColor: getScoreColor(cwqi.rating),
-            width: getBarWidth(cwqi.score)
+    if (!cwqi) return null;
+  
+    const getScoreColor = (rating) => {
+      // Special handling for coliform detection
+      if (rating === 'Poor - Coliform Present') return '#DC2626';
+      
+      switch (rating) {
+        case 'Poor': return '#DC2626';
+        case 'Marginal': return '#F59E0B';
+        case 'Good': return '#2563EB';
+        case 'Excellent': return '#059669';
+        case 'Very Good': return '#0D9488';
+        default: return '#6B7280';
+      }
+    };
+  
+    const getBarWidth = (score) => `${Math.max(5, Math.min(100, score))}%`;
+  
+    // Override display for coliform detection
+    const displayRating = cwqi.coliformDetected ? 'Poor' : cwqi.rating;
+    const displayScore = cwqi.coliformDetected ? 0 : cwqi.score;
+  
+    return (
+      <View style={styles.cwqiBox}>
+        <Text style={styles.cwqiTitle}>{title}</Text>
+        <Text style={[styles.cwqiScore, { color: getScoreColor(cwqi.rating) }]}>
+          {displayScore}/100
+        </Text>
+        <Text style={[styles.cwqiRating, { color: getScoreColor(cwqi.rating) }]}>
+          {displayRating}
+        </Text>
+        <View style={styles.cwqiBar}>
+          <View style={[
+            styles.cwqiBarFill, 
+            { 
+              backgroundColor: getScoreColor(cwqi.rating),
+              width: getBarWidth(displayScore)
+            }
+          ]} />
+        </View>
+        <Text style={styles.cwqiSummary}>
+          {cwqi.coliformDetected 
+            ? 'Coliform bacteria detected'
+            : `${cwqi.totalTests - cwqi.failedTests} of ${cwqi.totalTests} parameters passed`
           }
-        ]} />
+        </Text>
       </View>
-      <Text style={styles.cwqiSummary}>
-        {cwqi.totalTests - cwqi.failedTests} of {cwqi.totalTests} parameters passed
-      </Text>
-    </View>
-  );
-};
+    );
+  };
 
 // Replace the PDFTable component with better break handling
 const PDFTable = ({ headers, data, keyMapping, showExceeded = false, tableType = 'default', allowBreak = true }) => {
@@ -1254,17 +1284,35 @@ const WaterQualityReportPDF = ({ reportData }) => {
 
         if (contaminatedParams.length > 0) {
             // Show contamination warning
-            const parameterName = contaminatedParams[0].parameter_name;
             return (
             <View style={styles.alertBoxContamination}>
                 <View style={styles.alertIconContainer}>
                 <Text style={styles.alertIcon}>⚠</Text>
                 </View>
                 <View style={styles.alertContentContainer}>
-                <Text style={styles.alertTextContamination}>
-                    A reading of NDOGT for {parameterName} was detected in your water, this means there's{' '}
-                    <Text style={styles.alertTextBold}>evidence of bacterial and/or sewage contamination. Water is unsafe to drink unless boiled or treated.</Text>
-                    {' '}Please see health-related recommendations below for treatment options.
+                <Text style={styles.alertTextBold}>
+                    Important Notice: Coliform Bacteria Detected
+                </Text>
+                <Text style={[styles.alertTextContamination, { marginTop: 6 }]}>
+                    Coliform bacteria have been detected in your drinking water sample. While not necessarily harmful themselves, their presence indicates that disease-causing organisms may also be present. Immediate action is recommended.
+                </Text>
+                <Text style={[styles.alertTextBold, { marginTop: 8 }]}>
+                    Disinfect Your Well System:
+                </Text>
+                <Text style={[styles.alertTextContamination, { marginTop: 4 }]}>
+                    To reduce the risk of illness, you should disinfect your well and water system. This process is commonly referred to as "shock chlorination."
+                </Text>
+                <Text style={[styles.alertTextContamination, { marginTop: 6 }]}>
+                    We strongly recommend that you:
+                </Text>
+                <Text style={[styles.alertTextContamination, { marginTop: 4, marginLeft: 10 }]}>
+                    • <Text style={styles.alertTextBold}>Contact a licensed water well contractor</Text> to inspect and disinfect your well, <Text style={styles.alertTextBold}>or</Text>
+                </Text>
+                <Text style={[styles.alertTextContamination, { marginTop: 2, marginLeft: 10 }]}>
+                    • <Text style={styles.alertTextBold}>Follow the well disinfection instructions</Text> provided by Health Canada: <Text style={styles.alertTextLink}>https://www.canada.ca/en/health-canada/services/environment/drinking-water/well/treat.html</Text>
+                </Text>
+                <Text style={[styles.alertTextContamination, { marginTop: 8 }]}>
+                    After disinfection, it is important to <Text style={styles.alertTextBold}>re-test your water</Text> to confirm the effectiveness of treatment before resuming consumption.
                 </Text>
                 </View>
             </View>
@@ -1287,7 +1335,9 @@ const WaterQualityReportPDF = ({ reportData }) => {
         }
         })()}
 
+
         {/* Health Parameters Summary - Updated Layout */}
+        <View wrap={false} break={true}>
         <Text style={styles.subsectionTitle}>Health Related Parameters</Text>
             <ParametersSection 
             cwqi={healthCWQI} 
@@ -1298,6 +1348,7 @@ const WaterQualityReportPDF = ({ reportData }) => {
             concerns={healthConcerns}
             type="health"
             />
+        </View>
 
             {healthConcerns.length > 0 && (
             <View wrap={false} break={healthConcerns.length > 3}>
@@ -1316,6 +1367,7 @@ const WaterQualityReportPDF = ({ reportData }) => {
             )}
 
             {/* AO Parameters Summary - New Layout */}
+            <View wrap={false} break={true}>
             <Text style={styles.subsectionTitle}>Aesthetic and Operational Parameters</Text>
             <ParametersSection 
             cwqi={aoCWQI} 
@@ -1326,6 +1378,7 @@ const WaterQualityReportPDF = ({ reportData }) => {
             concerns={aoConcerns}
             type="ao"
             />
+            </View>
 
             {aoConcerns.length > 0 && (
             <View wrap={false} break={aoConcerns.length > 3 || (healthConcerns.length > 0 && aoConcerns.length > 2)}>
