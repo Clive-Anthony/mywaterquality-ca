@@ -16,11 +16,24 @@ export default function HomePage() {
             {/* Hero Image - Left side */}
             <div className="order-2 lg:order-1">
               <div className="relative">
-                <img
-                  src="/images/MWQ_Home_Hero.jpg"
-                  alt="My Water Quality - Professional Drinking Water Testing"
-                  className="w-full h-auto rounded-lg shadow-2xl"
-                />
+              <video
+                className="w-3/4 md:w-2/3 lg:w-1/2 h-auto rounded-lg shadow-2xl mx-auto"
+                autoPlay
+                muted
+                loop
+                playsInline
+                preload="metadata"
+                poster="/images/MWQ_Home_Hero.jpg"
+              >
+                <source src="/water-glass-16-9.mp4" type="video/mp4" />
+              </video>
+            {/* Fallback image - hidden by default, shown if video fails */}
+            <img
+              src="/images/MWQ_Home_Hero.jpg"
+              alt="My Water Quality - Professional Drinking Water Testing"
+              className="w-full h-auto rounded-lg shadow-2xl"
+              style={{ display: 'none' }}
+            />
               </div>
             </div>
 
