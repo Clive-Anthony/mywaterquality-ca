@@ -55,7 +55,7 @@ const calculateCCMEWQI = (parameters) => {
     if (allExcursions.length > 0) {
       const sumExcursions = allExcursions.reduce((sum, exc) => sum + exc, 0);
       // CORRECTED: Divide by number of failed tests, not total tests
-      const nse = sumExcursions / failedTests.length;
+      const nse = sumExcursions / 1; // One because only one test sample is being used
       // CORRECTED: Don't multiply by 100 for F3
       F3 = nse / (0.01 * nse + 1);
     }

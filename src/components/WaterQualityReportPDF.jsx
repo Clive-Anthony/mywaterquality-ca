@@ -566,7 +566,7 @@ alertBoxPlain: {
   },
   parametersUnifiedContainer: {
     backgroundColor: '#FFFFFF',
-    border: '1 solid #E5E7EB',
+    border: '2 solid #9CA3AF', // Increased from 1 to 2 (thicker) and changed color from #E5E7EB to #9CA3AF (darker gray)
     borderRadius: 8,
     padding: 15,
     marginBottom: 20,
@@ -739,13 +739,71 @@ alertBoxPlain: {
     textDecoration: 'underline',
     lineHeight: 1.4,
   },
+  cwqiTitleCurrent: {
+    fontSize: 12,
+    fontWeight: 'bold',
+    color: '#1F2937', // Dark gray for current score
+    textAlign: 'center',
+    marginBottom: 12, // Increased spacing between title and score
+  },
+  
+  cwqiTitlePotential: {
+    fontSize: 12,
+    fontWeight: 'bold',
+    color: '#6B7280', // Gray for potential score
+    textAlign: 'center', // Center the title
+    marginBottom: 4,
+  },
+  
+  potentialScoreContainer: {
+    flexDirection: 'row',
+    alignItems: 'center',
+    backgroundColor: '#FFFFFF',
+    border: '1 solid #D1D5DB', // Gray outline
+    borderRadius: 8,
+    padding: 12,
+    marginTop: 8, // Reduced from 15 to bring closer to health parameter container
+    marginBottom: 20, // Increased from 10 to add more space before recommendations
+  },
+  
+  potentialScoreLeft: {
+    flexDirection: 'column',
+    alignItems: 'center', // Center the title and score
+    marginRight: 16,
+    minWidth: 100, // Ensure consistent width for centering
+  },
+  
+  potentialScoreNumber: {
+    fontSize: 24,
+    fontWeight: 'bold',
+    color: '#059669', // Green color for positive potential
+    textAlign: 'center', // Center the score under the title
+  },
+  
+  potentialScoreText: {
+    fontSize: 11,
+    color: '#374151',
+    lineHeight: 1.4,
+    flex: 1,
+    textAlign: 'left',
+  },
 });
 
+// DEFAULT DATA - uncomment for production
 const customer_first = "John"
 const customer_name = "John Smith";
 const order_number = 1450;
 const sample_description = "Water from Tap";
 const TEST_KIT = "Advanced Water Test Kit";
+
+// CUSTOMER DATA -- uncomment when producing one-off reports
+// const customer_first = "Cleason"
+// const customer_name = "Cleason Martin";
+// const order_number = 1000;
+// const sample_description = "Tap Water";
+// const TEST_KIT = "Advanced Water Test Kit";
+
+
 
 // Generic Parameters Section Component - Update with unified container and new definitions
 const ParametersSection = ({ cwqi, concerns, type, title }) => {
@@ -780,66 +838,85 @@ const ParametersSection = ({ cwqi, concerns, type, title }) => {
     const hasColiform = cwqi.coliformDetected || false;
 
     return (
-      <View>
-        {/* Unified Container wrapping both score and text */}
-        <View style={styles.parametersUnifiedContainer}>
-          {/* Parameters Layout */}
-          <View style={styles.parametersContainer}>
-            {/* CWQI Score Card - Left Side (2/5) */}
-            <View style={styles.parameterCwqiSection}>
-              <CWQIComponent cwqi={cwqi} title={title} />
-            </View>
-
-            {/* Text Section - Right Side (3/5) */}
-            <View style={styles.parameterTextSection}>
-              {hasColiform && isHealthType ? (
-                // Special handling for coliform - show complete message
-                <Text style={styles.qualityStatement}>
-                  {getQualityDescription(cwqi.rating, hasColiform)}
-                </Text>
-              ) : (
-                // Normal handling for non-coliform cases
-                <Text style={styles.qualityStatement}>
-                  <Text style={styles.qualityLevel}>
-                    {isHealthType 
-                      ? `With health-related parameters, your water quality is ${cwqi.rating}` 
-                      : `For aesthetic and operational parameters, your water quality is ${cwqi.rating}`
-                    }
+        <View>
+          {/* Unified Container wrapping both score and text */}
+          <View style={styles.parametersUnifiedContainer}>
+            {/* Parameters Layout */}
+            <View style={styles.parametersContainer}>
+              {/* CWQI Score Card - Left Side (2/5) */}
+              <View style={styles.parameterCwqiSection}>
+                <CWQIComponent cwqi={cwqi} title={title} />
+              </View>
+  
+              {/* Text Section - Right Side (3/5) */}
+              <View style={styles.parameterTextSection}>
+                {hasColiform && isHealthType ? (
+                  // Special handling for coliform - show complete message
+                  <Text style={styles.qualityStatement}>
+                    {getQualityDescription(cwqi.rating, hasColiform)}
                   </Text>
-                  <Text>, this means that {getQualityDescription(cwqi.rating, hasColiform)}</Text>
-                </Text>
-              )}
-
-              {hasConcerns && !hasColiform && (
-                <View style={styles.parametersList}>
-                  <Text style={styles.parametersListTitle}>
-                    Parameters over the limit ({concerns.length}):
-                  </Text>
-                  {concerns.map((param, index) => (
-                    <Text 
-                      key={index} 
-                      style={isHealthType ? styles.parametersListItemHealth : styles.parametersListItemAO}
-                    >
-                      • {param.parameter_name}
+                ) : (
+                  // Normal handling for non-coliform cases
+                  <Text style={styles.qualityStatement}>
+                    <Text style={styles.qualityLevel}>
+                      {isHealthType 
+                        ? `With health-related parameters, your water quality is ${cwqi.rating}` 
+                        : `For aesthetic and operational parameters, your water quality is ${cwqi.rating}`
+                      }
                     </Text>
-                  ))}
-                </View>
-              )}
-
-              {!hasConcerns && !hasColiform && (
-                <Text style={[styles.qualityStatement, { color: '#059669', marginTop: 8 }]}>
-                  All {isHealthType ? 'health-related' : 'aesthetic and operational'} parameters are within acceptable limits.
-                </Text>
-              )}
+                    <Text>, this means that {getQualityDescription(cwqi.rating, hasColiform)}</Text>
+                  </Text>
+                )}
+  
+                {hasConcerns && !hasColiform && (
+                  <View style={styles.parametersList}>
+                    <Text style={styles.parametersListTitle}>
+                      Parameters over the limit ({concerns.length}):
+                    </Text>
+                    {concerns.map((param, index) => (
+                      <Text 
+                        key={index} 
+                        style={isHealthType ? styles.parametersListItemHealth : styles.parametersListItemAO}
+                      >
+                        • {param.parameter_name}
+                      </Text>
+                    ))}
+                  </View>
+                )}
+  
+                {!hasConcerns && !hasColiform && (
+                  <Text style={[styles.qualityStatement, { color: '#059669', marginTop: 8 }]}>
+                    All {isHealthType ? 'health-related' : 'aesthetic and operational'} parameters are within acceptable limits.
+                  </Text>
+                )}
+              </View>
             </View>
           </View>
+  
+          {/* Potential Score Display - Only show for health parameters with coliform */}
+          {hasColiform && isHealthType && cwqi.potentialScore !== null && (
+            <View style={styles.potentialScoreContainer}>
+              {/* Left side: Title and Score */}
+              <View style={styles.potentialScoreLeft}>
+                <Text style={styles.cwqiTitlePotential}>Potential Score</Text>
+                <Text style={styles.potentialScoreNumber}>
+                  +{cwqi.potentialScore}
+                </Text>
+              </View>
+              
+              {/* Right side: Explanatory Text */}
+              <Text style={styles.potentialScoreText}>
+                Your score could potentially increase by {cwqi.potentialScore} points after removing the coliforms from your drinking water.
+              </Text>
+            </View>
+          )}
         </View>
-      </View>
-    );
-};
+      );
+  };
+  
 
   // Generic Recommendations Section Component
-const RecommendationsSection = ({ concerns, type }) => {
+  const RecommendationsSection = ({ concerns, type }) => {
     const hasConcerns = concerns.length > 0;
     const isHealthType = type === 'health';
   
@@ -870,7 +947,7 @@ const RecommendationsSection = ({ concerns, type }) => {
     const config = getRecommendationsConfig();
   
     return (
-      <View style={styles.recommendationsSection} wrap = {false}>
+      <View style={styles.recommendationsSection} wrap={false}>
         <Text style={config.headerStyle}>
           {config.headerText}
         </Text>
@@ -879,7 +956,7 @@ const RecommendationsSection = ({ concerns, type }) => {
         </Text>
       </View>
     );
-  };
+};
 
 
 
@@ -1002,6 +1079,12 @@ const CWQIComponent = ({ cwqi, title }) => {
     return (
       <View style={styles.cwqiBox}>
         <Text style={styles.cwqiTitle}>{title}</Text>
+        
+        {/* Show "Current Score" title when coliform is detected with increased spacing */}
+        {cwqi.coliformDetected && (
+          <Text style={styles.cwqiTitleCurrent}>Current Score</Text>
+        )}
+        
         <Text style={[styles.cwqiScore, { color: getScoreColor(cwqi.rating) }]}>
           {displayScore}/100
         </Text>
