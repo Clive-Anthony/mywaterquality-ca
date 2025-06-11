@@ -197,7 +197,7 @@ export default function TopNav() {
             <Link to="/" className="flex items-center">
               <img 
                 src="/MWQ-logo-final.png" 
-                alt="MyWaterQuality Logo" 
+                alt="My Water Quality Logo" 
                 className="h-8 w-auto sm:h-10"
               />
             </Link>
@@ -280,7 +280,7 @@ export default function TopNav() {
                       <div className="flex items-center">
                         <span className="text-lg mr-3">⚙️</span>
                         <div>
-                          <div className="font-medium">MyWaterQuality Process</div>
+                          <div className="font-medium">My Water Quality Process</div>
                           <div className="text-xs text-gray-500">Learn how our testing works</div>
                         </div>
                       </div>
@@ -656,7 +656,7 @@ export default function TopNav() {
                       className="block px-8 py-3 text-sm text-gray-700 hover:text-blue-600 hover:bg-blue-50 transition-colors duration-200"
                     >
                       <div>
-                        <div className="font-medium">MyWaterQuality Process</div>
+                        <div className="font-medium">My Water Quality Process</div>
                         <div className="text-xs text-gray-500 mt-1">Learn how our testing works</div>
                       </div>
                     </Link>
