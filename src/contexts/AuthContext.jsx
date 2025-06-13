@@ -70,9 +70,11 @@ export function AuthProvider({ children }) {
           console.log('Auth state changed:', event);
           
           try {
+            console.log('This is a new session');
             setSession(newSession);
             
             if (newSession) {
+              console.log('Awaiting getCurrentUser');
               const currentUser = await getCurrentUser();
               setUser(currentUser);
               
