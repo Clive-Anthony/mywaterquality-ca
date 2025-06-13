@@ -60,7 +60,7 @@ async function sendOrderConfirmationEmailDirect(orderData, orderItems, customerE
       }).format(item.unit_price)} each`
     ).join('\n') || 'No items listed';
 
-    const baseUrl = process.env.VITE_APP_URL || 'https://mywaterqualityca.netlify.app';
+    const baseUrl = process.env.VITE_APP_URL || 'https://mywaterquality.ca';
 
     const emailData = {
       transactionalId: 'cmb6pqu9c02qht60i7w92yalf', // Customer order confirmation template ID

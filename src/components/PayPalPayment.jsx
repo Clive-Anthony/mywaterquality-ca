@@ -79,7 +79,7 @@ export default function PayPalPayment({
                 value: amount.toFixed(2),
                 currency_code: currency
               },
-              description: 'MyWaterQuality.ca - Water Testing Kit Order'
+              description: 'My Water Quality - Water Testing Kit Order'
             }],
             application_context: {
               shipping_preference: 'NO_SHIPPING',

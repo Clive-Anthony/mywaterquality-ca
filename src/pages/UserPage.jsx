@@ -16,7 +16,7 @@ export default function UserPage() {
       <div className="absolute inset-0 bg-opacity-50 bg-blue-900">
         <div className="max-w-7xl mx-auto h-full px-4 sm:px-6 lg:px-8 flex flex-col justify-center">
           <h1 className="text-3xl font-bold text-white sm:text-4xl">
-            Welcome to MyWaterQuality.ca
+            Welcome to My Water Quality
           </h1>
           <p className="mt-3 text-blue-100 max-w-2xl">
             Test, track, and improve your water quality with our comprehensive testing kits and detailed analysis.

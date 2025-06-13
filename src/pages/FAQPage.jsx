@@ -55,7 +55,7 @@ export default function FAQPage() {
       )
     },
     {
-      question: "Some water treatment companies provide sampling services for free? Do they sample for the same parameters as mywaterquality.ca?",
+      question: "Some water treatment companies provide sampling services for free? Do they sample for the same parameters as My Water Quality",
       answer: (
         <div className="space-y-4">
           <p>
@@ -71,7 +71,7 @@ export default function FAQPage() {
       )
     },
     {
-      question: "There are other at home testing kits you can buy online. What is the difference between these kits and the services provided by mywaterquality.ca?",
+      question: "There are other at home testing kits you can buy online. What is the difference between these kits and the services provided by My Water Quality",
       answer: (
         <div className="space-y-4">
           <p>
@@ -100,11 +100,11 @@ export default function FAQPage() {
       )
     },
     {
-      question: "If I purchase a water sampling package from mywaterquality.ca, how long before I see the results?",
+      question: "If I purchase a water sampling package from My Water Quality, how long before I see the results?",
       answer: (
         <div className="space-y-4">
           <p>
-            You will receive notification that your results are available on mywaterquality.ca within ten (10) to fifteen (15) business days. Your results will remain in your profile for future reference.
+            You will receive notification that your results are available on My Water Quality within ten (10) to fifteen (15) business days. Your results will remain in your profile for future reference.
           </p>
         </div>
       )

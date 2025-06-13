@@ -29,7 +29,7 @@ const getBaseUrl = () => {
   }
   
   // Fallback for production (if VITE_APP_URL not set)
-  return 'https://mywaterqualityca.netlify.app/';
+  return 'https://mywaterquality.ca';
 };
 
 export const config = {

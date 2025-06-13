@@ -237,7 +237,7 @@ export default function UpdatePasswordPage() {
       <div className="w-full max-w-md">
         {/* Logo and header */}
         <div className="text-center mb-10">
-          <h1 className="text-4xl font-bold text-blue-600 mb-2">MyWaterQuality.ca</h1>
+          <h1 className="text-4xl font-bold text-blue-600 mb-2">My Water Quality</h1>
           <div className="flex justify-center">
             <div className="h-1 w-16 bg-blue-400 rounded"></div>
           </div>

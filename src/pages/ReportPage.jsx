@@ -518,7 +518,7 @@ export default function ReportPage() {
                   Supporting Water First's Drinking Water Internship
                 </h2>
                 <p className="text-gray-700 text-base">
-                  $5 of every water quality package purchased through mywaterquality.ca will go to Water First.
+                  $5 of every water quality package purchased through My Water Quality will go to Water First.
                 </p>
               </div>
               <div className="flex-shrink-0">
@@ -546,7 +546,7 @@ export default function ReportPage() {
               <div className="flex items-center">
                 <img 
                   src="/MWQ-logo-final.png" 
-                  alt="MyWaterQuality Logo" 
+                  alt="My Water Quality Logo" 
                   className="h-12 w-auto"
                 />
               </div>
@@ -998,7 +998,7 @@ export default function ReportPage() {
               please consult with a qualified water treatment professional.
             </p>
             <p className="text-xs text-gray-500 mt-2">
-              Report generated on {formatDate(new Date().toISOString())} | MyWaterQuality.ca
+              Report generated on {formatDate(new Date().toISOString())} | My Water Quality
             </p>
             </div>
         </div>

@@ -145,7 +145,7 @@ exports.handler = async function(event, context) {
     console.log(`User found with email: ${email}`);
     
     // FIXED: Use the correct site URL with callback path
-    const baseUrl = process.env.VITE_APP_URL || 'https://mywaterqualityca.netlify.app';
+    const baseUrl = process.env.VITE_APP_URL || 'https://mywaterquality.ca';
     const redirectUrl = `${baseUrl}/auth/callback`;
     
     console.log('Using redirect URL:', redirectUrl);
