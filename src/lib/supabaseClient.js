@@ -5,6 +5,16 @@ import { config } from '../config';
 // Create a single supabase client for interacting with your database
 export const supabase = createClient(config.supabaseUrl, config.supabaseAnonKey);
 
+export const getCurrentUser = async () => {
+  const { data: { user } } = await supabase.auth.getUser();
+  return user;
+};
+
+export const getSession = async () => {
+  const { data: { session } } = await supabase.auth.getSession();
+  return session;
+};
+
 // Enhanced Auth helper functions with Loops email integration
 export const signUp = async (email, password, firstName = '', lastName = '') => {
   try {
@@ -107,16 +117,6 @@ export const signOut = async () => {
     console.error('Exception during sign out:', err.message);
     return { error: err };
   }
-};
-
-export const getCurrentUser = async () => {
-  const { data: { user } } = await supabase.auth.getUser();
-  return user;
-};
-
-export const getSession = async () => {
-  const { data: { session } } = await supabase.auth.getSession();
-  return session;
 };
 
 // FIXED Password reset method - Use only custom Loops email, not Supabase default
