@@ -612,6 +612,7 @@ export default function CheckoutPage() {
   return (
     <PageLayout>
       <div className="max-w-4xl mx-auto py-8 px-4 sm:px-6 lg:px-8">
+        {/* Removed for prod */}
         {/* Debug Info Panel */}
         {/* <div className="mb-4 bg-gray-100 p-4 rounded-lg text-sm">
           <h4 className="font-semibold mb-2">Debug Info:</h4>
