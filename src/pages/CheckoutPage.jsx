@@ -613,7 +613,7 @@ export default function CheckoutPage() {
     <PageLayout>
       <div className="max-w-4xl mx-auto py-8 px-4 sm:px-6 lg:px-8">
         {/* Debug Info Panel */}
-        <div className="mb-4 bg-gray-100 p-4 rounded-lg text-sm">
+        {/* <div className="mb-4 bg-gray-100 p-4 rounded-lg text-sm">
           <h4 className="font-semibold mb-2">Debug Info:</h4>
           <p>Current Step: {currentStep}</p>
           <p>Processing: {isProcessing ? 'Yes' : 'No'}</p>
@@ -622,7 +622,7 @@ export default function CheckoutPage() {
           <p>Has User: {user ? 'Yes' : 'No'}</p>
           <p>Has Session: {session ? 'Yes' : 'No'}</p>
           {processingError && <p className="text-red-600">Error: {processingError}</p>}
-        </div>
+        </div> */}
 
         {/* Progress Steps */}
         <div className="mb-8">

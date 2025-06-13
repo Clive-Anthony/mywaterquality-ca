@@ -60,7 +60,7 @@ export default function App() {
           <CartDebugger /> */}
           
           {/* Add a simple visual indicator of Tailwind status */}
-          {tailwindWorks !== null && (
+          {/* {tailwindWorks !== null && (
             <div style={{ 
               position: 'fixed', 
               bottom: '10px', 
@@ -74,7 +74,7 @@ export default function App() {
             }}>
               Tailwind CSS: {tailwindWorks ? 'Working' : 'Not Working'}
             </div>
-          )}
+          )} */}
           
           <Routes>
             {/* Public home page */}
