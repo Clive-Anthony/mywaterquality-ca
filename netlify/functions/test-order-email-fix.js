@@ -45,7 +45,7 @@ exports.handler = async function(event, context) {
       currency: 'CAD',
     }).format(mockOrderData.total_amount);
 
-    const baseUrl = process.env.VITE_APP_URL || 'https://mywaterquality.ca';
+    const baseUrl = process.env.VITE_APP_URL || 'https://mywaterqualityca.netlify.app';
 
     const emailData = {
       transactionalId: 'cmb6pqu9c02qht60i7w92yalf', // Order confirmation template ID

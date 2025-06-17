@@ -122,7 +122,7 @@ exports.handler = async function(event, context) {
     console.log(`Processing order confirmation email for: ${email}`);
     console.log('Order details:', { orderNumber, orderTotal, firstName });
     
-    const baseUrl = process.env.VITE_APP_URL || 'https://mywaterquality.ca';
+    const baseUrl = process.env.VITE_APP_URL || 'https://mywaterqualityca.netlify.app';
     
     // Send order confirmation email via Loops using the correct template ID
     await sendLoopsEmail({
