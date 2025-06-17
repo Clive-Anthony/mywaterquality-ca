@@ -108,7 +108,7 @@ useEffect(() => {
     setError(null);
 
     try {
-      const { success, error: cartError } = await addToCart(kit.id, quantity);
+      const { success, error: cartError } = await addToCart(kit, quantity);
       
       if (!success) {
         throw cartError;
