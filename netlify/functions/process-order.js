@@ -1,4 +1,4 @@
-// netlify/functions/process-order.js - FIXED: Admin notification with correct template ID
+// netlify/functions/process-order.js - FIXED to match your exact schema
 
 const { createClient } = require('@supabase/supabase-js');
 
@@ -52,7 +52,7 @@ async function sendOrderConfirmationEmailDirect(orderData, orderItems, customerE
       currency: 'CAD',
     }).format(orderData.total_amount);
 
-    // Format order items for customer email (same as admin format)
+    // Format order items for customer email
     const orderItemsText = orderItems?.map(item => 
       `• ${item.product_name} (Qty: ${item.quantity}) - ${new Intl.NumberFormat('en-CA', {
         style: 'currency',
@@ -79,7 +79,7 @@ async function sendOrderConfirmationEmailDirect(orderData, orderItems, customerE
 
     log('info', `📧 Prepared customer email data for order ${orderData.order_number}`, {
       templateId: emailData.transactionalId,
-      itemCount: emailData.dataVariables.itemCount,
+      itemCount: orderItems?.length || 0,
       orderTotal: emailData.dataVariables.orderTotal
     });
 
@@ -167,12 +167,11 @@ Email: ${shippingAddress.email}` : 'Not provided';
       }).format(item.unit_price)} each`
     ).join('\n') || 'No items listed';
 
-    // FIXED: Use the correct admin template ID and proper data structure
+    // Use the correct admin template ID
     const emailData = {
-      transactionalId: 'cmbax4sey1n651h0it0rm6f8k', // CORRECT admin notification template ID
+      transactionalId: 'cmbax4sey1n651h0it0rm6f8k', // Admin notification template ID
       email: 'david.phillips@bookerhq.ca',
       dataVariables: {
-        // Admin template specific variables
         customerName: customerName,
         orderNumber: orderData.order_number,
         orderDate: orderDate,
@@ -319,8 +318,6 @@ async function storeFailedPayment(paymentData, error, requestId) {
   try {
     log('warn', `Storing failed payment for manual recovery [${requestId}]`);
     
-    // You could store this in a separate table or external service
-    // For now, we'll log it in a structured way for manual processing
     console.error('💳 PAYMENT RECOVERY NEEDED:', {
       requestId,
       timestamp: new Date().toISOString(),
@@ -693,7 +690,7 @@ exports.handler = async function(event, context) {
   }
 };
 
-// Enhanced order creation with retry logic
+// Enhanced order creation with retry logic - FIXED TO MATCH YOUR SCHEMA
 async function createOrderWithRetry(supabaseAdmin, orderData, user, requestId, maxRetries = 2) {
   let lastError;
   
@@ -701,8 +698,13 @@ async function createOrderWithRetry(supabaseAdmin, orderData, user, requestId, m
     try {
       log('info', `Order creation attempt ${attempt}/${maxRetries} [${requestId}]`);
       
+      // FIXED: Match your exact schema - removed order_id field since it's auto-generated as 'id'
       const orderInsertData = {
         user_id: user.id,
+        // Don't include 'id' or 'order_number' - they're auto-generated
+        status: 'confirmed', // You have this field
+        payment_status: 'paid', // You have this field  
+        fulfillment_status: 'unfulfilled', // You have this field
         subtotal: Number(orderData.subtotal) || 0,
         shipping_cost: Number(orderData.shipping_cost) || 0,
         tax_amount: Number(orderData.tax_amount) || 0,
@@ -712,13 +714,11 @@ async function createOrderWithRetry(supabaseAdmin, orderData, user, requestId, m
         special_instructions: orderData.special_instructions || null,
         payment_method: orderData.payment_method || 'paypal',
         payment_data: orderData.payment_reference ? 
-          { reference: orderData.payment_reference, completed_at: new Date().toISOString() } : null,
-        status: 'confirmed',
-        payment_status: 'paid',
-        fulfillment_status: 'unfulfilled'
+          { reference: orderData.payment_reference, completed_at: new Date().toISOString() } : null
+        // created_at and updated_at will be auto-set by your defaults
       };
 
-      // Create order with timeout
+      // Create order with timeout - FIXED: Select the correct fields that exist in your schema
       const { data: createdOrder, error: orderError } = await withFunctionTimeout(
         supabaseAdmin
           .from('orders')
@@ -750,7 +750,7 @@ async function createOrderWithRetry(supabaseAdmin, orderData, user, requestId, m
       // Create order items
       if (orderData.items && orderData.items.length > 0) {
         const orderItems = orderData.items.map(item => ({
-          order_id: createdOrder.id,
+          order_id: createdOrder.id, // Use the generated id
           test_kit_id: item.test_kit_id,
           quantity: Number(item.quantity),
           unit_price: Number(item.unit_price),
