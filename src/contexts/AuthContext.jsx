@@ -1,3 +1,4 @@
+// src/contexts/AuthContext.jsx - FIXED VERSION to reset mounted ref on remount
 import React, { createContext, useContext, useEffect, useState, useRef } from 'react';
 import { supabase } from '../lib/supabaseClient';
 
@@ -17,10 +18,16 @@ export const AuthProvider = ({ children }) => {
   const [loading, setLoading] = useState(true);
   const [initialized, setInitialized] = useState(false);
   
-  // Use refs to prevent race conditions
+  // Use refs to prevent race conditions and multiple setups
   const mountedRef = useRef(true);
   const authListenerRef = useRef(null);
-  const initializingRef = useRef(false);
+  const setupCompleteRef = useRef(false);
+
+  // CRITICAL FIX: Reset mounted ref on every render
+  useEffect(() => {
+    mountedRef.current = true;
+    console.log('🔄 Component mounted/remounted - mountedRef set to true');
+  });
 
   const getCurrentUser = async () => {
     try {
@@ -53,71 +60,115 @@ export const AuthProvider = ({ children }) => {
   // Safe state updates that check if component is still mounted
   const safeSetUser = (newUser) => {
     if (mountedRef.current) {
+      console.log('🔄 Setting user state:', newUser?.email || 'null');
       setUser(newUser);
+    } else {
+      console.log('⚠️ Attempted to set user state but component unmounted');
     }
   };
 
   const safeSetSession = (newSession) => {
     if (mountedRef.current) {
+      console.log('🔄 Setting session state:', !!newSession);
       setSession(newSession);
+    } else {
+      console.log('⚠️ Attempted to set session state but component unmounted');
     }
   };
 
   const safeSetLoading = (loadingState) => {
     if (mountedRef.current) {
+      console.log('🔄 Setting loading state:', loadingState);
       setLoading(loadingState);
+    } else {
+      console.log('⚠️ Attempted to set loading state but component unmounted');
     }
   };
 
   const safeSetInitialized = (initState) => {
     if (mountedRef.current) {
+      console.log('🔄 Setting initialized state:', initState);
       setInitialized(initState);
+    } else {
+      console.log('⚠️ Attempted to set initialized state but component unmounted');
     }
   };
 
-  // Handle auth state changes with debouncing to prevent rapid updates
+  // Handle auth state changes
   const handleAuthStateChange = async (event, newSession) => {
-    if (!mountedRef.current) return;
+    console.log('🔥 AUTH STATE CHANGE RECEIVED:', event, {
+      hasSession: !!newSession,
+      hasUser: !!newSession?.user,
+      userEmail: newSession?.user?.email,
+      timestamp: new Date().toISOString(),
+      mountedRefValue: mountedRef.current
+    });
     
-    console.log('Auth state change:', event, newSession ? 'session present' : 'no session');
+    if (!mountedRef.current) {
+      console.log('⚠️ Auth state change ignored - component unmounted (mountedRef.current =', mountedRef.current, ')');
+      return;
+    }
     
     try {
+      // Always set the session first
       safeSetSession(newSession);
       
       if (newSession?.user) {
+        console.log('✅ Setting user from session:', newSession.user.email);
         safeSetUser(newSession.user);
+        // Clear loading state immediately when we have a user
+        safeSetLoading(false);
+      } else if (newSession && !newSession.user) {
+        // Edge case: session without user, fetch user
+        console.log('⚠️ Session without user, fetching user...');
+        const currentUser = await getCurrentUser();
+        safeSetUser(currentUser);
+        if (currentUser) {
+          safeSetLoading(false);
+        }
       } else {
-        // Only fetch user if we don't have session user but have a session
-        if (newSession && !newSession.user) {
-          const currentUser = await getCurrentUser();
-          safeSetUser(currentUser);
-        } else {
-          safeSetUser(null);
+        console.log('❌ No session, clearing user');
+        safeSetUser(null);
+        // Don't set loading to false here if we're just starting up
+        if (initialized) {
+          safeSetLoading(false);
         }
       }
+      
     } catch (error) {
-      console.error('Error handling auth state change:', error);
+      console.error('❌ Error handling auth state change:', error);
       safeSetUser(null);
       safeSetSession(null);
     }
   };
 
-  // Initialize auth state once
+  // Set up auth listener and initialize - prevent multiple setups
   useEffect(() => {
+    // Reset setup flag on mount (in case of remount)
+    if (setupCompleteRef.current) {
+      console.log('⚠️ Resetting setup flag due to remount');
+      setupCompleteRef.current = false;
+    }
+
     let isCancelled = false;
     
-    const initializeAuth = async () => {
-      // Prevent multiple initializations
-      if (initializingRef.current || !mountedRef.current) {
-        return;
-      }
-      
-      initializingRef.current = true;
-      
+    const setupAuthAndListener = async () => {
       try {
-        console.log('Initializing auth...');
+        console.log('🚀 Setting up auth listener and initializing...');
         
-        // Get initial session and user in parallel but handle them sequentially
+        // Set up the auth listener if not already set up
+        if (!authListenerRef.current || !setupCompleteRef.current) {
+          // Clean up any existing listener first
+          if (authListenerRef.current?.subscription) {
+            authListenerRef.current.subscription.unsubscribe();
+          }
+          
+          const { data: authListener } = supabase.auth.onAuthStateChange(handleAuthStateChange);
+          authListenerRef.current = authListener;
+          console.log('✅ Auth listener set up successfully');
+        }
+        
+        // Now get initial state
         const [currentSession, currentUser] = await Promise.all([
           getSession(),
           getCurrentUser()
@@ -125,72 +176,60 @@ export const AuthProvider = ({ children }) => {
         
         if (isCancelled || !mountedRef.current) return;
         
-        // Set session first
+        console.log('📊 Initial auth state:', {
+          hasSession: !!currentSession,
+          hasUser: !!currentUser,
+          sessionUser: currentSession?.user?.email,
+          directUser: currentUser?.email
+        });
+        
+        // Set initial state
         safeSetSession(currentSession);
         
-        // Set user - prefer session user if available
         if (currentSession?.user) {
           safeSetUser(currentSession.user);
-        } else {
+        } else if (currentUser) {
           safeSetUser(currentUser);
+        } else {
+          safeSetUser(null);
         }
         
         safeSetInitialized(true);
+        safeSetLoading(false);
+        setupCompleteRef.current = true;
         
-        console.log('Auth initialized:', {
-          hasSession: !!currentSession,
-          hasUser: !!(currentSession?.user || currentUser)
-        });
+        console.log('✅ Auth initialization complete');
         
       } catch (error) {
-        console.error('Auth initialization error:', error);
+        console.error('❌ Auth setup error:', error);
         if (mountedRef.current) {
           safeSetUser(null);
           safeSetSession(null);
           safeSetInitialized(true);
-        }
-      } finally {
-        if (mountedRef.current) {
           safeSetLoading(false);
-          initializingRef.current = false;
         }
       }
     };
 
-    initializeAuth();
+    setupAuthAndListener();
     
     return () => {
       isCancelled = true;
+      console.log('🧹 Auth setup effect cleanup (but keeping listener active)');
+      // DON'T clean up the listener here unless component is actually unmounting
     };
-  }, []); // Only run once on mount
+  }, []); // Empty dependency array - only run once on mount
 
-  // Set up auth listener after initialization
-  useEffect(() => {
-    if (!initialized) return;
-    
-    console.log('Setting up auth state listener...');
-    
-    const { data: authListener } = supabase.auth.onAuthStateChange(handleAuthStateChange);
-    authListenerRef.current = authListener;
-    
-    return () => {
-      console.log('Cleaning up auth state listener...');
-      if (authListenerRef.current?.subscription) {
-        authListenerRef.current.subscription.unsubscribe();
-      }
-      authListenerRef.current = null;
-    };
-  }, [initialized]); // Re-run if initialization state changes
-
-  // Cleanup on unmount
+  // Cleanup on actual unmount only
   useEffect(() => {
     return () => {
-      console.log('AuthProvider unmounting...');
+      console.log('🗑️ AuthProvider unmounting - cleaning up listener');
       mountedRef.current = false;
+      setupCompleteRef.current = false;
       
-      // Clean up any existing listener
       if (authListenerRef.current?.subscription) {
         authListenerRef.current.subscription.unsubscribe();
+        authListenerRef.current = null;
       }
     };
   }, []);

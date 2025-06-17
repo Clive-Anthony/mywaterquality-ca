@@ -1,3 +1,4 @@
+// src/hooks/useAuthToken.js - UPDATED VERSION
 import { useCallback } from 'react';
 import { useAuth } from '../contexts/AuthContext';
 import { supabase } from '../lib/supabaseClient';
@@ -38,9 +39,9 @@ export const useAuthToken = () => {
       throw new Error('Auth storage corrupted - please refresh the page');
     }
     
-    // If still loading, wait for auth to initialize
+    // If still loading, throw a more specific error but don't prevent other operations
     if (loading) {
-      throw new Error('Authentication still loading');
+      throw new Error('LOADING'); // Special error code that callers can handle
     }
     
     // Try context session first (fastest)
@@ -72,28 +73,36 @@ export const useAuthToken = () => {
   }, [session, loading]);
   
   const makeAuthenticatedRequest = useCallback(async (url, options = {}) => {
-    const token = await getValidToken();
-    
-    const response = await fetch(url, {
-      ...options,
-      headers: {
-        ...options.headers,
-        'Authorization': `Bearer ${token}`,
-        'Content-Type': 'application/json'
+    try {
+      const token = await getValidToken();
+      
+      const response = await fetch(url, {
+        ...options,
+        headers: {
+          ...options.headers,
+          'Authorization': `Bearer ${token}`,
+          'Content-Type': 'application/json'
+        }
+      });
+      
+      // Handle auth errors consistently
+      if (response.status === 401 || response.status === 403) {
+        throw new Error('Authentication failed - please login again');
       }
-    });
-    
-    // Handle auth errors consistently
-    if (response.status === 401 || response.status === 403) {
-      throw new Error('Authentication failed - please login again');
+      
+      return response;
+    } catch (error) {
+      // If the error is due to loading state, provide a more helpful message
+      if (error.message === 'LOADING') {
+        throw new Error('Authentication in progress - please wait');
+      }
+      throw error;
     }
-    
-    return response;
   }, [getValidToken]);
   
   const validateUserAuth = useCallback(() => {
     if (loading) {
-      throw new Error('Authentication still loading');
+      throw new Error('LOADING'); // Use the special error code
     }
     
     if (!user) {

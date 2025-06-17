@@ -1,30 +1,34 @@
-// src/pages/LoginPage.jsx - UPDATED to handle password update success
-import { useState, useEffect } from 'react';
+// src/pages/LoginPage.jsx - FIXED to wait for auth state update
+import { useState, useEffect, useRef } from 'react';
 import { Link, useNavigate, useLocation } from 'react-router-dom';
 import { signIn, signInWithGoogle } from '../lib/supabaseClient';
+import { useAuth } from '../contexts/AuthContext'; // Add this import
 
 export default function LoginPage() {
   const navigate = useNavigate();
   const location = useLocation();
+  const { user, loading: authLoading } = useAuth(); // Add this
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [loading, setLoading] = useState(false);
   const [googleLoading, setGoogleLoading] = useState(false);
   const [error, setError] = useState(null);
   const [successMessage, setSuccessMessage] = useState(null);
+  const [waitingForAuth, setWaitingForAuth] = useState(false); // Add this
+  
+  // Prevent double submissions
+  const submissionInProgress = useRef(false);
+  const formRef = useRef(null);
 
-  // Check for success or error messages from navigation state (like email verification)
+  // Check for success or error messages from navigation state
   useEffect(() => {
-    // Check for password updated success in URL params
     const urlParams = new URLSearchParams(location.search);
     if (urlParams.get('password_updated') === 'true') {
       setSuccessMessage('Password updated successfully! You can now log in with your new password.');
-      // Clear the URL parameter
       navigate(location.pathname, { replace: true });
       return;
     }
     
-    // Check localStorage for success message (backup method)
     if (localStorage.getItem('password_update_success') === 'true') {
       setSuccessMessage('Password updated successfully! You can now log in with your new password.');
       localStorage.removeItem('password_update_success');
@@ -33,38 +37,94 @@ export default function LoginPage() {
     
     if (location.state?.message) {
       setSuccessMessage(location.state.message);
-      // Clear the message from navigation state
       navigate(location.pathname, { replace: true, state: {} });
     } else if (location.state?.error) {
       setError(location.state.error);
-      // Clear the error from navigation state
       navigate(location.pathname, { replace: true, state: {} });
     }
   }, [location, navigate]);
 
+  // Handle auth state changes - navigate when user is authenticated
+  useEffect(() => {
+    if (waitingForAuth && user && !authLoading) {
+      console.log('Auth state updated, user is now authenticated, navigating to dashboard');
+      setWaitingForAuth(false);
+      setLoading(false);
+      submissionInProgress.current = false;
+      navigate('/dashboard', { replace: true });
+    }
+  }, [user, authLoading, waitingForAuth, navigate]);
+
   const handleSubmit = async (e) => {
     e.preventDefault();
+    e.stopPropagation();
+    
+    // Prevent double submissions
+    if (submissionInProgress.current || loading) {
+      console.log('Submission already in progress, blocking duplicate');
+      return;
+    }
+    
+    // Basic validation
+    if (!email.trim() || !password.trim()) {
+      setError('Please enter both email and password');
+      return;
+    }
+    
+    submissionInProgress.current = true;
     setError(null);
     setLoading(true);
     
     try {
-      const { data, error } = await signIn(email, password);
+      console.log('Starting login attempt for:', email);
+      
+      const { data, error } = await signIn(email.trim(), password);
       
       if (error) {
+        console.error('Login error:', error);
         throw error;
       }
       
-      // Redirect to dashboard on successful login
-      navigate('/dashboard');
+      console.log('Login successful, waiting for auth state to update...');
+      
+      // Clear form on success
+      setEmail('');
+      setPassword('');
+      
+      // Set flag to wait for auth context to update
+      setWaitingForAuth(true);
+      
+      // Don't navigate immediately - wait for useEffect to handle it
+      // navigate('/dashboard'); // Remove this line
+      
     } catch (err) {
       console.error('Login error:', err);
-      setError(err.message || 'Failed to sign in');
-    } finally {
+      
+      // Reset loading states on error
       setLoading(false);
+      submissionInProgress.current = false;
+      setWaitingForAuth(false);
+      
+      // Handle specific error messages
+      if (err.message?.includes('invalid_credentials') || err.message?.includes('Invalid login credentials')) {
+        setError('Invalid email or password. Please check your credentials and try again.');
+      } else if (err.message?.includes('too_many_requests')) {
+        setError('Too many login attempts. Please wait a moment and try again.');
+      } else if (err.message?.includes('email_not_confirmed')) {
+        setError('Please check your email and click the verification link before logging in.');
+      } else {
+        setError(err.message || 'Failed to sign in. Please try again.');
+      }
     }
+    // Don't put finally block here - let the useEffect handle success cleanup
   };
 
   const handleGoogleSignIn = async () => {
+    // Prevent multiple Google sign-in attempts
+    if (googleLoading) {
+      return;
+    }
+    
     setError(null);
     setGoogleLoading(true);
     
@@ -82,6 +142,9 @@ export default function LoginPage() {
       setGoogleLoading(false);
     }
   };
+
+  // Disable form during loading or waiting for auth
+  const formDisabled = loading || googleLoading || waitingForAuth;
 
   return (
     <div className="min-h-screen flex flex-col items-center justify-center bg-gradient-to-br from-blue-50 to-cyan-100 px-4 py-12">
@@ -132,8 +195,8 @@ export default function LoginPage() {
               <button
                 type="button"
                 onClick={handleGoogleSignIn}
-                disabled={googleLoading}
-                className="w-full flex justify-center items-center py-3 px-4 border border-gray-300 rounded-lg shadow-sm text-sm font-medium text-gray-700 bg-white hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500 disabled:opacity-50 transition-colors duration-200"
+                disabled={formDisabled}
+                className="w-full flex justify-center items-center py-3 px-4 border border-gray-300 rounded-lg shadow-sm text-sm font-medium text-gray-700 bg-white hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500 disabled:opacity-50 disabled:cursor-not-allowed transition-colors duration-200"
               >
                 {googleLoading ? (
                   <div className="flex items-center">
@@ -179,7 +242,7 @@ export default function LoginPage() {
               </div>
             </div>
             
-            <form className="space-y-6" onSubmit={handleSubmit}>
+            <form ref={formRef} className="space-y-6" onSubmit={handleSubmit} noValidate>
               <div>
                 <label htmlFor="email-address" className="block text-sm font-medium text-gray-700 mb-1">
                   Email address
@@ -190,7 +253,8 @@ export default function LoginPage() {
                   type="email"
                   autoComplete="email"
                   required
-                  className="appearance-none block w-full px-3 py-3 border border-gray-300 rounded-lg shadow-sm placeholder-gray-400 focus:outline-none focus:ring-blue-500 focus:border-blue-500 sm:text-sm"
+                  disabled={formDisabled}
+                  className="appearance-none block w-full px-3 py-3 border border-gray-300 rounded-lg shadow-sm placeholder-gray-400 focus:outline-none focus:ring-blue-500 focus:border-blue-500 sm:text-sm disabled:opacity-50 disabled:cursor-not-allowed"
                   placeholder="name@example.com"
                   value={email}
                   onChange={(e) => setEmail(e.target.value)}
@@ -214,7 +278,8 @@ export default function LoginPage() {
                   type="password"
                   autoComplete="current-password"
                   required
-                  className="appearance-none block w-full px-3 py-3 border border-gray-300 rounded-lg shadow-sm placeholder-gray-400 focus:outline-none focus:ring-blue-500 focus:border-blue-500 sm:text-sm"
+                  disabled={formDisabled}
+                  className="appearance-none block w-full px-3 py-3 border border-gray-300 rounded-lg shadow-sm placeholder-gray-400 focus:outline-none focus:ring-blue-500 focus:border-blue-500 sm:text-sm disabled:opacity-50 disabled:cursor-not-allowed"
                   placeholder="Enter your password"
                   value={password}
                   onChange={(e) => setPassword(e.target.value)}
@@ -226,7 +291,8 @@ export default function LoginPage() {
                   id="remember-me"
                   name="remember-me"
                   type="checkbox"
-                  className="h-4 w-4 text-blue-600 focus:ring-blue-500 border-gray-300 rounded"
+                  disabled={formDisabled}
+                  className="h-4 w-4 text-blue-600 focus:ring-blue-500 border-gray-300 rounded disabled:opacity-50"
                 />
                 <label htmlFor="remember-me" className="ml-2 block text-sm text-gray-700">
                   Remember me
@@ -236,10 +302,18 @@ export default function LoginPage() {
               <div>
                 <button
                   type="submit"
-                  disabled={loading}
-                  className="w-full flex justify-center py-3 px-4 border border-transparent rounded-lg shadow-sm text-sm font-medium text-white bg-gradient-to-r from-blue-500 to-blue-600 hover:from-blue-600 hover:to-blue-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500 disabled:opacity-50 transition-colors duration-200"
+                  disabled={formDisabled}
+                  className="w-full flex justify-center py-3 px-4 border border-transparent rounded-lg shadow-sm text-sm font-medium text-white bg-gradient-to-r from-blue-500 to-blue-600 hover:from-blue-600 hover:to-blue-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500 disabled:opacity-50 disabled:cursor-not-allowed transition-colors duration-200"
                 >
-                  {loading ? (
+                  {waitingForAuth ? (
+                    <div className="flex items-center">
+                      <svg className="animate-spin -ml-1 mr-2 h-4 w-4 text-white" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+                        <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
+                        <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+                      </svg>
+                      Completing sign in...
+                    </div>
+                  ) : loading ? (
                     <div className="flex items-center">
                       <svg className="animate-spin -ml-1 mr-2 h-4 w-4 text-white" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
                         <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
