@@ -1,155 +1,232 @@
-// src/contexts/AuthContext.jsx
-import { createContext, useState, useEffect, useContext } from 'react';
-import { supabase, getCurrentUser, getSession } from '../lib/supabaseClient';
+import React, { createContext, useContext, useEffect, useState, useRef } from 'react';
+import { supabase } from '../lib/supabaseClient';
 
-const AuthContext = createContext();
+const AuthContext = createContext({});
 
-export function AuthProvider({ children }) {
+export const useAuth = () => {
+  const context = useContext(AuthContext);
+  if (!context) {
+    throw new Error('useAuth must be used within an AuthProvider');
+  }
+  return context;
+};
+
+export const AuthProvider = ({ children }) => {
   const [user, setUser] = useState(null);
   const [session, setSession] = useState(null);
   const [loading, setLoading] = useState(true);
-  const [isEmailVerified, setIsEmailVerified] = useState(false);
-  const [authError, setAuthError] = useState(null);
+  const [initialized, setInitialized] = useState(false);
+  
+  // Use refs to prevent race conditions
+  const mountedRef = useRef(true);
+  const authListenerRef = useRef(null);
+  const initializingRef = useRef(false);
 
-  useEffect(() => {
-    // Check for active session on component mount
-    const initializeAuth = async () => {
-      setLoading(true);
-      setAuthError(null);
+  const getCurrentUser = async () => {
+    try {
+      const { data: { user }, error } = await supabase.auth.getUser();
+      if (error) {
+        console.error('Error getting user:', error);
+        return null;
+      }
+      return user;
+    } catch (error) {
+      console.error('Exception getting user:', error);
+      return null;
+    }
+  };
+
+  const getSession = async () => {
+    try {
+      const { data: { session }, error } = await supabase.auth.getSession();
+      if (error) {
+        console.error('Error getting session:', error);
+        return null;
+      }
+      return session;
+    } catch (error) {
+      console.error('Exception getting session:', error);
+      return null;
+    }
+  };
+
+  // Safe state updates that check if component is still mounted
+  const safeSetUser = (newUser) => {
+    if (mountedRef.current) {
+      setUser(newUser);
+    }
+  };
+
+  const safeSetSession = (newSession) => {
+    if (mountedRef.current) {
+      setSession(newSession);
+    }
+  };
+
+  const safeSetLoading = (loadingState) => {
+    if (mountedRef.current) {
+      setLoading(loadingState);
+    }
+  };
+
+  const safeSetInitialized = (initState) => {
+    if (mountedRef.current) {
+      setInitialized(initState);
+    }
+  };
+
+  // Handle auth state changes with debouncing to prevent rapid updates
+  const handleAuthStateChange = async (event, newSession) => {
+    if (!mountedRef.current) return;
+    
+    console.log('Auth state change:', event, newSession ? 'session present' : 'no session');
+    
+    try {
+      safeSetSession(newSession);
       
-      try {
-        console.log('Initializing auth context...');
-        
-        // Check for URL hash with access token (for callback handling)
-        if (window.location.hash && window.location.hash.includes('access_token=')) {
-          console.log('Found access token in URL hash, will be processed by AuthRedirect component');
-        }
-        
-        // Get current session
-        const currentSession = await getSession();
-        console.log('Session check result:', !!currentSession);
-        
-        setSession(currentSession);
-        
-        if (currentSession) {
-          try {
-            const currentUser = await getCurrentUser();
-            setUser(currentUser);
-            
-            // Check if email is verified (for email/password users)
-            // Email confirmed status can be found in the user object
-            if (currentUser) {
-              // For email/password logins, check email_confirmed_at field
-              // For OAuth logins (like Google), the email is always considered verified
-              const isVerified = 
-                currentUser.app_metadata?.provider === 'google' || 
-                currentUser.email_confirmed_at !== null;
-              
-              setIsEmailVerified(isVerified);
-              console.log('Email verification status:', isVerified);
-            }
-          } catch (userError) {
-            console.error('Error getting current user:', userError);
-            setAuthError('Failed to retrieve user information');
-          }
+      if (newSession?.user) {
+        safeSetUser(newSession.user);
+      } else {
+        // Only fetch user if we don't have session user but have a session
+        if (newSession && !newSession.user) {
+          const currentUser = await getCurrentUser();
+          safeSetUser(currentUser);
         } else {
-          // Ensure user is set to null when no session exists
-          setUser(null);
-          setIsEmailVerified(false);
+          safeSetUser(null);
         }
-      } catch (error) {
-        console.error('Auth initialization error:', error);
-        setAuthError(error.message || 'Authentication initialization failed');
-      } finally {
-        setLoading(false);
+      }
+    } catch (error) {
+      console.error('Error handling auth state change:', error);
+      safeSetUser(null);
+      safeSetSession(null);
+    }
+  };
+
+  // Initialize auth state once
+  useEffect(() => {
+    let isCancelled = false;
+    
+    const initializeAuth = async () => {
+      // Prevent multiple initializations
+      if (initializingRef.current || !mountedRef.current) {
+        return;
       }
       
-      // Set up auth state listener
-      const { data: authListener } = supabase.auth.onAuthStateChange(
-        async (event, newSession) => {
-          console.log('Auth state changed:', event);
-          
-          try {
-            console.log('This is a new session');
-            setSession(newSession);
-            
-            if (newSession) {
-              console.log('Awaiting getCurrentUser');
-              const currentUser = await getCurrentUser();
-              setUser(currentUser);
-              
-              // Update email verification status
-              if (currentUser) {
-                setIsEmailVerified(
-                  currentUser.app_metadata?.provider === 'google' || 
-                  currentUser.email_confirmed_at !== null
-                );
-              }
-            } else {
-              // Explicitly set user to null on sign out
-              setUser(null);
-              setIsEmailVerified(false);
-            }
-          } catch (listenerError) {
-            console.error('Auth state change error:', listenerError);
-            setAuthError('Error processing authentication change');
-          } finally {
-            setLoading(false);
-          }
-        }
-      );
+      initializingRef.current = true;
       
-      // Clean up subscription on unmount
-      return () => {
-        if (authListener && authListener.subscription) {
-          authListener.subscription.unsubscribe();
+      try {
+        console.log('Initializing auth...');
+        
+        // Get initial session and user in parallel but handle them sequentially
+        const [currentSession, currentUser] = await Promise.all([
+          getSession(),
+          getCurrentUser()
+        ]);
+        
+        if (isCancelled || !mountedRef.current) return;
+        
+        // Set session first
+        safeSetSession(currentSession);
+        
+        // Set user - prefer session user if available
+        if (currentSession?.user) {
+          safeSetUser(currentSession.user);
+        } else {
+          safeSetUser(currentUser);
         }
-      };
+        
+        safeSetInitialized(true);
+        
+        console.log('Auth initialized:', {
+          hasSession: !!currentSession,
+          hasUser: !!(currentSession?.user || currentUser)
+        });
+        
+      } catch (error) {
+        console.error('Auth initialization error:', error);
+        if (mountedRef.current) {
+          safeSetUser(null);
+          safeSetSession(null);
+          safeSetInitialized(true);
+        }
+      } finally {
+        if (mountedRef.current) {
+          safeSetLoading(false);
+          initializingRef.current = false;
+        }
+      }
     };
-    
+
     initializeAuth();
+    
+    return () => {
+      isCancelled = true;
+    };
+  }, []); // Only run once on mount
+
+  // Set up auth listener after initialization
+  useEffect(() => {
+    if (!initialized) return;
+    
+    console.log('Setting up auth state listener...');
+    
+    const { data: authListener } = supabase.auth.onAuthStateChange(handleAuthStateChange);
+    authListenerRef.current = authListener;
+    
+    return () => {
+      console.log('Cleaning up auth state listener...');
+      if (authListenerRef.current?.subscription) {
+        authListenerRef.current.subscription.unsubscribe();
+      }
+      authListenerRef.current = null;
+    };
+  }, [initialized]); // Re-run if initialization state changes
+
+  // Cleanup on unmount
+  useEffect(() => {
+    return () => {
+      console.log('AuthProvider unmounting...');
+      mountedRef.current = false;
+      
+      // Clean up any existing listener
+      if (authListenerRef.current?.subscription) {
+        authListenerRef.current.subscription.unsubscribe();
+      }
+    };
   }, []);
 
-  // Provide auth state and error to components
+  const signOut = async () => {
+    try {
+      const { error } = await supabase.auth.signOut();
+      if (error) {
+        console.error('Sign out error:', error);
+        throw error;
+      }
+      
+      // Clear state immediately
+      safeSetUser(null);
+      safeSetSession(null);
+      
+    } catch (error) {
+      console.error('Exception during sign out:', error);
+      throw error;
+    }
+  };
+
   const value = {
     user,
     session,
     loading,
-    isEmailVerified,
-    authError,
-    refreshAuth: async () => {
-      // Function to manually refresh auth state
-      setLoading(true);
-      try {
-        const currentSession = await getSession();
-        setSession(currentSession);
-        
-        if (currentSession) {
-          const currentUser = await getCurrentUser();
-          setUser(currentUser);
-          
-          if (currentUser) {
-            setIsEmailVerified(
-              currentUser.app_metadata?.provider === 'google' || 
-              currentUser.email_confirmed_at !== null
-            );
-          }
-        } else {
-          setUser(null);
-          setIsEmailVerified(false);
-        }
-      } catch (error) {
-        console.error('Auth refresh error:', error);
-        setAuthError(error.message || 'Failed to refresh authentication');
-      } finally {
-        setLoading(false);
-      }
-    }
+    initialized,
+    signOut,
+    // Helper methods
+    isAuthenticated: !loading && !!user && !!session,
+    isReady: initialized && !loading
   };
 
-  return <AuthContext.Provider value={value}>{children}</AuthContext.Provider>;
-}
-
-export function useAuth() {
-  return useContext(AuthContext);
-}
+  return (
+    <AuthContext.Provider value={value}>
+      {children}
+    </AuthContext.Provider>
+  );
+};

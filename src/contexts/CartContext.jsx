@@ -1,248 +1,252 @@
-// src/contexts/CartContext.jsx - ENHANCED VERSION
-// Replace the clearCart function and add better state management
+// contexts/CartContext.jsx - Fixed to use centralized auth
 
-import { createContext, useState, useEffect, useContext, useCallback } from 'react';
-import { useAuth } from './AuthContext';
-import { 
-  getCartItems, 
-  addToCart as addToCartAPI, 
-  updateCartItemQuantity as updateQuantityAPI,
-  removeFromCart as removeFromCartAPI,
-  getCartSummary,
-  clearCartComprehensive // Use the enhanced clearing function
-} from '../lib/cartClient';
+import React, { createContext, useContext, useEffect, useState, useCallback } from 'react';
+import { useAuthToken } from '../hooks/useAuthToken';
 
 const CartContext = createContext();
 
-export function CartProvider({ children }) {
-  const { user } = useAuth();
+export const useCart = () => {
+  const context = useContext(CartContext);
+  if (!context) {
+    throw new Error('useCart must be used within a CartProvider');
+  }
+  return context;
+};
+
+export const CartProvider = ({ children }) => {
   const [cartItems, setCartItems] = useState([]);
-  const [cartSummary, setCartSummary] = useState({ totalItems: 0, totalPrice: 0 });
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState(null);
+  
+  // Use centralized auth instead of direct supabase calls
+  const { makeAuthenticatedRequest, validateUserAuth, isAuthenticated, user } = useAuthToken();
 
-  // Load cart items when user changes
-  useEffect(() => {
-    if (user) {
-      loadCartItems();
-    } else {
-      // Clear cart when user logs out
+  // Remove this problematic pattern:
+  // const { data: { user } } = await supabase.auth.getUser(); // Not synced with context
+
+  const getOrCreateUserCart = useCallback(async () => {
+    if (!isAuthenticated) {
       setCartItems([]);
-      setCartSummary({ totalItems: 0, totalPrice: 0 });
+      return;
     }
-  }, [user]);
-
-  // Load cart items from database
-  const loadCartItems = useCallback(async () => {
-    if (!user) return;
-
-    setLoading(true);
-    setError(null);
 
     try {
-      const { items, error: itemsError } = await getCartItems();
+      // Use centralized user validation
+      const currentUser = validateUserAuth();
       
-      if (itemsError) {
-        throw itemsError;
+      // Use centralized authenticated request
+      const response = await makeAuthenticatedRequest('/.netlify/functions/get-cart', {
+        method: 'POST',
+        body: JSON.stringify({ user_id: currentUser.id })
+      });
+
+      if (!response.ok) {
+        throw new Error(`Failed to get cart: ${response.status}`);
       }
 
-      setCartItems(items);
-
-      // Update summary
-      const { totalItems, totalPrice, error: summaryError } = await getCartSummary();
+      const data = await response.json();
       
-      if (summaryError) {
-        console.warn('Error getting cart summary:', summaryError);
+      if (data.cart_items) {
+        setCartItems(data.cart_items);
       } else {
-        setCartSummary({ totalItems, totalPrice });
+        setCartItems([]);
+      }
+      
+    } catch (error) {
+      console.error('Error getting user cart:', error);
+      setError(error.message);
+      
+      // Handle auth errors
+      if (error.message.includes('Authentication')) {
+        setCartItems([]);
+      }
+    }
+  }, [isAuthenticated, makeAuthenticatedRequest, validateUserAuth]);
+
+  const addToCart = useCallback(async (product, quantity = 1) => {
+    if (!isAuthenticated) {
+      setError('Please log in to add items to cart');
+      return;
+    }
+
+    try {
+      setLoading(true);
+      setError(null);
+      
+      const currentUser = validateUserAuth();
+
+      const response = await makeAuthenticatedRequest('/.netlify/functions/add-to-cart', {
+        method: 'POST',
+        body: JSON.stringify({
+          user_id: currentUser.id,
+          product_id: product.id,
+          quantity: quantity,
+          price: product.price
+        })
+      });
+
+      if (!response.ok) {
+        throw new Error(`Failed to add to cart: ${response.status}`);
       }
 
+      // Refresh cart after adding
+      await getOrCreateUserCart();
+      
     } catch (error) {
-      console.error('Error loading cart items:', error);
-      setError(error.message || 'Failed to load cart');
+      console.error('Error adding to cart:', error);
+      setError(error.message);
     } finally {
       setLoading(false);
     }
-  }, [user]);
+  }, [isAuthenticated, validateUserAuth, makeAuthenticatedRequest, getOrCreateUserCart]);
 
-  // Add item to cart
-  const addToCart = async (testKitId, quantity = 1) => {
-    if (!user) {
-      throw new Error('Please log in to add items to your cart');
+  const removeFromCart = useCallback(async (productId) => {
+    if (!isAuthenticated) {
+      return;
     }
-
-    setError(null);
 
     try {
-      const { success, error: addError } = await addToCartAPI(testKitId, quantity);
+      setLoading(true);
+      setError(null);
       
-      if (!success) {
-        throw addError;
+      const currentUser = validateUserAuth();
+
+      const response = await makeAuthenticatedRequest('/.netlify/functions/remove-from-cart', {
+        method: 'POST',
+        body: JSON.stringify({
+          user_id: currentUser.id,
+          product_id: productId
+        })
+      });
+
+      if (!response.ok) {
+        throw new Error(`Failed to remove from cart: ${response.status}`);
       }
 
-      // Reload cart items to reflect changes
-      await loadCartItems();
+      // Optimistically update cart
+      setCartItems(prev => prev.filter(item => item.product_id !== productId));
       
-      return { success: true, error: null };
-    } catch (error) {
-      console.error('Error adding to cart:', error);
-      setError(error.message || 'Failed to add item to cart');
-      return { success: false, error };
-    }
-  };
-
-  // Update cart item quantity
-  const updateCartItemQuantity = async (itemId, quantity) => {
-    if (!user) {
-      throw new Error('Please log in to update cart items');
-    }
-
-    setError(null);
-
-    try {
-      const { success, error: updateError } = await updateQuantityAPI(itemId, quantity);
-      
-      if (!success) {
-        throw updateError;
-      }
-
-      // Reload cart items to reflect changes
-      await loadCartItems();
-      
-      return { success: true, error: null };
-    } catch (error) {
-      console.error('Error updating cart item:', error);
-      setError(error.message || 'Failed to update cart item');
-      return { success: false, error };
-    }
-  };
-
-  // Remove item from cart
-  const removeFromCart = async (itemId) => {
-    if (!user) {
-      throw new Error('Please log in to remove cart items');
-    }
-
-    setError(null);
-
-    try {
-      const { success, error: removeError } = await removeFromCartAPI(itemId);
-      
-      if (!success) {
-        throw removeError;
-      }
-
-      // Reload cart items to reflect changes
-      await loadCartItems();
-      
-      return { success: true, error: null };
     } catch (error) {
       console.error('Error removing from cart:', error);
-      setError(error.message || 'Failed to remove item from cart');
-      return { success: false, error };
+      setError(error.message);
+      
+      // Refresh cart on error to ensure consistency
+      await getOrCreateUserCart();
+    } finally {
+      setLoading(false);
     }
-  };
+  }, [isAuthenticated, validateUserAuth, makeAuthenticatedRequest, getOrCreateUserCart]);
 
-  // ENHANCED Clear entire cart with comprehensive clearing and immediate state update
-  const clearCart = useCallback(async () => {
-    if (!user) {
-      throw new Error('Please log in to clear cart');
+  const updateQuantity = useCallback(async (productId, newQuantity) => {
+    if (!isAuthenticated) {
+      return;
     }
 
-    console.log('🛒 CartContext: Starting cart clearing process...');
-    setError(null);
-
-    // Immediately clear the UI state for better UX
-    const previousItems = [...cartItems];
-    const previousSummary = { ...cartSummary };
-    
-    console.log('🛒 CartContext: Clearing UI state immediately...');
-    setCartItems([]);
-    setCartSummary({ totalItems: 0, totalPrice: 0 });
+    if (newQuantity <= 0) {
+      return removeFromCart(productId);
+    }
 
     try {
-      // Use the comprehensive clearing function
-      const { success, error: clearError, method } = await clearCartComprehensive();
+      setLoading(true);
+      setError(null);
       
-      if (!success) {
-        // If clearing failed, restore the previous state
-        console.error('🛒 CartContext: Clearing failed, restoring previous state');
-        setCartItems(previousItems);
-        setCartSummary(previousSummary);
-        throw clearError;
+      const currentUser = validateUserAuth();
+
+      const response = await makeAuthenticatedRequest('/.netlify/functions/update-cart-quantity', {
+        method: 'POST',
+        body: JSON.stringify({
+          user_id: currentUser.id,
+          product_id: productId,
+          quantity: newQuantity
+        })
+      });
+
+      if (!response.ok) {
+        throw new Error(`Failed to update quantity: ${response.status}`);
       }
 
-      console.log(`✅ CartContext: Cart cleared successfully using method: ${method}`);
-      
-      // Double-check by reloading cart items to ensure consistency
-      setTimeout(async () => {
-        try {
-          await loadCartItems();
-          console.log('🛒 CartContext: Cart state verified after clearing');
-        } catch (verifyError) {
-          console.warn('🛒 CartContext: Cart verification after clearing failed:', verifyError.message);
-        }
-      }, 1000);
-      
-      return { success: true, error: null, method };
+      // Optimistically update cart
+      setCartItems(prev => 
+        prev.map(item => 
+          item.product_id === productId 
+            ? { ...item, quantity: newQuantity }
+            : item
+        )
+      );
       
     } catch (error) {
-      console.error('🛒 CartContext: Cart clearing failed:', error);
-      setError(error.message || 'Failed to clear cart');
-      return { success: false, error, method: 'none' };
+      console.error('Error updating quantity:', error);
+      setError(error.message);
+      
+      // Refresh cart on error
+      await getOrCreateUserCart();
+    } finally {
+      setLoading(false);
     }
-  }, [user, cartItems, cartSummary, loadCartItems]);
+  }, [isAuthenticated, validateUserAuth, makeAuthenticatedRequest, getOrCreateUserCart, removeFromCart]);
 
-  // Force refresh cart state (useful for debugging or error recovery)
-  const forceRefreshCart = useCallback(async () => {
-    console.log('🛒 CartContext: Force refreshing cart state...');
-    if (user) {
-      await loadCartItems();
-    } else {
+  const clearCart = useCallback(async () => {
+    if (!isAuthenticated) {
       setCartItems([]);
-      setCartSummary({ totalItems: 0, totalPrice: 0 });
+      return;
     }
-  }, [user, loadCartItems]);
 
-  // Get item quantity in cart
-  const getItemQuantity = (testKitId) => {
-    const item = cartItems.find(item => item.test_kit_id === testKitId);
-    return item ? item.quantity : 0;
-  };
+    try {
+      setLoading(true);
+      setError(null);
+      
+      const currentUser = validateUserAuth();
 
-  // Check if item is in cart
-  const isInCart = (testKitId) => {
-    return cartItems.some(item => item.test_kit_id === testKitId);
-  };
+      const response = await makeAuthenticatedRequest('/.netlify/functions/clear-cart', {
+        method: 'POST',
+        body: JSON.stringify({ user_id: currentUser.id })
+      });
 
-  // Refresh cart data
-  const refreshCart = async () => {
-    if (user) {
-      await loadCartItems();
+      if (!response.ok) {
+        throw new Error(`Failed to clear cart: ${response.status}`);
+      }
+
+      setCartItems([]);
+      
+    } catch (error) {
+      console.error('Error clearing cart:', error);
+      setError(error.message);
+    } finally {
+      setLoading(false);
     }
-  };
+  }, [isAuthenticated, validateUserAuth, makeAuthenticatedRequest]);
+
+  // Load cart when user authentication state changes
+  useEffect(() => {
+    if (isAuthenticated && user) {
+      getOrCreateUserCart();
+    } else {
+      // Clear cart when user logs out
+      setCartItems([]);
+      setError(null);
+    }
+  }, [isAuthenticated, user, getOrCreateUserCart]);
+
+  // Calculate cart totals
+  const cartTotal = cartItems.reduce((total, item) => {
+    return total + (item.price * item.quantity);
+  }, 0);
+
+  const cartItemCount = cartItems.reduce((total, item) => {
+    return total + item.quantity;
+  }, 0);
 
   const value = {
-    // State
     cartItems,
-    cartSummary,
+    cartTotal,
+    cartItemCount,
     loading,
     error,
-    
-    // Actions
     addToCart,
-    updateCartItemQuantity,
     removeFromCart,
-    clearCart, // Enhanced version
-    refreshCart,
-    forceRefreshCart, // New function for debugging/recovery
-    
-    // Helpers
-    getItemQuantity,
-    isInCart,
-    
-    // Clear error function
-    clearError: () => setError(null)
+    updateQuantity,
+    clearCart,
+    refreshCart: getOrCreateUserCart
   };
 
   return (
@@ -250,14 +254,4 @@ export function CartProvider({ children }) {
       {children}
     </CartContext.Provider>
   );
-}
-
-export function useCart() {
-  const context = useContext(CartContext);
-  if (context === undefined) {
-    throw new Error('useCart must be used within a CartProvider');
-  }
-  return context;
-}
-
-export default CartContext;
+};

@@ -1,275 +1,247 @@
-// src/components/AuthRedirect.jsx - Fixed Google OAuth vs Password Recovery detection
-import { useEffect, useState } from 'react';
-import { useNavigate, useLocation } from 'react-router-dom';
-import { supabase, verifyEmailToken } from '../lib/supabaseClient';
+import React, { useEffect, useState, useRef } from 'react';
+import { useNavigate, useSearchParams } from 'react-router-dom';
+import { supabase } from '../lib/supabaseClient';
+import { useAuth } from '../contexts/AuthContext';
 
-export default function AuthRedirect() {
+const AuthRedirect = () => {
+  const [searchParams] = useSearchParams();
   const navigate = useNavigate();
-  const location = useLocation();
+  const { isReady, isAuthenticated } = useAuth();
+  const [status, setStatus] = useState('processing');
   const [error, setError] = useState(null);
-  const [processingState, setProcessingState] = useState('processing');
-  const [processingMessage, setProcessingMessage] = useState('Processing authentication...');
+  
+  // Prevent multiple simultaneous redirects
+  const processingRef = useRef(false);
+  const mountedRef = useRef(true);
+
+  useEffect(() => {
+    return () => {
+      mountedRef.current = false;
+    };
+  }, []);
 
   useEffect(() => {
     const handleRedirect = async () => {
+      // Prevent multiple simultaneous processing
+      if (processingRef.current || !mountedRef.current) {
+        return;
+      }
+
+      // Wait for AuthContext to be ready
+      if (!isReady) {
+        return;
+      }
+
+      processingRef.current = true;
+
       try {
-        console.log('AuthRedirect: Processing authentication callback');
-        console.log('Current URL:', window.location.href);
-        console.log('Search params:', location.search);
-        console.log('Hash:', location.hash);
-        
-        // Parse URL and hash parameters
-        const urlParams = new URLSearchParams(window.location.search);
-        let hashParams = {};
-        if (location.hash) {
-          const hashString = location.hash.substring(1);
-          const hashPairs = hashString.split('&');
-          hashPairs.forEach(pair => {
-            const [key, value] = pair.split('=');
-            if (key && value) {
-              hashParams[decodeURIComponent(key)] = decodeURIComponent(value);
+        const accessToken = searchParams.get('access_token');
+        const refreshToken = searchParams.get('refresh_token');
+        const errorParam = searchParams.get('error');
+        const errorDescription = searchParams.get('error_description');
+
+        // Handle OAuth errors
+        if (errorParam) {
+          console.error('OAuth error:', errorParam, errorDescription);
+          setError(errorDescription || errorParam);
+          setStatus('error');
+          
+          // Navigate to login with error after delay
+          setTimeout(() => {
+            if (mountedRef.current) {
+              navigate('/login', { 
+                state: { 
+                  error: errorDescription || 'Authentication failed' 
+                },
+                replace: true 
+              });
             }
-          });
+          }, 2000);
+          return;
         }
-        
-        console.log('URL params:', Object.fromEntries(urlParams));
-        console.log('Hash params:', hashParams);
-        
-        // Clear any redirect flags
+
+        // Validate required tokens
+        if (!accessToken || !refreshToken) {
+          console.error('Missing tokens in redirect');
+          setError('Invalid authentication response');
+          setStatus('error');
+          
+          setTimeout(() => {
+            if (mountedRef.current) {
+              navigate('/login', { 
+                state: { 
+                  error: 'Authentication failed - missing tokens' 
+                },
+                replace: true 
+              });
+            }
+          }, 2000);
+          return;
+        }
+
+        console.log('Processing OAuth redirect...');
+        setStatus('setting_session');
+
+        // Clear any existing redirect flags first
         sessionStorage.removeItem('auth_redirect_in_progress');
         
-        // Check for errors in URL params or hash
-        const errorCode = urlParams.get('error') || hashParams.error;
-        const errorDescription = urlParams.get('error_description') || hashParams.error_description;
-        const errorCodeFromHash = hashParams.error_code;
-        
-        if (errorCode) {
-          console.error('OAuth error detected:', errorCode, errorDescription, errorCodeFromHash);
-          
-          // Handle specific error cases with user-friendly messages
-          if (errorCode === 'access_denied' && errorCodeFromHash === 'otp_expired') {
-            throw new Error('The password reset link has expired. Please request a new one.');
-          } else if (errorCode === 'access_denied') {
-            throw new Error('Access was denied. The link may be invalid or expired.');
-          } else if (errorCode === 'invalid_request') {
-            throw new Error('Invalid request. Please try requesting a new reset link.');
-          } else {
-            throw new Error(`${errorCode}: ${errorDescription || 'Authentication failed'}`);
-          }
-        }
-        
-        // Handle email verification (URL params with token)
-        const token = urlParams.get('token');
-        const type = urlParams.get('type');
-        
-        if (type === 'signup' && token) {
-          console.log('Processing email verification token...');
-          setProcessingMessage('Verifying your email...');
-          
-          const { data, error } = await verifyEmailToken(token);
-          
-          if (error) {
-            throw new Error(`Email verification failed: ${error.message}`);
-          }
-          
-          console.log('Email verified successfully');
-          setProcessingState('success');
-          setProcessingMessage('Email verified successfully!');
-          
-          setTimeout(() => {
-            navigate('/login', { 
-              replace: true,
-              state: { message: 'Email verified successfully! You can now log in.' }
-            });
-          }, 2000);
-          
-          return;
-        }
-        
-        // FIXED: Handle password recovery - ONLY if explicitly marked as recovery
-        // Check for explicit recovery type in URL params or hash
-        const recoveryType = urlParams.get('type') || hashParams.type;
-        const accessToken = hashParams.access_token;
-        const refreshToken = hashParams.refresh_token;
-        
-        console.log('Recovery check:', {
-          recoveryType,
-          hasAccessToken: !!accessToken,
-          hasRefreshToken: !!refreshToken,
-          urlType: urlParams.get('type'),
-          hashType: hashParams.type,
-          isExplicitRecovery: recoveryType === 'recovery'
+        // Set session with tokens
+        const { data, error: sessionError } = await supabase.auth.setSession({
+          access_token: accessToken,
+          refresh_token: refreshToken
         });
-        
-        // FIXED: Only treat as password recovery if explicitly marked as 'recovery'
-        // Don't assume that having access_token + refresh_token means password recovery
-        if (recoveryType === 'recovery') {
-          console.log('Processing password recovery (explicit recovery type detected)...');
-          setProcessingMessage('Setting up password recovery...');
+
+        if (sessionError) {
+          console.error('Session error:', sessionError);
+          setError(sessionError.message);
+          setStatus('error');
           
-          if (!accessToken || !refreshToken) {
-            throw new Error('Invalid recovery link. Missing authentication tokens. Please request a new reset link.');
-          }
-          
-          console.log('Setting recovery session with tokens...');
-          const { data, error } = await supabase.auth.setSession({
-            access_token: accessToken,
-            refresh_token: refreshToken
-          });
-          
-          if (error) {
-            console.error('Failed to set recovery session:', error);
-            // Provide more specific error message for session failures
-            if (error.message.includes('expired')) {
-              throw new Error('The password reset link has expired. Please request a new one.');
-            } else {
-              throw new Error(`Recovery session failed: ${error.message}`);
+          setTimeout(() => {
+            if (mountedRef.current) {
+              navigate('/login', { 
+                state: { 
+                  error: 'Failed to establish session' 
+                },
+                replace: true 
+              });
             }
-          }
-          
-          console.log('Recovery session established successfully');
-          
-          // Double-check that the session is actually set
-          const { data: { session } } = await supabase.auth.getSession();
-          if (!session) {
-            throw new Error('Failed to establish recovery session. Please request a new reset link.');
-          }
-          
-          console.log('Session verified, user can update password');
-          setProcessingState('success');
-          setProcessingMessage('Ready to update your password!');
-          
-          setTimeout(() => {
-            navigate('/update-password', { replace: true });
-          }, 1500);
-          
+          }, 2000);
           return;
         }
-        
-        // Handle regular OAuth sign-in (access_token in hash WITHOUT recovery type)
-        if (accessToken && refreshToken && recoveryType !== 'recovery') {
-          console.log('Processing OAuth sign-in (Google/regular OAuth)...');
-          setProcessingMessage('Completing sign-in...');
-          
-          const { data, error } = await supabase.auth.setSession({
-            access_token: accessToken,
-            refresh_token: refreshToken
-          });
-          
-          if (error) {
-            console.error('OAuth session error:', error);
-            throw error;
-          }
-          
-          console.log('OAuth sign-in successful');
-          setProcessingState('success');
-          setProcessingMessage('Sign-in successful!');
+
+        if (!data.session || !data.user) {
+          console.error('No session or user after setSession');
+          setError('Failed to establish user session');
+          setStatus('error');
           
           setTimeout(() => {
-            navigate('/dashboard', { replace: true });
-          }, 1500);
-          
+            if (mountedRef.current) {
+              navigate('/login', { 
+                state: { 
+                  error: 'Session creation failed' 
+                },
+                replace: true 
+              });
+            }
+          }, 2000);
           return;
         }
-        
-        // If no specific callback parameters are found, check current session
-        await checkCurrentSession();
-        
-      } catch (err) {
-        console.error('Error handling auth redirect:', err);
-        setError(err.message || 'Authentication failed');
-        setProcessingState('error');
-        
-        // Redirect based on error type with appropriate delays
+
+        console.log('Session established successfully');
+        setStatus('success');
+
+        // Wait a bit for AuthContext to update, then navigate
         setTimeout(() => {
-          if (err.message && (err.message.includes('expired') || err.message.includes('invalid'))) {
-            navigate('/reset-password', { 
-              replace: true,
-              state: { error: err.message }
-            });
-          } else {
+          if (mountedRef.current) {
+            // Get intended destination
+            const returnTo = sessionStorage.getItem('auth_return_to') || '/dashboard';
+            sessionStorage.removeItem('auth_return_to');
+            
+            console.log('Navigating to:', returnTo);
+            navigate(returnTo, { replace: true });
+          }
+        }, 1000); // Reduced from 1500ms to be more responsive
+
+      } catch (error) {
+        console.error('Auth redirect error:', error);
+        setError(error.message);
+        setStatus('error');
+        
+        setTimeout(() => {
+          if (mountedRef.current) {
             navigate('/login', { 
-              replace: true,
-              state: { error: err.message || 'Authentication failed. Please try again.' }
+              state: { 
+                error: 'Authentication processing failed' 
+              },
+              replace: true 
             });
           }
-        }, 3000);
-      }
-    };
-    
-    const checkCurrentSession = async () => {
-      try {
-        const { data: { session } } = await supabase.auth.getSession();
-        
-        if (session) {
-          console.log('User is already authenticated');
-          setProcessingState('success');
-          setProcessingMessage('Redirecting to dashboard...');
-          
-          setTimeout(() => {
-            navigate('/dashboard', { replace: true });
-          }, 1500);
-        } else {
-          throw new Error('No authentication data found in the callback URL');
-        }
-      } catch (err) {
-        throw new Error('Session check failed: ' + (err.message || 'Unknown error'));
+        }, 2000);
+      } finally {
+        processingRef.current = false;
       }
     };
 
     handleRedirect();
-  }, [navigate, location]);
+  }, [searchParams, navigate, isReady]);
 
-  // Render different UI based on processing state
-  if (processingState === 'processing') {
-    return (
-      <div className="min-h-screen flex flex-col items-center justify-center bg-gray-50">
-        <div className="p-6 rounded-lg shadow-lg bg-white max-w-md text-center">
-          <div className="animate-spin rounded-full h-12 w-12 border-t-2 border-b-2 border-blue-500 mx-auto mb-4"></div>
-          <h2 className="text-lg font-medium text-gray-800 mb-2">{processingMessage}</h2>
-          <p className="text-gray-500 text-sm">Please wait while we complete your request.</p>
-        </div>
-      </div>
-    );
+  // Don't render anything if already authenticated (avoid interference)
+  if (isAuthenticated && isReady) {
+    // Redirect authenticated users away immediately
+    const returnTo = sessionStorage.getItem('auth_return_to') || '/dashboard';
+    sessionStorage.removeItem('auth_return_to');
+    navigate(returnTo, { replace: true });
+    return null;
   }
-  
-  if (processingState === 'success') {
-    return (
-      <div className="min-h-screen flex flex-col items-center justify-center bg-gray-50">
-        <div className="p-6 rounded-lg shadow-lg bg-white max-w-md text-center">
-          <div className="mx-auto mb-4 w-12 h-12 rounded-full bg-green-100 flex items-center justify-center">
-            <svg className="h-6 w-6 text-green-500" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M5 13l4 4L19 7" />
-            </svg>
-          </div>
-          <h2 className="text-lg font-medium text-gray-800 mb-2">{processingMessage}</h2>
-          <p className="text-gray-500 text-sm">Redirecting you now...</p>
+
+  const getStatusMessage = () => {
+    switch (status) {
+      case 'processing':
+        return 'Processing authentication...';
+      case 'setting_session':
+        return 'Setting up your session...';
+      case 'success':
+        return 'Authentication successful! Redirecting...';
+      case 'error':
+        return `Authentication failed: ${error}`;
+      default:
+        return 'Loading...';
+    }
+  };
+
+  const getStatusColor = () => {
+    switch (status) {
+      case 'success':
+        return 'text-green-600';
+      case 'error':
+        return 'text-red-600';
+      default:
+        return 'text-blue-600';
+    }
+  };
+
+  return (
+    <div className="min-h-screen flex items-center justify-center bg-gray-50">
+      <div className="max-w-md w-full bg-white rounded-lg shadow-lg p-8 text-center">
+        <div className="mb-6">
+          {status === 'error' ? (
+            <div className="w-16 h-16 mx-auto mb-4 bg-red-100 rounded-full flex items-center justify-center">
+              <svg className="w-8 h-8 text-red-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M6 18L18 6M6 6l12 12" />
+              </svg>
+            </div>
+          ) : status === 'success' ? (
+            <div className="w-16 h-16 mx-auto mb-4 bg-green-100 rounded-full flex items-center justify-center">
+              <svg className="w-8 h-8 text-green-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M5 13l4 4L19 7" />
+              </svg>
+            </div>
+          ) : (
+            <div className="w-16 h-16 mx-auto mb-4 bg-blue-100 rounded-full flex items-center justify-center">
+              <div className="animate-spin rounded-full h-8 w-8 border-b-2 border-blue-600"></div>
+            </div>
+          )}
         </div>
+        
+        <h2 className="text-xl font-semibold text-gray-900 mb-2">
+          Authentication
+        </h2>
+        
+        <p className={`${getStatusColor()} mb-4`}>
+          {getStatusMessage()}
+        </p>
+        
+        {status === 'error' && (
+          <button
+            onClick={() => navigate('/login', { replace: true })}
+            className="bg-blue-600 text-white px-4 py-2 rounded hover:bg-blue-700 transition-colors"
+          >
+            Return to Login
+          </button>
+        )}
       </div>
-    );
-  }
-  
-  if (processingState === 'error') {
-    return (
-      <div className="min-h-screen flex flex-col items-center justify-center bg-gray-50">
-        <div className="p-6 bg-red-50 text-red-700 rounded-lg shadow-lg max-w-md">
-          <div className="mx-auto mb-4 w-12 h-12 rounded-full bg-red-100 flex items-center justify-center">
-            <svg className="h-6 w-6 text-red-500" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" />
-            </svg>
-          </div>
-          <h2 className="text-lg font-medium mb-2 text-center">Authentication Error</h2>
-          <p className="text-center text-sm mb-4">{error}</p>
-          <p className="text-xs text-center">
-            {error && error.includes('expired') 
-              ? 'Redirecting you to request a new reset link...' 
-              : 'Redirecting you to try again...'
-            }
-          </p>
-        </div>
-      </div>
-    );
-  }
-  
-  return null;
-}
+    </div>
+  );
+};
+
+export default AuthRedirect;
