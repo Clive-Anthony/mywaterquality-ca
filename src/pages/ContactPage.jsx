@@ -1,4 +1,4 @@
-// src/pages/ContactPage.jsx
+// src/pages/ContactPage.jsx - WITH FRONTEND EMAIL NOTIFICATION
 import { useState } from 'react';
 import { useAuth } from '../contexts/AuthContext';
 import { supabase } from '../lib/supabaseClient';
@@ -25,6 +25,46 @@ export default function ContactPage() {
       [name]: value
     }));
   };
+
+  // Send email notification via Netlify function
+const sendEmailNotification = async (contactData) => {
+  try {
+    console.log('Sending email notification for contact:', contactData.id);
+    
+    // Use different URL for development vs production
+    const isDev = window.location.hostname === 'localhost';
+    const functionUrl = isDev 
+      ? 'http://localhost:8888/.netlify/functions/send-contact-notification'
+      : '/.netlify/functions/send-contact-notification';
+    
+    const response = await fetch(functionUrl, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify(contactData)
+    });
+
+    if (!response.ok) {
+      // Handle non-JSON error responses
+      let errorMessage;
+      try {
+        const errorData = await response.json();
+        errorMessage = errorData.message || 'Failed to send email notification';
+      } catch (jsonError) {
+        errorMessage = `HTTP ${response.status}: ${response.statusText}`;
+      }
+      throw new Error(errorMessage);
+    }
+
+    console.log('Email notification sent successfully');
+    return await response.json();
+  } catch (error) {
+    console.error('Email notification error:', error);
+    // Don't throw - we don't want email failure to prevent form submission success
+    // Just log the error
+  }
+};
 
   // Handle form submission
   const handleSubmit = async (e) => {
@@ -63,13 +103,21 @@ export default function ContactPage() {
       };
 
       // Submit to Supabase
-      const { error: submitError } = await supabase
+      const { data: insertedData, error: submitError } = await supabase
         .from('contact_feedback')
-        .insert([submissionData]);
+        .insert([submissionData])
+        .select()
+        .single();
 
       if (submitError) {
         throw submitError;
       }
+
+      console.log('Contact form submitted successfully:', insertedData);
+
+      // Send email notification (non-blocking)
+      // We have the inserted data with ID and created_at timestamp
+      await sendEmailNotification(insertedData);
 
       // Success
       setSuccess(true);
