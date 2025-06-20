@@ -170,7 +170,7 @@ Email: ${shippingAddress.email}` : 'Not provided';
     // Use the correct admin template ID
     const emailData = {
       transactionalId: 'cmbax4sey1n651h0it0rm6f8k', // Admin notification template ID
-      email: 'david.phillips@bookerhq.ca',
+      email: 'development@mywaterquality.ca',
       dataVariables: {
         customerName: customerName,
         orderNumber: orderData.order_number,

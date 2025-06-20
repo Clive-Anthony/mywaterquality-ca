@@ -148,7 +148,7 @@ Email: ${mockOrderData.shipping_address.email}`;
       // Test email data
       const testEmailData = {
         transactionalId: 'cmbax4sey1n651h0it0rm6f8k', // TODO: Replace with actual template ID
-        email: 'david.phillips@bookerhq.ca', //development@mywaterquality.ca
+        email: 'development@mywaterquality.ca', //development@mywaterquality.ca
         dataVariables: {
           customerName: mockOrderData.customer_name,
           orderNumber: mockOrderData.order_number,
