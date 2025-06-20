@@ -314,7 +314,7 @@ exports.handler = async function(event, context) {
         message: 'Admin notification sent successfully',
         orderNumber: orderResult.orderData.order_number,
         customerName: orderResult.orderData.customer_name,
-        adminEmail: 'david.phillips@bookerhq.ca',
+        adminEmail: 'development@mywaterquality.ca',
         processing_time_ms: processingTime,
         request_id: requestId
       })
