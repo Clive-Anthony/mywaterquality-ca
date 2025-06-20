@@ -787,21 +787,52 @@ alertBoxPlain: {
     flex: 1,
     textAlign: 'left',
   },
+  assessmentPage: {
+    flexDirection: 'column',
+    backgroundColor: '#FFFFFF',
+    padding: 50, // Increased margins
+    paddingBottom: 70,
+    fontSize: 11, // Size 11 font
+    fontFamily: 'Helvetica', // Arial equivalent in PDF
+    lineHeight: 1.2, // Line spacing 1.2
+  },
+  assessmentInfoTitle: {
+    fontSize: 14,
+    fontWeight: 'bold',
+    marginTop: 20,
+    marginBottom: 15,
+    color: '#374151',
+  },
+  
+  assessmentInfoText: {
+    fontSize: 11,
+    color: '#374151',
+    lineHeight: 1.2,
+    marginBottom: 12,
+  },
+  
+  assessmentInfoList: {
+    fontSize: 11,
+    color: '#374151',
+    lineHeight: 1.2,
+    marginLeft: 15,
+    marginBottom: 12,
+  },
 });
 
 // DEFAULT DATA - uncomment for production
-const customer_first = "John"
-const customer_name = "John Smith";
-const order_number = 1450;
-const sample_description = "Water from Tap";
-const TEST_KIT = "Advanced Water Test Kit";
+// const customer_first = "John"
+// const customer_name = "John Smith";
+// const order_number = 1450;
+// const sample_description = "Water from Tap";
+// const TEST_KIT = "Advanced Water Test Kit";
 
 // CUSTOMER DATA -- uncomment when producing one-off reports
-// const customer_first = "Cleason"
-// const customer_name = "Cleason Martin";
-// const order_number = 1000;
-// const sample_description = "Tap Water";
-// const TEST_KIT = "Advanced Water Test Kit";
+const customer_first = "Christina"
+const customer_name = "Christina Tutsch";
+const order_number = 1282;
+const sample_description = "Water Tap";
+const TEST_KIT = "City Water Test Kit";
 
 
 
@@ -1417,8 +1448,147 @@ const WaterQualityReportPDF = ({ reportData }) => {
             );
         }
         })()}
+        {/* Footer */}
+        <Text style={styles.footer}>
+        This report is generated based on laboratory analysis results. For questions about your water quality or treatment options, please consult with a qualified water treatment professional.
+        </Text>
+      </Page>
 
+        {/* Page 2: About Your Water Quality Assessment */}
+       <Page size="A4" style={styles.assessmentPage}>
+        <Text style={styles.sectionTitle}>About Your Water Quality Assessment</Text>
+            
+      <Text style={styles.assessmentInfoText}>
+        Your Drinking Water Quality Report Card presents laboratory results in a clear and easy-to-understand format. It includes the following key information:
+      </Text>
+      
+      <Text style={styles.assessmentInfoText}>
+        1. Your Drinking Water Quality Score or Grade: Based on the Canadian Water Quality Index (CWQI).
+      </Text>
+      
+      <Text style={styles.assessmentInfoText}>
+        2. Summary of Drinking Water Quality Results: Divided into two main categories:
+      </Text>
+      
+      <Text style={styles.assessmentInfoList}>
+        • Health Parameters: Includes bacteriological results and other parameters known or suspected of having health impacts. These are compared against their Maximum Acceptable Concentration (MAC) and Interim Maximum Acceptable Concentration (IMAC) to ensure safety.
+      </Text>
+      
+      <Text style={styles.assessmentInfoList}>
+        • Aesthetic (AO) /Operational (OG) Parameters: Includes parameters that can affect the taste, smell or appearance of the water, as well as parameters that can cause issues with treatment and distribution systems.
+      </Text>
+      
+      <Text style={styles.assessmentInfoText}>
+        3. Your Detailed Drinking Water Quality Results: Laboratory results are summarized into three main tables: Health-Based, Aesthetic/Operational-Based, and General Parameters. For each parameter that exceeds the concentration threshold, the Drinking Water Quality Report Card provides a detailed description of the parameter and why it is a concern, along with recommended treatment options.
+      </Text>
+      
+      <Text style={styles.assessmentInfoTitle}>HOW WE GRADE YOUR DRINKING WATER QUALITY</Text>
+      
+      <Text style={styles.assessmentInfoText}>
+        The Canadian Water Quality Index (CWQI) is a reliable tool for assessing water quality and determining its suitability for drinking. It evaluates a broad range of water quality parameters and consolidates them into a single score.
+      </Text>
+      
+      <Text style={styles.assessmentInfoText}>
+        The CWQI method relies on a set of parameters with drinking water standards established to ensure water safety for human consumption. These standards include:
+      </Text>
+      
+      <Text style={styles.assessmentInfoList}>
+        • Health-Related Standards: Water must be free from disease-causing organisms and toxic chemicals at unsafe concentrations.
+      </Text>
+      
+      <Text style={styles.assessmentInfoList}>
+        • Aesthetic Objectives: Water should be clear, palatable, and visually acceptable.
+      </Text>
+      
+      <Text style={styles.assessmentInfoList}>
+        • Operational Guidelines: Water should not contain substances that could hinder effective treatment, disinfection, or distribution.
+      </Text>
+      
+      <Text style={styles.assessmentInfoText}>
+        The CWQI evaluates water quality by calculating three key factors based on established objectives:
+      </Text>
+      
+      <Text style={styles.assessmentInfoList}>
+        • Scope: The number of parameters that do not meet their designated objectives.
+      </Text>
+      
+      <Text style={styles.assessmentInfoList}>
+        • Frequency: The proportion of water samples that fail to meet these objectives.
+      </Text>
+      
+      <Text style={styles.assessmentInfoList}>
+        • Amplitude: The degree to which each failed parameter exceeds its objective.
+      </Text>
+      
+      <Text style={styles.assessmentInfoText}>
+        The concentration reported by the laboratory for each parameter is characterized by a colouring system:
+      </Text>
+      
+      <Text style={styles.assessmentInfoList}>
+        • Green: Concentration meets the standards/guidelines
+      </Text>
+      
+      <Text style={styles.assessmentInfoList}>
+        • Red: Concentration fails to meet the standards/guidelines
+      </Text>
+      
+      {/* CWQI Rating Table with updated styles */}
+      <View style={styles.cwqiRatingTable} break={false} wrap={false}>
+        <View style={styles.tableHeader}>
+          <View style={{ width: 80, paddingRight: 5 }}>
+            <Text style={[styles.tableCellHeader, { textAlign: 'left', fontSize: 11 }]}>RATING</Text>
+          </View>
+          <View style={{ width: 80, paddingRight: 5 }}>
+            <Text style={[styles.tableCellHeader, { textAlign: 'center', fontSize: 11 }]}>CWQI SCORE</Text>
+          </View>
+          <View style={{ width: 300, paddingRight: 5 }}>
+            <Text style={[styles.tableCellHeader, { textAlign: 'left', fontSize: 11 }]}>WHAT DOES THE SCORE MEAN?</Text>
+          </View>
+        </View>
+        
+        {[
+          { rating: 'Excellent', score: '95-100', description: 'Almost all parameters meet the guidelines, and any exceedances are very small. Water quality is considered extremely high.' },
+          { rating: 'Very Good', score: '89-94', description: 'One or more parameters slightly exceed guidelines, but overall water quality remains very safe and clean.' },
+          { rating: 'Good', score: '80-88', description: 'Some parameters exceed guidelines, usually by small to moderate amounts. Water is generally acceptable, but attention may be needed.' },
+          { rating: 'Fair', score: '65-79', description: 'Several parameters exceed guidelines, and some by larger amounts. Water quality may require treatment or monitoring.' },
+          { rating: 'Marginal', score: '45-64', description: 'Many parameters exceed guidelines, and/or some exceed them by significant amounts. Water quality is likely to pose issues without treatment.' },
+          { rating: 'Poor', score: '0-44', description: 'Most parameters exceed guidelines by large amounts. Water quality is poor and likely unsafe without corrective action.' }
+        ].map((item, index) => (
+          <View key={index} style={styles.tableRow} wrap={false}>
+            <View style={{ width: 80, paddingRight: 5 }}>
+              <Text style={[styles.tableCell, { fontWeight: 'bold', textAlign: 'left', fontSize: 11 }]}>{item.rating}</Text>
+            </View>
+            <View style={{ width: 80, paddingRight: 5 }}>
+              <Text style={[styles.tableCell, { textAlign: 'center', fontSize: 11 }]}>{item.score}</Text>
+            </View>
+            <View style={{ width: 300, paddingRight: 5 }}>
+              <Text style={[styles.tableCell, { textAlign: 'left', fontSize: 11 }]}>{item.description}</Text>
+            </View>
+          </View>
+        ))}
+      </View>
 
+      {/* Water First Banner */}
+      <View style={styles.waterFirstBanner}>
+        <View style={styles.waterFirstContent}>
+          <Text style={[styles.waterFirstTitle, { fontSize: 12 }]}>
+            Supporting Water First's Drinking Water Internship
+          </Text>
+          <Text style={[styles.waterFirstText, { fontSize: 11 }]}>
+            $5 of every water quality package purchased through My Water Quality will go to Water First.
+          </Text>
+        </View>
+        <Image 
+          src="/images/water_first.png" 
+          style={styles.waterFirstLogoImage}
+        />
+      </View>
+
+      <Text style={styles.pageNumber} render={({ pageNumber }) => `Page ${pageNumber}`} fixed />
+    </Page>
+
+      {/* Page 3: Health Parameters Summary, AO Parameters Summary, and General Recommendations */}
+      <Page size="A4" style={styles.page}>
         {/* Health Parameters Summary - Updated Layout */}
         <View wrap={false} break={true}>
         <Text style={styles.subsectionTitle}>Health Related Parameters</Text>
@@ -1480,19 +1650,19 @@ const WaterQualityReportPDF = ({ reportData }) => {
             )}
 
         {/* General Recommendations Section */}
-<View style={styles.recommendationsSection} break={true}>
-  <Text style={styles.generalRecommendationsTitle}>
-    General Recommendations
-  </Text>
-  <View style={styles.recommendationListBlack}>
-    <Text style={styles.recommendationListBlack}>
-      1. The water quality results presented in this Report Card should be carefully reviewed by a water treatment expert if treatment is necessary to improve the potability of the drinking water supply. A qualified professional can assess the results, recommend appropriate treatment solutions, and ensure that the water meets established drinking water standards or guidelines for safety and quality.
-    </Text>
-    <Text style={[styles.recommendationListBlack, { marginTop: 10 }]}>
-      2. If you have any questions on your drinking water quality results, please schedule a meeting with our professional hydrogeologist.
-    </Text>
-  </View>
-</View>
+        <View style={styles.recommendationsSection} break={true}>
+          <Text style={styles.generalRecommendationsTitle}>
+            General Recommendations
+          </Text>
+          <View style={styles.recommendationListBlack}>
+            <Text style={styles.recommendationListBlack}>
+              1. The water quality results presented in this Report Card should be carefully reviewed by a water treatment expert if treatment is necessary to improve the potability of the drinking water supply. A qualified professional can assess the results, recommend appropriate treatment solutions, and ensure that the water meets established drinking water standards or guidelines for safety and quality.
+            </Text>
+            <Text style={[styles.recommendationListBlack, { marginTop: 10 }]}>
+              2. If you have any questions on your drinking water quality results, please schedule a meeting with our professional hydrogeologist.
+            </Text>
+          </View>
+        </View>
 
         {/* Footer */}
         <Text style={styles.footer}>
@@ -1580,142 +1750,6 @@ const WaterQualityReportPDF = ({ reportData }) => {
 
   <Text style={styles.pageNumber} render={({ pageNumber }) => `Page ${pageNumber}`} fixed />
 </Page>
-
-
-        {/* Page 4: CWQI Information */}
-            <Page size="A4" style={styles.page}>
-            <Text style={styles.sectionTitle}>About Your Water Quality Assessment</Text>
-            
-            <Text style={styles.cwqiInfoTitle}>INTRODUCTION TO YOUR DRINKING WATER QUALITY REPORT CARD</Text>
-            
-            <Text style={styles.cwqiInfoText}>
-                Your Drinking Water Quality Report Card presents laboratory results in a clear and easy-to-understand format. It includes the following key information:
-            </Text>
-            
-            <Text style={styles.cwqiInfoText}>
-                1. Your Drinking Water Quality Score or Grade: Based on the Canadian Water Quality Index (CWQI).
-            </Text>
-            
-            <Text style={styles.cwqiInfoText}>
-                2. Summary of Drinking Water Quality Results: Divided into two main categories:
-            </Text>
-            
-            <Text style={styles.cwqiInfoList}>
-                • Health Parameters: Includes bacteriological results and other parameters known or suspected of having health impacts. These are compared against their Maximum Acceptable Concentration (MAC) and Interim Maximum Acceptable Concentration (IMAC) to ensure safety.
-            </Text>
-            
-            <Text style={styles.cwqiInfoList}>
-                • Aesthetic (AO) /Operational (OG) Parameters: Includes parameters that can affect the taste, smell or appearance of the water, as well as parameters that can cause issues with treatment and distribution systems.
-            </Text>
-            
-            <Text style={styles.cwqiInfoText}>
-                3. Your Detailed Drinking Water Quality Results: Laboratory results are summarized into three main tables: Health-Based, Aesthetic/Operational-Based, and General Parameters. For each parameter that exceeds the concentration threshold, the Drinking Water Quality Report Card provides a detailed description of the parameter and why it is a concern, along with recommended treatment options.
-            </Text>
-            
-            <Text style={styles.cwqiInfoTitle}>HOW WE GRADE YOUR DRINKING WATER QUALITY</Text>
-            
-            <Text style={styles.cwqiInfoText}>
-                The Canadian Water Quality Index (CWQI) is a reliable tool for assessing water quality and determining its suitability for drinking. It evaluates a broad range of water quality parameters and consolidates them into a single score.
-            </Text>
-            
-            <Text style={styles.cwqiInfoText}>
-                The CWQI method relies on a set of parameters with drinking water standards established to ensure water safety for human consumption. These standards include:
-            </Text>
-            
-            <Text style={styles.cwqiInfoList}>
-                • Health-Related Standards: Water must be free from disease-causing organisms and toxic chemicals at unsafe concentrations.
-            </Text>
-            
-            <Text style={styles.cwqiInfoList}>
-                • Aesthetic Objectives: Water should be clear, palatable, and visually acceptable.
-            </Text>
-            
-            <Text style={styles.cwqiInfoList}>
-                • Operational Guidelines: Water should not contain substances that could hinder effective treatment, disinfection, or distribution.
-            </Text>
-            
-            <Text style={styles.cwqiInfoText}>
-                The CWQI evaluates water quality by calculating three key factors based on established objectives:
-            </Text>
-            
-            <Text style={styles.cwqiInfoList}>
-                • Scope: The number of parameters that do not meet their designated objectives.
-            </Text>
-            
-            <Text style={styles.cwqiInfoList}>
-                • Frequency: The proportion of water samples that fail to meet these objectives.
-            </Text>
-            
-            <Text style={styles.cwqiInfoList}>
-                • Amplitude: The degree to which each failed parameter exceeds its objective.
-            </Text>
-            
-            <Text style={styles.cwqiInfoText}>
-                The concentration reported by the laboratory for each parameter is characterized by a colouring system:
-            </Text>
-            
-            <Text style={styles.cwqiInfoList}>
-                • Green: Concentration meets the standards/guidelines
-            </Text>
-            
-            <Text style={styles.cwqiInfoList}>
-                • Red: Concentration fails to meet the standards/guidelines
-            </Text>
-            
-            {/* CWQI Rating Table - Replace the existing one */}
-            <View style={styles.cwqiRatingTable} break={false} wrap={false}>
-            <View style={styles.tableHeader}>
-                <View style={{ width: 80, paddingRight: 5 }}>
-                <Text style={[styles.tableCellHeader, { textAlign: 'left' }]}>RATING</Text>
-                </View>
-                <View style={{ width: 80, paddingRight: 5 }}>
-                <Text style={[styles.tableCellHeader, { textAlign: 'center' }]}>CWQI SCORE</Text>
-                </View>
-                <View style={{ width: 300, paddingRight: 5 }}>
-                <Text style={[styles.tableCellHeader, { textAlign: 'left' }]}>WHAT DOES THE SCORE MEAN?</Text>
-                </View>
-            </View>
-            
-            {[
-                { rating: 'Excellent', score: '95-100', description: 'Almost all parameters meet the guidelines, and any exceedances are very small. Water quality is considered extremely high.' },
-                { rating: 'Very Good', score: '89-94', description: 'One or more parameters slightly exceed guidelines, but overall water quality remains very safe and clean.' },
-                { rating: 'Good', score: '80-88', description: 'Some parameters exceed guidelines, usually by small to moderate amounts. Water is generally acceptable, but attention may be needed.' },
-                { rating: 'Fair', score: '65-79', description: 'Several parameters exceed guidelines, and some by larger amounts. Water quality may require treatment or monitoring.' },
-                { rating: 'Marginal', score: '45-64', description: 'Many parameters exceed guidelines, and/or some exceed them by significant amounts. Water quality is likely to pose issues without treatment.' },
-                { rating: 'Poor', score: '0-44', description: 'Most parameters exceed guidelines by large amounts. Water quality is poor and likely unsafe without corrective action.' }
-            ].map((item, index) => (
-                <View key={index} style={styles.tableRow} wrap={false}>
-                <View style={{ width: 80, paddingRight: 5 }}>
-                    <Text style={[styles.tableCell, { fontWeight: 'bold', textAlign: 'left' }]}>{item.rating}</Text>
-                </View>
-                <View style={{ width: 80, paddingRight: 5 }}>
-                    <Text style={[styles.tableCell, { textAlign: 'center' }]}>{item.score}</Text>
-                </View>
-                <View style={{ width: 300, paddingRight: 5 }}>
-                    <Text style={[styles.tableCell, { textAlign: 'left' }]}>{item.description}</Text>
-                </View>
-                </View>
-            ))}
-            </View>
-
-            {/* Water First Banner */}
-            <View style={styles.waterFirstBanner}>
-            <View style={styles.waterFirstContent}>
-                <Text style={styles.waterFirstTitle}>
-                Supporting Water First's Drinking Water Internship
-                </Text>
-                <Text style={styles.waterFirstText}>
-                $5 of every water quality package purchased through My Water Quality will go to Water First.
-                </Text>
-            </View>
-            <Image 
-                src="/images/water_first.png" 
-                style={styles.waterFirstLogoImage}
-            />
-            </View>
-
-            <Text style={styles.pageNumber} render={({ pageNumber }) => `Page ${pageNumber}`} fixed />
-            </Page>
     </Document>
   );
 };
