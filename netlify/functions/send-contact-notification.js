@@ -100,7 +100,7 @@ exports.handler = async function(event, context) {
     // Send notification email via Loops
     await sendLoopsEmail({
       transactionalId: 'cmb6u4tcl1n8dz10inz2llfzt', // Replace with actual template ID
-      email: 'davephil.test@gmail.com', // Changed from 'to' to 'email'
+      email: 'info@waterquality.ca', // Changed from 'to' to 'email'
       variables: {
         name: contactData.name || 'Not provided',
         customerEmail: contactData.email, // Changed from 'email' to 'customerEmail'
