@@ -1,4 +1,4 @@
-// src/pages/TestKitsPage.jsx - Updated with quantity input functionality
+// src/pages/TestKitsPage.jsx - Updated with priority ordering
 import { useState, useEffect } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import PageLayout from '../components/PageLayout';
@@ -22,50 +22,49 @@ export default function TestKitsPage() {
   // State to track quantities for each kit
   const [quantities, setQuantities] = useState({});
 
-  // Fetch test kits from Supabase
-  // In src/pages/TestKitsPage.jsx - Replace the fetchTestKits useEffect with this:
+  // Fetch test kits from Supabase with priority ordering
+  useEffect(() => {
+    const fetchTestKits = async () => {
+      try {
+        setLoading(true);
+        setError(null);
+        
+        // console.log('Fetching test kits from Supabase with priority ordering...');
+        
+        const { data, error } = await supabase
+          .from('test_kits')
+          .select('*')
+          .eq('environment','prod')
+          .order('priority', { ascending: true, nullsLast: true }) // Order by priority first (nulls last)
+          .order('price', { ascending: true }); // Then by price as secondary sort
 
-useEffect(() => {
-  const fetchTestKits = async () => {
-    try {
-      setLoading(true);
-      setError(null);
-      
-      console.log('Fetching test kits from Supabase...');
-      
-      const { data, error } = await supabase
-        .from('test_kits')
-        .select('*')
-        .eq('environment','prod')
-        .order('price', { ascending: true });
+        if (error) {
+          console.error('Error fetching test kits:', error);
+          throw error;
+        }
 
-      if (error) {
-        console.error('Error fetching test kits:', error);
-        throw error;
+        // console.log('Test kits fetched successfully with priority ordering:', data);
+        setTestKits(data || []);
+        
+        // Initialize quantities state
+        const initialQuantities = {};
+        (data || []).forEach(kit => {
+          initialQuantities[kit.id] = 1;
+        });
+        setQuantities(initialQuantities);
+        
+      } catch (err) {
+        console.error('Exception fetching test kits:', err);
+        setError(err.message || 'Failed to load test kits');
+      } finally {
+        // CRITICAL: Always set loading to false
+        // console.log('Setting loading to false');
+        setLoading(false);
       }
+    };
 
-      console.log('Test kits fetched successfully:', data);
-      setTestKits(data || []);
-      
-      // Initialize quantities state
-      const initialQuantities = {};
-      (data || []).forEach(kit => {
-        initialQuantities[kit.id] = 1;
-      });
-      setQuantities(initialQuantities);
-      
-    } catch (err) {
-      console.error('Exception fetching test kits:', err);
-      setError(err.message || 'Failed to load test kits');
-    } finally {
-      // CRITICAL: Always set loading to false
-      console.log('Setting loading to false');
-      setLoading(false);
-    }
-  };
-
-  fetchTestKits();
-}, []); // Empty dependency array
+    fetchTestKits();
+  }, []); // Empty dependency array
 
   // Handle quantity change for a specific kit
   const handleQuantityChange = (kitId, newQuantity) => {
@@ -285,6 +284,9 @@ useEffect(() => {
               <h2 className="text-2xl font-bold text-gray-900 mb-4">Available Test Kits</h2>
               <p className="text-gray-600">
                 All test kits include professional laboratory analysis and detailed results within 5-7 business days.
+                <span className="block text-sm text-blue-600 mt-1">
+                  ✨ Test kits are displayed in order of priority based on our recommendations.
+                </span>
               </p>
               {!user && (
                 <div className="mt-4 bg-blue-50 border border-blue-200 rounded-lg p-4">
@@ -305,7 +307,7 @@ useEffect(() => {
             </div>
 
             <div className="grid grid-cols-1 gap-8 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
-              {testKits.map((kit) => {
+              {testKits.map((kit, index) => {
                 const stockStatus = getStockStatus(kit.quantity);
                 const buttonProps = getAddToCartButton(kit);
                 const currentQuantity = quantities[kit.id] || 1;
@@ -313,43 +315,33 @@ useEffect(() => {
                 return (
                   <div 
                     key={kit.id} 
-                    className="bg-white rounded-lg shadow-md overflow-hidden hover:shadow-lg transition-shadow duration-300"
+                    className="bg-white rounded-lg shadow-md overflow-hidden hover:shadow-lg transition-shadow duration-300 flex flex-col h-full"
                   >
                     {/* Card Header */}
-                    <div className="p-6">
-                      <div className="flex items-start justify-between mb-4">
-                        <h3 className="text-lg font-semibold text-gray-900 line-clamp-2">
-                          {kit.name}
-                        </h3>
-                        <span className={`px-2 py-1 text-xs font-medium rounded-full ${stockStatus.className}`}>
-                          {stockStatus.text}
-                        </span>
-                      </div>
-                      
-                      <p className="text-gray-600 text-sm mb-4 line-clamp-3">
-                        {kit.description}
-                      </p>
-                      
-                      {/* Price */}
+                    <div className="p-6 flex-1 flex flex-col">
                       <div className="mb-4">
-                        <span className="text-3xl font-bold text-blue-600">
-                          {formatPrice(kit.price)}
-                        </span>
-                        <span className="text-gray-500 text-sm ml-1">CAD</span>
-                      </div>
-                      
-                      {/* Stock Quantity */}
-                      <div className="text-sm text-gray-500 mb-4">
-                        {kit.quantity > 0 ? (
-                          `${kit.quantity} available`
-                        ) : (
-                          'Currently out of stock'
-                        )}
+                        <div className="h-12 mb-3">
+                          <h3 className="text-lg font-semibold text-gray-900 line-clamp-2 leading-6">
+                            {kit.name}
+                          </h3>
+                        </div>
+                        
+                        {/* Price */}
+                        <div className="mb-3">
+                          <span className="text-3xl font-bold text-blue-600">
+                            {formatPrice(kit.price)}
+                          </span>
+                          <span className="text-gray-500 text-sm ml-1">CAD</span>
+                        </div>
+                        
+                        <p className="text-gray-600 text-sm line-clamp-3 flex-1">
+                          {kit.description}
+                        </p>
                       </div>
                     </div>
 
-                    {/* Card Footer */}
-                    <div className="px-6 pb-6">
+                    {/* Card Footer - Fixed height and positioning */}
+                    <div className="px-6 pb-6 mt-auto">
                       {/* Quantity Selector */}
                       {isInStock(kit.quantity) && (
                         <div className="mb-4">
