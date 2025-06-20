@@ -104,20 +104,33 @@ const OrderSuccessNotification = ({ orderData, onDashboard }) => (
 );
 
 // STEP COMPONENTS (simplified for debugging)
+
+// Updated ReviewStep component with detailed pricing breakdown
 const ReviewStep = React.memo(({ cartItems, formatPrice, totals }) => (
   <div className="space-y-6">
     <h2 className="text-xl font-semibold text-gray-900">Review Your Order</h2>
     <div className="bg-white rounded-lg shadow p-6">
       <div className="space-y-2">
+        {/* Individual test kit lines */}
         {cartItems.map(item => (
           <div key={item.item_id} className="flex justify-between">
             <span>{item.test_kits.name} x {item.quantity}</span>
             <span>{formatPrice(item.quantity * item.test_kits.price)}</span>
           </div>
         ))}
-        <div className="border-t pt-2 font-semibold">
+        
+        {/* Pricing breakdown */}
+        <div className="border-t pt-2 space-y-1">
           <div className="flex justify-between">
-            <span>Total (incl. tax)</span>
+            <span>Subtotal</span>
+            <span>{formatPrice(totals.subtotal)}</span>
+          </div>
+          <div className="flex justify-between">
+            <span>Tax (HST 13%)</span>
+            <span>{formatPrice(totals.tax)}</span>
+          </div>
+          <div className="flex justify-between font-semibold text-lg border-t pt-1">
+            <span>Total</span>
             <span>{formatPrice(totals.total)}</span>
           </div>
         </div>
