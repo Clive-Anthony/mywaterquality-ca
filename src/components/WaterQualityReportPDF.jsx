@@ -818,21 +818,43 @@ alertBoxPlain: {
     marginLeft: 15,
     marginBottom: 12,
   },
+
+  perfectWaterBox: {
+    backgroundColor: '#FFFFFF',
+    border: '2 solid #059669', // Green border
+    borderRadius: 8,
+    padding: 15,
+    marginBottom: 20,
+    marginTop: 10,
+  },
+  perfectWaterTitle: {
+    fontSize: 14,
+    fontWeight: 'bold',
+    color: '#000000',
+    marginBottom: 10,
+    textAlign: 'center',
+  },
+  perfectWaterText: {
+    fontSize: 11,
+    color: '#374151',
+    lineHeight: 1.4,
+    textAlign: 'center',
+  },
 });
 
 // DEFAULT DATA - uncomment for production
-// const customer_first = "John"
-// const customer_name = "John Smith";
-// const order_number = 1450;
-// const sample_description = "Water from Tap";
-// const TEST_KIT = "Advanced Water Test Kit";
+const customer_first = "John"
+const customer_name = "John Smith";
+const order_number = 1450;
+const sample_description = "Water from Tap";
+const TEST_KIT = "Advanced Water Test Kit";
 
 // CUSTOMER DATA -- uncomment when producing one-off reports
-const customer_first = "Christina"
-const customer_name = "Christina Tutsch";
-const order_number = 1282;
-const sample_description = "Water Tap";
-const TEST_KIT = "City Water Test Kit";
+// const customer_first = "Christina"
+// const customer_name = "Christina Tutsch";
+// const order_number = 1282;
+// const sample_description = "Water Tap";
+// const TEST_KIT = "City Water Test Kit";
 
 
 
@@ -1325,330 +1347,217 @@ const WaterQualityReportPDF = ({ reportData }) => {
       <Page size="A4" style={styles.page}>
         {/* Header */}
         <View style={styles.header}>
-        <View>
+          <View>
             <Text style={styles.headerTitle}>{customer_first}'s Water Quality Report</Text>
             <Text style={styles.headerSubtitle}>Order No {order_number}  - {TEST_KIT}</Text>
-        </View>
-        <Image 
+          </View>
+          <Image 
             src="/MWQ-logo-final.png" 
             style={styles.logoImage}
-        />
+          />
         </View>
-
+  
         {/* Sample Information */}
-        {/* <Text style={styles.sectionTitle}>Sample Information</Text> */}
         <View style={styles.sampleInfoContainer}>
-        {/* Left Table - Sample Details */}
-        <View style={styles.sampleInfoTableLeft}>
+          {/* Left Table - Sample Details */}
+          <View style={styles.sampleInfoTableLeft}>
             <View style={styles.tableRowSample}>
-            <Text style={styles.tableCellSampleLabel}>Customer Name</Text>
-            <Text style={styles.tableCellSampleValue}>{customer_name}</Text>
+              <Text style={styles.tableCellSampleLabel}>Customer Name</Text>
+              <Text style={styles.tableCellSampleValue}>{customer_name}</Text>
             </View>
             <View style={styles.tableRowSample}>
-            <Text style={styles.tableCellSampleLabel}>Sample Description</Text>
-            <Text style={styles.tableCellSampleValue}>{sample_description}</Text>
+              <Text style={styles.tableCellSampleLabel}>Sample Description</Text>
+              <Text style={styles.tableCellSampleValue}>{sample_description}</Text>
             </View>
             <View style={styles.tableRowSampleLast}>
-            <Text style={styles.tableCellSampleLabel}>Test Kit</Text>
-            <Text style={styles.tableCellSampleValue}>{TEST_KIT}</Text>
+              <Text style={styles.tableCellSampleLabel}>Test Kit</Text>
+              <Text style={styles.tableCellSampleValue}>{TEST_KIT}</Text>
             </View>
-        </View>
-        
-        {/* Right Table - Dates */}
-        <View style={styles.sampleInfoTableRight}>
+          </View>
+          
+          {/* Right Table - Dates */}
+          <View style={styles.sampleInfoTableRight}>
             <View style={styles.tableRowSample}>
-            <Text style={styles.tableCellDateLabel}>Collection Date</Text>
-            <Text style={styles.tableCellDateValue}>{formatDate(sampleInfo?.collectionDate)}</Text>
+              <Text style={styles.tableCellDateLabel}>Collection Date</Text>
+              <Text style={styles.tableCellDateValue}>{formatDate(sampleInfo?.collectionDate)}</Text>
             </View>
             <View style={styles.tableRowSample}>
-            <Text style={styles.tableCellDateLabel}>Received Date</Text>
-            <Text style={styles.tableCellDateValue}>{formatDate(sampleInfo?.receivedDate)}</Text>
+              <Text style={styles.tableCellDateLabel}>Received Date</Text>
+              <Text style={styles.tableCellDateValue}>{formatDate(sampleInfo?.receivedDate)}</Text>
             </View>
             <View style={styles.tableRowSampleLast}>
-            <Text style={styles.tableCellDateLabel}>Report Date</Text>
-            <Text style={styles.tableCellDateValue}>{formatDate(sampleInfo?.reportDate)}</Text>
+              <Text style={styles.tableCellDateLabel}>Report Date</Text>
+              <Text style={styles.tableCellDateValue}>{formatDate(sampleInfo?.reportDate)}</Text>
             </View>
+          </View>
         </View>
-        </View>
-
-        
-
+  
         {/* Summary of Results with Summary Cards and CWQI Scores */}
         <Text style={styles.sectionTitle}>Summary of Results</Text>
-
+  
         {/* Summary Cards */}
         <SummaryCards 
-        bacteriological={bacteriological}
-        healthConcerns={healthConcerns}
-        aoConcerns={aoConcerns}
-        testKit={TEST_KIT}
+          bacteriological={bacteriological}
+          healthConcerns={healthConcerns}
+          aoConcerns={aoConcerns}
+          testKit={TEST_KIT}
         />
-
+  
         {/* Bacteriological Results */}
-        {/* Bacteriological Results - Updated Logic */}
         {bacteriological.length > 0 && (() => {
-        // Check for NDOGT readings in Total Coliform or E. coli
-        const contaminatedParams = bacteriological.filter(param => 
+          // Check for NDOGT readings in Total Coliform or E. coli
+          const contaminatedParams = bacteriological.filter(param => 
             (param.parameter_name?.toLowerCase().includes('coliform') || 
-            param.parameter_name?.toLowerCase().includes('escherichia') ||
-            param.parameter_name?.toLowerCase().includes('e. coli') ||
-            param.parameter_name?.toLowerCase().includes('e.coli')) &&
+             param.parameter_name?.toLowerCase().includes('escherichia') ||
+             param.parameter_name?.toLowerCase().includes('e. coli') ||
+             param.parameter_name?.toLowerCase().includes('e.coli')) &&
             (param.result_value?.includes('NDOGT') || param.result_numeric?.toString().includes('NDOGT'))
-        );
-
-        if (contaminatedParams.length > 0) {
+          );
+  
+          if (contaminatedParams.length > 0) {
             // Show contamination warning
             return (
-            <View style={styles.alertBoxContamination}>
+              <View style={styles.alertBoxContamination}>
                 <View style={styles.alertIconContainer}>
-                <Text style={styles.alertIcon}>⚠</Text>
+                  <Text style={styles.alertIcon}>⚠</Text>
                 </View>
                 <View style={styles.alertContentContainer}>
-                <Text style={styles.alertTextBold}>
+                  <Text style={styles.alertTextBold}>
                     Important Notice: Coliform Bacteria Detected
-                </Text>
-                <Text style={[styles.alertTextContamination, { marginTop: 6 }]}>
+                  </Text>
+                  <Text style={[styles.alertTextContamination, { marginTop: 6 }]}>
                     Coliform bacteria have been detected in your drinking water sample. While not necessarily harmful themselves, their presence indicates that disease-causing organisms may also be present. Immediate action is recommended.
-                </Text>
-                <Text style={[styles.alertTextBold, { marginTop: 8 }]}>
+                  </Text>
+                  <Text style={[styles.alertTextBold, { marginTop: 8 }]}>
                     Disinfect Your Well System:
-                </Text>
-                <Text style={[styles.alertTextContamination, { marginTop: 4 }]}>
+                  </Text>
+                  <Text style={[styles.alertTextContamination, { marginTop: 4 }]}>
                     To reduce the risk of illness, you should disinfect your well and water system. This process is commonly referred to as "shock chlorination."
-                </Text>
-                <Text style={[styles.alertTextContamination, { marginTop: 6 }]}>
+                  </Text>
+                  <Text style={[styles.alertTextContamination, { marginTop: 6 }]}>
                     We strongly recommend that you:
-                </Text>
-                <Text style={[styles.alertTextContamination, { marginTop: 4, marginLeft: 10 }]}>
+                  </Text>
+                  <Text style={[styles.alertTextContamination, { marginTop: 4, marginLeft: 10 }]}>
                     • <Text style={styles.alertTextBold}>Contact a licensed water well contractor</Text> to inspect and disinfect your well, <Text style={styles.alertTextBold}>or</Text>
-                </Text>
-                <Text style={[styles.alertTextContamination, { marginTop: 2, marginLeft: 10 }]}>
+                  </Text>
+                  <Text style={[styles.alertTextContamination, { marginTop: 2, marginLeft: 10 }]}>
                     • <Text style={styles.alertTextBold}>Follow the well disinfection instructions</Text> provided by Health Canada: <Text style={styles.alertTextLink}>https://www.canada.ca/en/health-canada/services/environment/drinking-water/well/treat.html</Text>
-                </Text>
-                <Text style={[styles.alertTextContamination, { marginTop: 8 }]}>
+                  </Text>
+                  <Text style={[styles.alertTextContamination, { marginTop: 8 }]}>
                     After disinfection, it is important to <Text style={styles.alertTextBold}>re-test your water</Text> to confirm the effectiveness of treatment before resuming consumption.
-                </Text>
+                  </Text>
                 </View>
-            </View>
+              </View>
             );
-        } else {
+          } else {
             // Show normal bacteriological results
             return (
-            <View>
+              <View>
                 <Text style={styles.subsectionTitle}>Bacteriological Results</Text>
                 <View style={styles.alertBoxPlain}>
-                <Text style={styles.alertTextPlain}>
+                  <Text style={styles.alertTextPlain}>
                     Bacterial contamination analysis:
                     {bacteriological.map((param, index) => (
-                    `\n${param.parameter_name}: ${formatLabResult(param)} ${param.result_units || param.parameter_unit || ''}`
+                      `\n${param.parameter_name}: ${formatLabResult(param)} ${param.result_units || param.parameter_unit || ''}`
                     ))}
-                </Text>
+                  </Text>
                 </View>
-            </View>
+              </View>
             );
-        }
+          }
         })()}
-        {/* Footer */}
-        <Text style={styles.footer}>
-        This report is generated based on laboratory analysis results. For questions about your water quality or treatment options, please consult with a qualified water treatment professional.
-        </Text>
-      </Page>
 
-        {/* Page 2: About Your Water Quality Assessment */}
-       <Page size="A4" style={styles.assessmentPage}>
-        <Text style={styles.sectionTitle}>About Your Water Quality Assessment</Text>
-            
-      <Text style={styles.assessmentInfoText}>
-        Your Drinking Water Quality Report Card presents laboratory results in a clear and easy-to-understand format. It includes the following key information:
-      </Text>
-      
-      <Text style={styles.assessmentInfoText}>
-        1. Your Drinking Water Quality Score or Grade: Based on the Canadian Water Quality Index (CWQI).
-      </Text>
-      
-      <Text style={styles.assessmentInfoText}>
-        2. Summary of Drinking Water Quality Results: Divided into two main categories:
-      </Text>
-      
-      <Text style={styles.assessmentInfoList}>
-        • Health Parameters: Includes bacteriological results and other parameters known or suspected of having health impacts. These are compared against their Maximum Acceptable Concentration (MAC) and Interim Maximum Acceptable Concentration (IMAC) to ensure safety.
-      </Text>
-      
-      <Text style={styles.assessmentInfoList}>
-        • Aesthetic (AO) /Operational (OG) Parameters: Includes parameters that can affect the taste, smell or appearance of the water, as well as parameters that can cause issues with treatment and distribution systems.
-      </Text>
-      
-      <Text style={styles.assessmentInfoText}>
-        3. Your Detailed Drinking Water Quality Results: Laboratory results are summarized into three main tables: Health-Based, Aesthetic/Operational-Based, and General Parameters. For each parameter that exceeds the concentration threshold, the Drinking Water Quality Report Card provides a detailed description of the parameter and why it is a concern, along with recommended treatment options.
-      </Text>
-      
-      <Text style={styles.assessmentInfoTitle}>HOW WE GRADE YOUR DRINKING WATER QUALITY</Text>
-      
-      <Text style={styles.assessmentInfoText}>
-        The Canadian Water Quality Index (CWQI) is a reliable tool for assessing water quality and determining its suitability for drinking. It evaluates a broad range of water quality parameters and consolidates them into a single score.
-      </Text>
-      
-      <Text style={styles.assessmentInfoText}>
-        The CWQI method relies on a set of parameters with drinking water standards established to ensure water safety for human consumption. These standards include:
-      </Text>
-      
-      <Text style={styles.assessmentInfoList}>
-        • Health-Related Standards: Water must be free from disease-causing organisms and toxic chemicals at unsafe concentrations.
-      </Text>
-      
-      <Text style={styles.assessmentInfoList}>
-        • Aesthetic Objectives: Water should be clear, palatable, and visually acceptable.
-      </Text>
-      
-      <Text style={styles.assessmentInfoList}>
-        • Operational Guidelines: Water should not contain substances that could hinder effective treatment, disinfection, or distribution.
-      </Text>
-      
-      <Text style={styles.assessmentInfoText}>
-        The CWQI evaluates water quality by calculating three key factors based on established objectives:
-      </Text>
-      
-      <Text style={styles.assessmentInfoList}>
-        • Scope: The number of parameters that do not meet their designated objectives.
-      </Text>
-      
-      <Text style={styles.assessmentInfoList}>
-        • Frequency: The proportion of water samples that fail to meet these objectives.
-      </Text>
-      
-      <Text style={styles.assessmentInfoList}>
-        • Amplitude: The degree to which each failed parameter exceeds its objective.
-      </Text>
-      
-      <Text style={styles.assessmentInfoText}>
-        The concentration reported by the laboratory for each parameter is characterized by a colouring system:
-      </Text>
-      
-      <Text style={styles.assessmentInfoList}>
-        • Green: Concentration meets the standards/guidelines
-      </Text>
-      
-      <Text style={styles.assessmentInfoList}>
-        • Red: Concentration fails to meet the standards/guidelines
-      </Text>
-      
-      {/* CWQI Rating Table with updated styles */}
-      <View style={styles.cwqiRatingTable} break={false} wrap={false}>
-        <View style={styles.tableHeader}>
-          <View style={{ width: 80, paddingRight: 5 }}>
-            <Text style={[styles.tableCellHeader, { textAlign: 'left', fontSize: 11 }]}>RATING</Text>
-          </View>
-          <View style={{ width: 80, paddingRight: 5 }}>
-            <Text style={[styles.tableCellHeader, { textAlign: 'center', fontSize: 11 }]}>CWQI SCORE</Text>
-          </View>
-          <View style={{ width: 300, paddingRight: 5 }}>
-            <Text style={[styles.tableCellHeader, { textAlign: 'left', fontSize: 11 }]}>WHAT DOES THE SCORE MEAN?</Text>
-          </View>
+        {/* Perfect Water Quality Message - Show when both CWQI scores = 100 */}
+      {healthCWQI?.score === 100 && aoCWQI?.score === 100 && (
+        <View style={styles.perfectWaterBox}>
+          <Text style={styles.perfectWaterTitle}>
+            Your water shows no concerns!
+          </Text>
+          <Text style={styles.perfectWaterText}>
+            Congratulations! Your water quality results are excellent across all tested parameters. 
+            This indicates that your water source is well-maintained and meets all health and aesthetic standards. 
+            We appreciate your commitment to water quality testing and recommend continuing regular monitoring 
+            to ensure ongoing excellence.
+          </Text>
         </View>
-        
-        {[
-          { rating: 'Excellent', score: '95-100', description: 'Almost all parameters meet the guidelines, and any exceedances are very small. Water quality is considered extremely high.' },
-          { rating: 'Very Good', score: '89-94', description: 'One or more parameters slightly exceed guidelines, but overall water quality remains very safe and clean.' },
-          { rating: 'Good', score: '80-88', description: 'Some parameters exceed guidelines, usually by small to moderate amounts. Water is generally acceptable, but attention may be needed.' },
-          { rating: 'Fair', score: '65-79', description: 'Several parameters exceed guidelines, and some by larger amounts. Water quality may require treatment or monitoring.' },
-          { rating: 'Marginal', score: '45-64', description: 'Many parameters exceed guidelines, and/or some exceed them by significant amounts. Water quality is likely to pose issues without treatment.' },
-          { rating: 'Poor', score: '0-44', description: 'Most parameters exceed guidelines by large amounts. Water quality is poor and likely unsafe without corrective action.' }
-        ].map((item, index) => (
-          <View key={index} style={styles.tableRow} wrap={false}>
-            <View style={{ width: 80, paddingRight: 5 }}>
-              <Text style={[styles.tableCell, { fontWeight: 'bold', textAlign: 'left', fontSize: 11 }]}>{item.rating}</Text>
-            </View>
-            <View style={{ width: 80, paddingRight: 5 }}>
-              <Text style={[styles.tableCell, { textAlign: 'center', fontSize: 11 }]}>{item.score}</Text>
-            </View>
-            <View style={{ width: 300, paddingRight: 5 }}>
-              <Text style={[styles.tableCell, { textAlign: 'left', fontSize: 11 }]}>{item.description}</Text>
-            </View>
-          </View>
-        ))}
-      </View>
+      )}
 
       {/* Water First Banner */}
       <View style={styles.waterFirstBanner}>
-        <View style={styles.waterFirstContent}>
-          <Text style={[styles.waterFirstTitle, { fontSize: 12 }]}>
-            Supporting Water First's Drinking Water Internship
-          </Text>
-          <Text style={[styles.waterFirstText, { fontSize: 11 }]}>
-            $5 of every water quality package purchased through My Water Quality will go to Water First.
-          </Text>
+          <View style={styles.waterFirstContent}>
+            <Text style={styles.waterFirstTitle}>
+              Supporting Water First's Drinking Water Internship
+            </Text>
+            <Text style={styles.waterFirstText}>
+              $5 of every water quality package purchased through My Water Quality will go to Water First.
+            </Text>
+          </View>
+          <Image 
+            src="/images/water_first.png" 
+            style={styles.waterFirstLogoImage}
+          />
         </View>
-        <Image 
-          src="/images/water_first.png" 
-          style={styles.waterFirstLogoImage}
-        />
-      </View>
-
-      <Text style={styles.pageNumber} render={({ pageNumber }) => `Page ${pageNumber}`} fixed />
-    </Page>
-
-      {/* Page 3: Health Parameters Summary, AO Parameters Summary, and General Recommendations */}
-      <Page size="A4" style={styles.page}>
+  
         {/* Health Parameters Summary - Updated Layout */}
         <View wrap={false} break={true}>
-        <Text style={styles.subsectionTitle}>Health Related Parameters</Text>
-            <ParametersSection 
+          <Text style={styles.subsectionTitle}>Health Related Parameters</Text>
+          <ParametersSection 
             cwqi={healthCWQI} 
             concerns={healthConcerns}
             type="health"
-            />
-            <RecommendationsSection 
+          />
+          <RecommendationsSection 
             concerns={healthConcerns}
             type="health"
-            />
+          />
         </View>
-
-            {healthConcerns.length > 0 && (
-            <View wrap={false} break={healthConcerns.length > 3}>
-                <PDFTable
-                headers={['Parameter', 'Health Effect', 'Treatment Options']}
-                data={healthConcerns}
-                keyMapping={[
-                    'parameter_name',
-                    (row) => row.health_effects || 'Elevated levels may pose health risks. Consult with a water treatment professional for specific health implications and recommended actions.',
-                    (row) => row.treatment_options || 'Multiple treatment options are available including filtration, softening, and chemical treatment. Consult with a certified water treatment professional to determine the best solution for your specific situation.'
-                ]}
-                tableType="concerns"
-                allowBreak={false}
-                />
-            </View>
-            )}
-
-            {/* AO Parameters Summary - New Layout */}
-            <View wrap={false} break={true}>
-            <Text style={styles.subsectionTitle}>Aesthetic and Operational Parameters</Text>
-            <ParametersSection 
+  
+        {healthConcerns.length > 0 && (
+          <View wrap={false} break={healthConcerns.length > 3}>
+            <PDFTable
+              headers={['Parameter', 'Health Effect', 'Treatment Options']}
+              data={healthConcerns}
+              keyMapping={[
+                'parameter_name',
+                (row) => row.health_effects || 'Elevated levels may pose health risks. Consult with a water treatment professional for specific health implications and recommended actions.',
+                (row) => row.treatment_options || 'Multiple treatment options are available including filtration, softening, and chemical treatment. Consult with a certified water treatment professional to determine the best solution for your specific situation.'
+              ]}
+              tableType="concerns"
+              allowBreak={false}
+            />
+          </View>
+        )}
+  
+        {/* AO Parameters Summary - New Layout */}
+        <View wrap={false} break={true}>
+          <Text style={styles.subsectionTitle}>Aesthetic and Operational Parameters</Text>
+          <ParametersSection 
             cwqi={aoCWQI} 
             concerns={aoConcerns}
             type="ao"
-            />
-            <RecommendationsSection 
+          />
+          <RecommendationsSection 
             concerns={aoConcerns}
             type="ao"
+          />
+        </View>
+  
+        {aoConcerns.length > 0 && (
+          <View wrap={false} break={aoConcerns.length > 3 || (healthConcerns.length > 0 && aoConcerns.length > 2)}>
+            <PDFTable
+              headers={['Parameter', 'Description', 'Treatment Options']}
+              data={aoConcerns}
+              keyMapping={[
+                'parameter_name',
+                (row) => row.description || row.parameter_description || 'A water quality parameter that affects the aesthetic or operational characteristics of your water system.',
+                (row) => row.treatment_options || 'Multiple treatment options are available including filtration, softening, and chemical treatment. Consult with a certified water treatment professional to determine the best solution for your specific situation.'
+              ]}
+              tableType="concerns"
+              allowBreak={false}
             />
-            </View>
-
-            {aoConcerns.length > 0 && (
-            <View wrap={false} break={aoConcerns.length > 3 || (healthConcerns.length > 0 && aoConcerns.length > 2)}>
-                <PDFTable
-                headers={['Parameter', 'Description', 'Treatment Options']}
-                data={aoConcerns}
-                keyMapping={[
-                    'parameter_name',
-                    (row) => row.description || row.parameter_description || 'A water quality parameter that affects the aesthetic or operational characteristics of your water system.',
-                    (row) => row.treatment_options || 'Multiple treatment options are available including filtration, softening, and chemical treatment. Consult with a certified water treatment professional to determine the best solution for your specific situation.'
-                ]}
-                tableType="concerns"
-                allowBreak={false}
-                />
-            </View>
-            )}
-
+          </View>
+        )}
+  
         {/* General Recommendations Section */}
         <View style={styles.recommendationsSection} break={true}>
           <Text style={styles.generalRecommendationsTitle}>
@@ -1663,93 +1572,211 @@ const WaterQualityReportPDF = ({ reportData }) => {
             </Text>
           </View>
         </View>
-
+  
         {/* Footer */}
         <Text style={styles.footer}>
           This report is generated based on laboratory analysis results. For questions about your water quality or treatment options, please consult with a qualified water treatment professional.
         </Text>
       </Page>
-
-
-      {/* Page 3: Full Results Tables */}
-<Page size="A4" style={styles.page}>
-  <Text style={styles.sectionTitle}>Full Results</Text>
   
-
-{/* Health Parameters Table */}
-{healthParameters.length > 0 && (
-  <View>
-    <Text style={styles.subsectionTitle}>Health-Related Parameter Results </Text>
-    <PDFTable
-      headers={['Parameter', 'Result', 'Unit', 'Recommended Maximum Concentration', 'Status']}
-      data={healthParameters}
-      keyMapping={[
-        'parameter_name',
-        (row) => formatLabResult(row),
-        (row) => row.result_units || row.parameter_unit || 'N/A',
-        (row) => {
-          // For hybrid parameters in health table, use MAC values
-          if (row.parameter_category === 'health') {
-            return row.mac_display || formatValue(row.mac_value, '', 3);
-          }
-          return row.objective_display || formatValue(row.objective_value, '', 3);
-        },
-        (row) => getComplianceStatus(row)
-      ]}
-      showExceeded={true}
-      tableType="results"
-    />
-  </View>
-)}
-
-{/* AO Parameters Table */}
-{aoParameters.length > 0 && (
-  <View break={true}>
-    <Text style={styles.subsectionTitle}>Aesthetic & Operational Parameter Results</Text>
-    <PDFTable
-      headers={['Parameter', 'Result', 'Unit', 'Recommended Maximum Concentration', 'Status']}
-      data={aoParameters}
-      keyMapping={[
-        'parameter_name',
-        (row) => formatLabResult(row),
-        (row) => row.result_units || row.parameter_unit || 'N/A',
-        (row) => {
-          // For hybrid parameters in AO table, use AO values
-          if (row.parameter_category === 'ao') {
-            return row.ao_display || formatValue(row.ao_value, '', 3);
-          }
-          return row.objective_display || formatValue(row.objective_value, '', 3);
-        },
-        (row) => getComplianceStatus(row)
-      ]}
-      showExceeded={true}
-      tableType="results"
-    />
-  </View>
-)}
-
-{/* General Parameters Table - Centered and Smaller */}
-{generalParameters && generalParameters.length > 0 && (
-  <View break={generalParameters.length > 15}>
-    <Text style={styles.subsectionTitle}>General Parameter Results</Text>
-    <View style={styles.centeredTableContainer}>
-      <PDFTable
-        headers={['Parameter', 'Result', 'Unit']}
-        data={generalParameters}
-        keyMapping={[
-          'parameter_name',
-          (row) => formatLabResult(row),
-          (row) => row.result_units || row.parameter_unit || ''
-        ]}
-        showExceeded={false}
-        tableType="general3col"
-      />
-    </View>
-  </View>
-)}
-
-  <Text style={styles.pageNumber} render={({ pageNumber }) => `Page ${pageNumber}`} fixed />
-</Page>
+      {/* Page 2: Full Results Tables */}
+      <Page size="A4" style={styles.page}>
+        <Text style={styles.sectionTitle}>Full Results</Text>
+        
+        {/* Health Parameters Table */}
+        {healthParameters.length > 0 && (
+          <View>
+            <Text style={styles.subsectionTitle}>Health-Related Parameter Results </Text>
+            <PDFTable
+              headers={['Parameter', 'Result', 'Unit', 'Recommended Maximum Concentration', 'Status']}
+              data={healthParameters}
+              keyMapping={[
+                'parameter_name',
+                (row) => formatLabResult(row),
+                (row) => row.result_units || row.parameter_unit || 'N/A',
+                (row) => {
+                  // For hybrid parameters in health table, use MAC values
+                  if (row.parameter_category === 'health') {
+                    return row.mac_display || formatValue(row.mac_value, '', 3);
+                  }
+                  return row.objective_display || formatValue(row.objective_value, '', 3);
+                },
+                (row) => getComplianceStatus(row)
+              ]}
+              showExceeded={true}
+              tableType="results"
+            />
+          </View>
+        )}
+  
+        {/* AO Parameters Table */}
+        {aoParameters.length > 0 && (
+          <View break={true}>
+            <Text style={styles.subsectionTitle}>Aesthetic & Operational Parameter Results</Text>
+            <PDFTable
+              headers={['Parameter', 'Result', 'Unit', 'Recommended Maximum Concentration', 'Status']}
+              data={aoParameters}
+              keyMapping={[
+                'parameter_name',
+                (row) => formatLabResult(row),
+                (row) => row.result_units || row.parameter_unit || 'N/A',
+                (row) => {
+                  // For hybrid parameters in AO table, use AO values
+                  if (row.parameter_category === 'ao') {
+                    return row.ao_display || formatValue(row.ao_value, '', 3);
+                  }
+                  return row.objective_display || formatValue(row.objective_value, '', 3);
+                },
+                (row) => getComplianceStatus(row)
+              ]}
+              showExceeded={true}
+              tableType="results"
+            />
+          </View>
+        )}
+  
+        {/* General Parameters Table - Centered and Smaller */}
+        {generalParameters && generalParameters.length > 0 && (
+          <View break={generalParameters.length > 15}>
+            <Text style={styles.subsectionTitle}>General Parameter Results</Text>
+            <View style={styles.centeredTableContainer}>
+              <PDFTable
+                headers={['Parameter', 'Result', 'Unit']}
+                data={generalParameters}
+                keyMapping={[
+                  'parameter_name',
+                  (row) => formatLabResult(row),
+                  (row) => row.result_units || row.parameter_unit || ''
+                ]}
+                showExceeded={false}
+                tableType="general3col"
+              />
+            </View>
+          </View>
+        )}
+  
+        <Text style={styles.pageNumber} render={({ pageNumber }) => `Page ${pageNumber}`} fixed />
+      </Page>
+  
+      {/* Page 3: About Your Water Quality Assessment */}
+      <Page size="A4" style={styles.page}>
+        <Text style={styles.sectionTitle}>About Your Water Quality Assessment</Text>
+        
+        <Text style={styles.cwqiInfoTitle}>INTRODUCTION TO YOUR DRINKING WATER QUALITY REPORT CARD</Text>
+        
+        <Text style={styles.cwqiInfoText}>
+          Your Drinking Water Quality Report Card presents laboratory results in a clear and easy-to-understand format. It includes the following key information:
+        </Text>
+        
+        <Text style={styles.cwqiInfoText}>
+          1. Your Drinking Water Quality Score or Grade: Based on the Canadian Water Quality Index (CWQI).
+        </Text>
+        
+        <Text style={styles.cwqiInfoText}>
+          2. Summary of Drinking Water Quality Results: Divided into two main categories:
+        </Text>
+        
+        <Text style={styles.cwqiInfoList}>
+          • Health Parameters: Includes bacteriological results and other parameters known or suspected of having health impacts. These are compared against their Maximum Acceptable Concentration (MAC) and Interim Maximum Acceptable Concentration (IMAC) to ensure safety.
+        </Text>
+        
+        <Text style={styles.cwqiInfoList}>
+          • Aesthetic (AO) /Operational (OG) Parameters: Includes parameters that can affect the taste, smell or appearance of the water, as well as parameters that can cause issues with treatment and distribution systems.
+        </Text>
+        
+        <Text style={styles.cwqiInfoText}>
+          3. Your Detailed Drinking Water Quality Results: Laboratory results are summarized into three main tables: Health-Based, Aesthetic/Operational-Based, and General Parameters. For each parameter that exceeds the concentration threshold, the Drinking Water Quality Report Card provides a detailed description of the parameter and why it is a concern, along with recommended treatment options.
+        </Text>
+        
+        <Text style={styles.cwqiInfoTitle}>HOW WE GRADE YOUR DRINKING WATER QUALITY</Text>
+        
+        <Text style={styles.cwqiInfoText}>
+          The Canadian Water Quality Index (CWQI) is a reliable tool for assessing water quality and determining its suitability for drinking. It evaluates a broad range of water quality parameters and consolidates them into a single score.
+        </Text>
+        
+        <Text style={styles.cwqiInfoText}>
+          The CWQI method relies on a set of parameters with drinking water standards established to ensure water safety for human consumption. These standards include:
+        </Text>
+        
+        <Text style={styles.cwqiInfoList}>
+          • Health-Related Standards: Water must be free from disease-causing organisms and toxic chemicals at unsafe concentrations.
+        </Text>
+        
+        <Text style={styles.cwqiInfoList}>
+          • Aesthetic Objectives: Water should be clear, palatable, and visually acceptable.
+        </Text>
+        
+        <Text style={styles.cwqiInfoList}>
+          • Operational Guidelines: Water should not contain substances that could hinder effective treatment, disinfection, or distribution.
+        </Text>
+        
+        <Text style={styles.cwqiInfoText}>
+          The CWQI evaluates water quality by calculating three key factors based on established objectives:
+        </Text>
+        
+        <Text style={styles.cwqiInfoList}>
+          • Scope: The number of parameters that do not meet their designated objectives.
+        </Text>
+        
+        <Text style={styles.cwqiInfoList}>
+          • Frequency: The proportion of water samples that fail to meet these objectives.
+        </Text>
+        
+        <Text style={styles.cwqiInfoList}>
+          • Amplitude: The degree to which each failed parameter exceeds its objective.
+        </Text>
+        
+        <Text style={styles.cwqiInfoText}>
+          The concentration reported by the laboratory for each parameter is characterized by a colouring system:
+        </Text>
+        
+        <Text style={styles.cwqiInfoList}>
+          • Green: Concentration meets the standards/guidelines
+        </Text>
+        
+        <Text style={styles.cwqiInfoList}>
+          • Red: Concentration fails to meet the standards/guidelines
+        </Text>
+        
+        {/* CWQI Rating Table */}
+        <View style={styles.cwqiRatingTable} break={false} wrap={false}>
+          <View style={styles.tableHeader}>
+            <View style={{ width: 80, paddingRight: 5 }}>
+              <Text style={[styles.tableCellHeader, { textAlign: 'left' }]}>RATING</Text>
+            </View>
+            <View style={{ width: 80, paddingRight: 5 }}>
+              <Text style={[styles.tableCellHeader, { textAlign: 'center' }]}>CWQI SCORE</Text>
+            </View>
+            <View style={{ width: 300, paddingRight: 5 }}>
+              <Text style={[styles.tableCellHeader, { textAlign: 'left' }]}>WHAT DOES THE SCORE MEAN?</Text>
+            </View>
+          </View>
+          
+          {[
+            { rating: 'Excellent', score: '95-100', description: 'Almost all parameters meet the guidelines, and any exceedances are very small. Water quality is considered extremely high.' },
+            { rating: 'Very Good', score: '89-94', description: 'One or more parameters slightly exceed guidelines, but overall water quality remains very safe and clean.' },
+            { rating: 'Good', score: '80-88', description: 'Some parameters exceed guidelines, usually by small to moderate amounts. Water is generally acceptable, but attention may be needed.' },
+            { rating: 'Fair', score: '65-79', description: 'Several parameters exceed guidelines, and some by larger amounts. Water quality may require treatment or monitoring.' },
+            { rating: 'Marginal', score: '45-64', description: 'Many parameters exceed guidelines, and/or some exceed them by significant amounts. Water quality is likely to pose issues without treatment.' },
+            { rating: 'Poor', score: '0-44', description: 'Most parameters exceed guidelines by large amounts. Water quality is poor and likely unsafe without corrective action.' }
+          ].map((item, index) => (
+            <View key={index} style={styles.tableRow} wrap={false}>
+              <View style={{ width: 80, paddingRight: 5 }}>
+                <Text style={[styles.tableCell, { fontWeight: 'bold', textAlign: 'left' }]}>{item.rating}</Text>
+              </View>
+              <View style={{ width: 80, paddingRight: 5 }}>
+                <Text style={[styles.tableCell, { textAlign: 'center' }]}>{item.score}</Text>
+              </View>
+              <View style={{ width: 300, paddingRight: 5 }}>
+                <Text style={[styles.tableCell, { textAlign: 'left' }]}>{item.description}</Text>
+              </View>
+            </View>
+          ))}
+        </View>
+  
+  
+        <Text style={styles.pageNumber} render={({ pageNumber }) => `Page ${pageNumber}`} fixed />
+      </Page>
     </Document>
   );
 };
