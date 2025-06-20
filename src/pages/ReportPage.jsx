@@ -164,7 +164,7 @@ export default function ReportPage() {
 
       if (error) throw error;
 
-      console.log('Report data loaded:', data);
+      // console.log('Report data loaded:', data);
       setReportData(processReportData(data));
     } catch (err) {
       console.error('Error loading report:', err);
@@ -300,7 +300,7 @@ export default function ReportPage() {
   );
 
   // Calculate CWQI for health parameters
-  console.log('Calculating CCME WQI for health parameters:', healthParameters.length);
+  // console.log('Calculating CCME WQI for health parameters:', healthParameters.length);
   let healthCWQI = calculateCCMEWQIWithValidation(healthParameters, { 
     debug: true,
     minParameters: 4,
@@ -341,7 +341,7 @@ export default function ReportPage() {
     };
   }
     
-    console.log('Calculating CCME WQI for AO parameters:', aoParameters.length);
+    // console.log('Calculating CCME WQI for AO parameters:', aoParameters.length);
     const aoCWQI = calculateCCMEWQIWithValidation(aoParameters, { 
       debug: true,
       minParameters: 4,

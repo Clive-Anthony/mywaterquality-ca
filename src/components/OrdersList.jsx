@@ -25,7 +25,7 @@ export default function OrdersList({
         setLoading(true);
         setError(null);
 
-        console.log('Loading orders for user:', user.id);
+        // console.log('Loading orders for user:', user.id);
 
         const { data, error } = await supabase
           .from('orders')
@@ -63,7 +63,7 @@ export default function OrdersList({
           throw error;
         }
 
-        console.log('Orders loaded:', data);
+        // console.log('Orders loaded:', data);
         setOrders(data || []);
       } catch (err) {
         console.error('Error loading orders:', err);

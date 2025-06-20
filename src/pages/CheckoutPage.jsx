@@ -297,7 +297,7 @@ export default function CheckoutPage() {
       if (!user) return;
 
       try {
-        debugLog('PROFILE', 'Loading user profile', { userId: user.id });
+        // debugLog('PROFILE', 'Loading user profile', { userId: user.id });
         
         const { data } = await supabase
           .from('profiles')
@@ -306,7 +306,7 @@ export default function CheckoutPage() {
           .single();
 
         if (data) {
-          debugLog('PROFILE', 'Profile loaded successfully');
+          // debugLog('PROFILE', 'Profile loaded successfully');
           setFormData(prev => ({
             ...prev,
             shipping: {
@@ -355,10 +355,10 @@ export default function CheckoutPage() {
   const validateShipping = useCallback(() => {
     const required = ['firstName', 'lastName', 'email', 'address', 'city', 'province', 'postalCode'];
     const isValid = required.every(field => formData.shipping[field]?.trim());
-    debugLog('VALIDATION', 'Shipping validation result', { 
-      isValid, 
-      missingFields: required.filter(field => !formData.shipping[field]?.trim())
-    });
+    // debugLog('VALIDATION', 'Shipping validation result', { 
+    //   isValid, 
+    //   missingFields: required.filter(field => !formData.shipping[field]?.trim())
+    // });
     return isValid;
   }, [formData.shipping]);
 
@@ -368,7 +368,7 @@ export default function CheckoutPage() {
       return;
     }
     setCurrentStep(step);
-    debugLog('NAVIGATION', `Moved to step ${step}`);
+    // debugLog('NAVIGATION', `Moved to step ${step}`);
   }, [validateShipping]);
 
   const handlePaymentSuccess = useCallback(async (paymentDetails) => {

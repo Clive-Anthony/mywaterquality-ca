@@ -29,7 +29,7 @@ export default function ContactPage() {
   // Send email notification via Netlify function
 const sendEmailNotification = async (contactData) => {
   try {
-    console.log('Sending email notification for contact:', contactData.id);
+    // console.log('Sending email notification for contact:', contactData.id);
     
     // Use different URL for development vs production
     const isDev = window.location.hostname === 'localhost';
@@ -57,7 +57,7 @@ const sendEmailNotification = async (contactData) => {
       throw new Error(errorMessage);
     }
 
-    console.log('Email notification sent successfully');
+    // console.log('Email notification sent successfully');
     return await response.json();
   } catch (error) {
     console.error('Email notification error:', error);
@@ -113,7 +113,7 @@ const sendEmailNotification = async (contactData) => {
         throw submitError;
       }
 
-      console.log('Contact form submitted successfully:', insertedData);
+      // console.log('Contact form submitted successfully:', insertedData);
 
       // Send email notification (non-blocking)
       // We have the inserted data with ID and created_at timestamp

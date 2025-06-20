@@ -241,21 +241,21 @@ const calculateCCMEWQI = (parameters) => {
       };
     }
   
-    if (debug) {
-      console.log('CCME WQI Calculation Debug (Standard Three-Factor Formula):', {
-        totalParameters: result.totalParameters,
-        totalTests: result.totalTests,
-        failedParameters: result.failedParameters,
-        failedTests: result.failedTests,
-        F1: result.components.F1,
-        F2: result.components.F2,
-        F3: result.components.F3,
-        nse: result.details.nse,
-        finalScore: result.score,
-        excursions: result.details.excursions,
-        failedParameterNames: result.details.failedParameterNames
-      });
-    }
+    // if (debug) {
+    //   console.log('CCME WQI Calculation Debug (Standard Three-Factor Formula):', {
+    //     totalParameters: result.totalParameters,
+    //     totalTests: result.totalTests,
+    //     failedParameters: result.failedParameters,
+    //     failedTests: result.failedTests,
+    //     F1: result.components.F1,
+    //     F2: result.components.F2,
+    //     F3: result.components.F3,
+    //     nse: result.details.nse,
+    //     finalScore: result.score,
+    //     excursions: result.details.excursions,
+    //     failedParameterNames: result.details.failedParameterNames
+    //   });
+    // }
   
     return {
       ...result,
