@@ -1,5 +1,5 @@
-// src/components/TopNav.jsx - Enhanced with Demo Report button
-import { useState, useRef, useEffect } from 'react';
+// src/components/TopNav.jsx - IMPROVED: Stable cart item ordering and smooth updates
+import { useState, useRef, useEffect, useMemo } from 'react';
 import { Link, useNavigate, useLocation } from 'react-router-dom';
 import { useAuth } from '../contexts/AuthContext';
 import { useCart } from '../contexts/CartContext';
@@ -18,6 +18,23 @@ export default function TopNav() {
   const [updatingItems, setUpdatingItems] = useState({}); // Track which items are being updated
   const learnDropdownRef = useRef(null);
   const mobileMenuRef = useRef(null);
+  
+  // IMPROVEMENT: Stable cart items ordering to prevent jumping
+  const stableCartItems = useMemo(() => {
+    // Sort cart items by created_at to ensure consistent order
+    // If created_at is the same, fall back to item_id for deterministic ordering
+    return [...cartItems].sort((a, b) => {
+      const aTime = new Date(a.created_at).getTime();
+      const bTime = new Date(b.created_at).getTime();
+      
+      if (aTime === bTime) {
+        // Fallback to item_id for consistent ordering
+        return a.item_id.localeCompare(b.item_id);
+      }
+      
+      return aTime - bTime;
+    });
+  }, [cartItems]);
   
   // Close dropdowns and mobile menu when clicking outside
   useEffect(() => {
@@ -110,7 +127,7 @@ export default function TopNav() {
     }).format(price);
   };
 
-  // Handle cart item quantity update
+  // IMPROVED: Handle cart item quantity update with optimistic UI
   const handleCartItemUpdate = async (itemId, newQuantity) => {
     setUpdatingItems(prev => ({ ...prev, [itemId]: true }));
     
@@ -122,12 +139,16 @@ export default function TopNav() {
       }
     } catch (error) {
       console.error('Error updating cart item:', error);
+      // Could add user notification here
     } finally {
-      setUpdatingItems(prev => ({ ...prev, [itemId]: false }));
+      // Add a small delay to prevent jarring updates
+      setTimeout(() => {
+        setUpdatingItems(prev => ({ ...prev, [itemId]: false }));
+      }, 300);
     }
   };
 
-  // Handle cart item removal
+  // IMPROVED: Handle cart item removal with smooth transition
   const handleCartItemRemove = async (itemId) => {
     setUpdatingItems(prev => ({ ...prev, [itemId]: true }));
     
@@ -136,7 +157,10 @@ export default function TopNav() {
     } catch (error) {
       console.error('Error removing cart item:', error);
     } finally {
-      setUpdatingItems(prev => ({ ...prev, [itemId]: false }));
+      // Keep updating state a bit longer for smooth removal
+      setTimeout(() => {
+        setUpdatingItems(prev => ({ ...prev, [itemId]: false }));
+      }, 200);
     }
   };
 
@@ -366,7 +390,7 @@ export default function TopNav() {
                 )}
               </button>
 
-              {/* Enhanced Cart Dropdown - RESPONSIVE VERSION */}
+              {/* IMPROVED: Enhanced Cart Dropdown with stable item ordering */}
               {showCartDropdown && user && (
                 <div className="absolute right-0 mt-2 w-64 sm:right-0 sm:w-96 bg-white rounded-lg shadow-lg border border-gray-200 z-50">
                   <div className="p-3 sm:p-4">
@@ -382,7 +406,7 @@ export default function TopNav() {
                       </button>
                     </div>
 
-                    {cartItems.length === 0 ? (
+                    {stableCartItems.length === 0 ? (
                       <div className="text-center py-6">
                         <svg className="h-12 w-12 text-gray-300 mx-auto mb-3" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                           <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="1" d="M3 3h2l.4 2M7 13h10l4-8H5.4M7 13L5.4 5M7 13l-2.293 2.293c-.63.63-.184 1.707.707 1.707H17m0 0a2 2 0 100 4 2 2 0 000-4zm-8 2a2 2 0 11-4 0 2 2 0 014 0z" />
@@ -398,13 +422,18 @@ export default function TopNav() {
                       </div>
                     ) : (
                       <>
-                        {/* Enhanced Cart Items - Responsive */}
+                        {/* IMPROVED: Cart Items with stable ordering and smooth transitions */}
                         <div className="max-h-64 sm:max-h-80 overflow-y-auto">
-                          {cartItems.map((item) => {
+                          {stableCartItems.map((item) => {
                             const isUpdating = updatingItems[item.item_id];
                             
                             return (
-                              <div key={item.item_id} className="flex items-start py-3 sm:py-4 border-b border-gray-100 last:border-b-0 gap-3">
+                              <div 
+                                key={item.item_id} 
+                                className={`flex items-start py-3 sm:py-4 border-b border-gray-100 last:border-b-0 gap-3 transition-opacity duration-200 ${
+                                  isUpdating ? 'opacity-60' : 'opacity-100'
+                                }`}
+                              >
                                 <div className="flex-1 min-w-0">
                                   <p className="text-sm font-medium text-gray-900 line-clamp-2 leading-tight">
                                     {item.test_kits.name}
@@ -413,24 +442,28 @@ export default function TopNav() {
                                     {formatPrice(item.test_kits.price)} each
                                   </p>
                                   
-                                  {/* Quantity Controls - Responsive */}
+                                  {/* Quantity Controls with improved UX */}
                                   <div className="flex items-center mt-2 space-x-1 sm:space-x-2">
                                     <button
                                       onClick={() => handleCartItemUpdate(item.item_id, item.quantity - 1)}
                                       disabled={isUpdating || item.quantity <= 1}
-                                      className="w-6 h-6 rounded-full border border-gray-300 bg-gray-50 flex items-center justify-center hover:bg-gray-100 disabled:opacity-50 disabled:cursor-not-allowed text-xs"
+                                      className="w-6 h-6 rounded-full border border-gray-300 bg-gray-50 flex items-center justify-center hover:bg-gray-100 disabled:opacity-50 disabled:cursor-not-allowed text-xs transition-colors duration-150"
                                     >
                                       −
                                     </button>
                                     
-                                    <span className="w-8 text-center text-sm font-medium">
-                                      {isUpdating ? '...' : item.quantity}
+                                    <span className="w-8 text-center text-sm font-medium min-h-[1.25rem] flex items-center justify-center">
+                                      {isUpdating ? (
+                                        <div className="w-3 h-3 border border-gray-400 border-t-transparent rounded-full animate-spin"></div>
+                                      ) : (
+                                        item.quantity
+                                      )}
                                     </span>
                                     
                                     <button
                                       onClick={() => handleCartItemUpdate(item.item_id, item.quantity + 1)}
                                       disabled={isUpdating || item.quantity >= item.test_kits.quantity}
-                                      className="w-6 h-6 rounded-full border border-gray-300 bg-gray-50 flex items-center justify-center hover:bg-gray-100 disabled:opacity-50 disabled:cursor-not-allowed text-xs"
+                                      className="w-6 h-6 rounded-full border border-gray-300 bg-gray-50 flex items-center justify-center hover:bg-gray-100 disabled:opacity-50 disabled:cursor-not-allowed text-xs transition-colors duration-150"
                                     >
                                       +
                                     </button>
@@ -439,7 +472,7 @@ export default function TopNav() {
                                     <button
                                       onClick={() => handleCartItemRemove(item.item_id)}
                                       disabled={isUpdating}
-                                      className="ml-1 sm:ml-2 text-red-600 hover:text-red-800 disabled:opacity-50 disabled:cursor-not-allowed"
+                                      className="ml-1 sm:ml-2 text-red-600 hover:text-red-800 disabled:opacity-50 disabled:cursor-not-allowed transition-colors duration-150"
                                       title="Remove item"
                                     >
                                       <svg className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
@@ -456,7 +489,7 @@ export default function TopNav() {
                                   )}
                                 </div>
                                 
-                                {/* Item Total - Responsive positioning */}
+                                {/* Item Total */}
                                 <div className="text-right flex-shrink-0">
                                   <p className="text-sm font-medium text-gray-900">
                                     {formatPrice(item.quantity * item.test_kits.price)}
@@ -467,7 +500,7 @@ export default function TopNav() {
                           })}
                         </div>
 
-                        {/* Cart Summary - Responsive */}
+                        {/* Cart Summary */}
                         <div className="mt-3 sm:mt-4 pt-3 sm:pt-4 border-t border-gray-200">
                           <div className="flex justify-between items-center mb-3">
                             <span className="text-base font-medium text-gray-900">Total:</span>

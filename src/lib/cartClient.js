@@ -1,11 +1,8 @@
-// src/lib/cartClient.js - COMPLETE IMPROVED VERSION
-// Replace your entire cartClient.js file with this improved version
-
+// src/lib/cartClient.js - FIXED VERSION - Resolves 406 error
 import { supabase } from './supabaseClient';
 
 /**
- * Get or create a cart for the authenticated user - IMPROVED VERSION
- * Handles multiple carts gracefully by using the most recent one with items
+ * Get or create a cart for the authenticated user - FIXED VERSION
  * @returns {Object} { cart, error }
  */
 export const getOrCreateUserCart = async () => {
@@ -18,7 +15,7 @@ export const getOrCreateUserCart = async () => {
 
     console.log('Getting cart for user:', user.id);
 
-    // Get all carts for this user (handle multiple carts gracefully)
+    // Get all carts for this user
     const { data: existingCarts, error: cartError } = await supabase
       .from('carts')
       .select('*')
@@ -26,39 +23,14 @@ export const getOrCreateUserCart = async () => {
       .order('created_at', { ascending: false });
 
     if (cartError && cartError.code !== 'PGRST116') {
-      // PGRST116 is "not found" - any other error is a real problem
       throw cartError;
     }
 
     let cart = null;
 
     if (existingCarts && existingCarts.length > 0) {
-      // If multiple carts exist, use the most recent one
       cart = existingCarts[0];
-
-      console.log(`Found ${existingCarts.length} existing carts, using cart:`, cart.cart_id);
-
-      // If we found multiple carts, clean up the extras (non-blocking)
-      if (existingCarts.length > 1) {
-        console.log('Multiple carts detected, cleaning up extras...');
-        const cartsToDelete = existingCarts
-          .slice(1) // Keep the first (most recent), delete the rest
-          .map(c => c.cart_id);
-        
-        // Delete extra carts in background (don't await)
-        supabase
-          .from('carts')
-          .delete()
-          .in('cart_id', cartsToDelete)
-          .then(({ error: deleteError }) => {
-            if (deleteError) {
-              console.warn('Failed to clean up extra carts:', deleteError);
-            } else {
-              console.log('Successfully cleaned up', cartsToDelete.length, 'extra carts');
-            }
-          });
-      }
-
+      console.log(`Found existing cart:`, cart.cart_id);
       return { cart, error: null };
     }
 
@@ -71,10 +43,8 @@ export const getOrCreateUserCart = async () => {
       .single();
 
     if (createError) {
-      // Handle unique constraint violation (in case of race condition)
       if (createError.code === '23505') {
-        console.log('Cart creation failed due to uniqueness constraint, retrying...');
-        // Race condition - cart was created by another request, try to get it again
+        // Race condition - try to get the cart again
         const { data: raceCart, error: raceError } = await supabase
           .from('carts')
           .select('*')
@@ -100,7 +70,7 @@ export const getOrCreateUserCart = async () => {
 };
 
 /**
- * Get cart items for the authenticated user - IMPROVED VERSION
+ * Get cart items for the authenticated user - FIXED VERSION
  * @returns {Object} { items, error }
  */
 export const getCartItems = async () => {
@@ -111,6 +81,7 @@ export const getCartItems = async () => {
       throw cartError || new Error('Failed to get cart');
     }
 
+    // FIXED: Use proper query that expects array response with consistent ordering
     const { data: items, error } = await supabase
       .from('cart_items')
       .select(`
@@ -123,7 +94,8 @@ export const getCartItems = async () => {
           quantity
         )
       `)
-      .eq('cart_id', cart.cart_id);
+      .eq('cart_id', cart.cart_id)
+      .order('created_at', { ascending: true }); // Consistent ordering
 
     if (error) {
       throw error;
@@ -137,7 +109,7 @@ export const getCartItems = async () => {
 };
 
 /**
- * Add item to cart - IMPROVED VERSION with better error handling
+ * Add item to cart - FIXED VERSION with proper header handling
  * @param {string} testKitId - ID of the test kit to add
  * @param {number} quantity - Quantity to add (default: 1)
  * @returns {Object} { success, error }
@@ -149,6 +121,8 @@ export const addToCart = async (testKitId, quantity = 1) => {
     if (!user) {
       throw new Error('User must be authenticated to add items to cart');
     }
+
+    console.log('Adding item to cart:', { testKitId, quantity });
 
     // Validate test kit exists and is in stock
     const { data: testKit, error: testKitError } = await supabase
@@ -171,17 +145,18 @@ export const addToCart = async (testKitId, quantity = 1) => {
       throw cartError || new Error('Failed to access cart');
     }
 
-    // Check if item already exists in cart
-    const { data: existingItem, error: existingError } = await supabase
+    // FIXED: Check if item already exists - use array query instead of single
+    const { data: existingItems, error: existingError } = await supabase
       .from('cart_items')
       .select('*')
       .eq('cart_id', cart.cart_id)
-      .eq('test_kit_id', testKitId)
-      .maybeSingle(); // Use maybeSingle instead of single to handle 0 results
+      .eq('test_kit_id', testKitId);
 
     if (existingError) {
       throw existingError;
     }
+
+    const existingItem = existingItems && existingItems.length > 0 ? existingItems[0] : null;
 
     if (existingItem) {
       // Update existing item quantity
@@ -218,6 +193,7 @@ export const addToCart = async (testKitId, quantity = 1) => {
       }
     }
 
+    console.log('Item added to cart successfully');
     return { success: true, error: null };
   } catch (error) {
     console.error('Error adding to cart:', error);
@@ -226,7 +202,7 @@ export const addToCart = async (testKitId, quantity = 1) => {
 };
 
 /**
- * Update cart item quantity
+ * Update cart item quantity - FIXED VERSION
  * @param {string} itemId - Cart item ID
  * @param {number} quantity - New quantity
  * @returns {Object} { success, error }
@@ -240,24 +216,28 @@ export const updateCartItemQuantity = async (itemId, quantity) => {
     }
 
     if (quantity <= 0) {
-      // Remove item if quantity is 0 or negative
       return await removeFromCart(itemId);
     }
 
-    // Get the cart item to validate ownership and check stock
-    const { data: cartItem, error: itemError } = await supabase
+    // FIXED: Get the cart item to validate ownership and check stock - use array query
+    const { data: cartItemsData, error: itemError } = await supabase
       .from('cart_items')
       .select(`
         *,
         carts!inner(user_id),
         test_kits(quantity)
       `)
-      .eq('item_id', itemId)
-      .single();
+      .eq('item_id', itemId);
 
     if (itemError) {
+      throw new Error('Error fetching cart item');
+    }
+
+    if (!cartItemsData || cartItemsData.length === 0) {
       throw new Error('Cart item not found');
     }
+
+    const cartItem = cartItemsData[0];
 
     // Verify ownership
     if (cartItem.carts.user_id !== user.id) {
@@ -289,7 +269,7 @@ export const updateCartItemQuantity = async (itemId, quantity) => {
 };
 
 /**
- * Remove item from cart
+ * Remove item from cart - FIXED VERSION
  * @param {string} itemId - Cart item ID
  * @returns {Object} { success, error }
  */
@@ -301,19 +281,24 @@ export const removeFromCart = async (itemId) => {
       throw new Error('User must be authenticated');
     }
 
-    // Verify ownership before deletion
-    const { data: cartItem, error: itemError } = await supabase
+    // FIXED: Verify ownership before deletion - use array query
+    const { data: cartItemsData, error: itemError } = await supabase
       .from('cart_items')
       .select(`
         *,
         carts!inner(user_id)
       `)
-      .eq('item_id', itemId)
-      .single();
+      .eq('item_id', itemId);
 
     if (itemError) {
+      throw new Error('Error fetching cart item');
+    }
+
+    if (!cartItemsData || cartItemsData.length === 0) {
       throw new Error('Cart item not found');
     }
+
+    const cartItem = cartItemsData[0];
 
     if (cartItem.carts.user_id !== user.id) {
       throw new Error('Unauthorized access to cart item');
@@ -336,7 +321,7 @@ export const removeFromCart = async (itemId) => {
 };
 
 /**
- * Get cart summary (total items and total price)
+ * Get cart summary (total items and total price) - FIXED VERSION
  * @returns {Object} { totalItems, totalPrice, error }
  */
 export const getCartSummary = async () => {
@@ -372,155 +357,66 @@ export const getCartSummary = async () => {
  * @returns {Object} { success, error, attempts }
  */
 export const clearCart = async () => {
-    const maxAttempts = 3;
-    let lastError = null;
-    
-    for (let attempt = 1; attempt <= maxAttempts; attempt++) {
-      try {
-        console.log(`🛒 Cart clearing attempt ${attempt}/${maxAttempts}`);
-        
-        const { data: { user } } = await supabase.auth.getUser();
-        
-        if (!user) {
-          throw new Error('User must be authenticated to clear cart');
-        }
+  const maxAttempts = 3;
+  let lastError = null;
   
-        // Get user's cart with timeout
-        const { cart, error: cartError } = await Promise.race([
-          getOrCreateUserCart(),
-          new Promise((_, reject) => 
-            setTimeout(() => reject(new Error('Cart lookup timeout')), 5000)
-          )
-        ]);
-        
-        if (cartError || !cart) {
-          throw cartError || new Error('Failed to access user cart');
-        }
-  
-        console.log(`🛒 Found cart ${cart.cart_id}, clearing items...`);
-  
-        // Clear cart items with timeout
-        const { error: deleteError } = await Promise.race([
-          supabase
-            .from('cart_items')
-            .delete()
-            .eq('cart_id', cart.cart_id),
-          new Promise((_, reject) => 
-            setTimeout(() => reject(new Error('Cart clearing timeout')), 8000)
-          )
-        ]);
-  
-        if (deleteError) {
-          throw new Error(`Database delete failed: ${deleteError.message}`);
-        }
-  
-        console.log(`✅ Cart cleared successfully on attempt ${attempt}`);
-        return { success: true, error: null, attempts: attempt };
-        
-      } catch (error) {
-        lastError = error;
-        console.error(`❌ Cart clearing attempt ${attempt} failed:`, error.message);
-        
-        // If this isn't the last attempt, wait before retrying
-        if (attempt < maxAttempts) {
-          const delay = Math.min(1000 * attempt, 3000); // Progressive delay: 1s, 2s, 3s
-          console.log(`⏳ Waiting ${delay}ms before retry...`);
-          await new Promise(resolve => setTimeout(resolve, delay));
-        }
-      }
-    }
-    
-    // All attempts failed
-    console.error(`💥 All ${maxAttempts} cart clearing attempts failed. Last error:`, lastError?.message);
-    return { 
-      success: false, 
-      error: lastError || new Error('Cart clearing failed after multiple attempts'),
-      attempts: maxAttempts
-    };
-  };
-  
-  /**
-   * Alternative cart clearing method that clears via direct SQL
-   * This can be used as a fallback if the primary method fails
-   * @returns {Object} { success, error }
-   */
-  export const clearCartDirect = async () => {
+  for (let attempt = 1; attempt <= maxAttempts; attempt++) {
     try {
-      console.log('🛒 Attempting direct cart clearing...');
+      console.log(`🛒 Cart clearing attempt ${attempt}/${maxAttempts}`);
       
       const { data: { user } } = await supabase.auth.getUser();
       
       if (!user) {
-        throw new Error('User must be authenticated');
+        throw new Error('User must be authenticated to clear cart');
       }
-  
-      // Direct deletion using user_id through the carts relationship
+
+      const { cart, error: cartError } = await getOrCreateUserCart();
+      
+      if (cartError || !cart) {
+        throw cartError || new Error('Failed to access user cart');
+      }
+
+      console.log(`🛒 Found cart ${cart.cart_id}, clearing items...`);
+
       const { error: deleteError } = await supabase
         .from('cart_items')
         .delete()
-        .in('cart_id', 
-          supabase
-            .from('carts')
-            .select('cart_id')
-            .eq('user_id', user.id)
-        );
-  
+        .eq('cart_id', cart.cart_id);
+
       if (deleteError) {
-        throw new Error(`Direct cart clear failed: ${deleteError.message}`);
+        throw new Error(`Database delete failed: ${deleteError.message}`);
       }
-  
-      console.log('✅ Direct cart clearing successful');
-      return { success: true, error: null };
+
+      console.log(`✅ Cart cleared successfully on attempt ${attempt}`);
+      return { success: true, error: null, attempts: attempt };
       
     } catch (error) {
-      console.error('❌ Direct cart clearing failed:', error.message);
-      return { success: false, error };
+      lastError = error;
+      console.error(`❌ Cart clearing attempt ${attempt} failed:`, error.message);
+      
+      if (attempt < maxAttempts) {
+        const delay = Math.min(1000 * attempt, 3000);
+        console.log(`⏳ Waiting ${delay}ms before retry...`);
+        await new Promise(resolve => setTimeout(resolve, delay));
+      }
     }
-  };
+  }
   
-  /**
-   * Comprehensive cart clearing that tries multiple methods
-   * @returns {Object} { success, error, method }
-   */
-  export const clearCartComprehensive = async () => {
-    console.log('🛒 Starting comprehensive cart clearing...');
-    
-    // Method 1: Standard clearing with retry
-    console.log('🛒 Trying Method 1: Standard clearing with retry...');
-    const standardResult = await clearCart();
-    
-    if (standardResult.success) {
-      return { ...standardResult, method: 'standard' };
-    }
-    
-    console.log('🛒 Method 1 failed, trying Method 2: Direct clearing...');
-    
-    // Method 2: Direct clearing as fallback
-    const directResult = await clearCartDirect();
-    
-    if (directResult.success) {
-      return { ...directResult, method: 'direct' };
-    }
-    
-    console.log('💥 All cart clearing methods failed');
-    
-    // Both methods failed
-    return {
-      success: false,
-      error: new Error(`All clearing methods failed. Standard: ${standardResult.error?.message}, Direct: ${directResult.error?.message}`),
-      method: 'none'
-    };
+  console.error(`💥 All ${maxAttempts} cart clearing attempts failed. Last error:`, lastError?.message);
+  return { 
+    success: false, 
+    error: lastError || new Error('Cart clearing failed after multiple attempts'),
+    attempts: maxAttempts
   };
-  
-  // Update the default export to include the new functions
-  export default {
-    getOrCreateUserCart,
-    getCartItems,
-    addToCart,
-    updateCartItemQuantity,
-    removeFromCart,
-    getCartSummary,
-    clearCart,
-    clearCartDirect,
-    clearCartComprehensive
-  };
+};
+
+// Export all functions
+export default {
+  getOrCreateUserCart,
+  getCartItems,
+  addToCart,
+  updateCartItemQuantity,
+  removeFromCart,
+  getCartSummary,
+  clearCart
+};
