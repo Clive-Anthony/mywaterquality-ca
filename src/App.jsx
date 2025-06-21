@@ -43,7 +43,7 @@ export default function App() {
     
     document.body.removeChild(testElement);
     
-    console.log('Tailwind CSS working?', computedStyle.display === 'none');
+    // console.log('Tailwind CSS working?', computedStyle.display === 'none');
   }, []);
 
   return (

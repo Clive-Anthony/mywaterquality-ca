@@ -17,7 +17,7 @@
     const currentUrl = window.location.href;
     const hash = window.location.hash;
     
-    console.log('Hash fragment:', hash);
+    // console.log('Hash fragment:', hash);
     
     // Check if we have an access_token in the hash
     if (hash && hash.includes('access_token=')) {

@@ -30,7 +30,7 @@ const checkTailwind = () => {
       const isTailwindWorking = computedStyle.display === 'none';
       
       document.body.removeChild(testElement);
-      console.log('Tailwind CSS check result:', isTailwindWorking ? 'WORKING' : 'NOT WORKING');
+      // console.log('Tailwind CSS check result:', isTailwindWorking ? 'WORKING' : 'NOT WORKING');
       resolve(isTailwindWorking);
     });
   });
