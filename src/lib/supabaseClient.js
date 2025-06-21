@@ -138,11 +138,11 @@ export const resetPassword = async (email) => {
     });
 
     console.log('Response status:', response.status);
-    console.log('Response headers:', Object.fromEntries(response.headers.entries()));
+    // console.log('Response headers:', Object.fromEntries(response.headers.entries()));
 
     // Get the response text first to debug what we're receiving
     const responseText = await response.text();
-    console.log('Raw response:', responseText);
+    // console.log('Raw response:', responseText);
 
     if (!response.ok) {
       console.error('Request failed with status:', response.status);
@@ -172,7 +172,7 @@ export const resetPassword = async (email) => {
       responseData = { message: 'Password reset email sent' };
     }
 
-    console.log('Password reset email sent successfully via Loops');
+    // console.log('Password reset email sent successfully via Loops');
     
     return { data: { message: 'Password reset email sent' }, error: null };
   } catch (err) {
