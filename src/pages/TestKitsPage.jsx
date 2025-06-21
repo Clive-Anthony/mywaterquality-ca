@@ -284,9 +284,9 @@ export default function TestKitsPage() {
               <h2 className="text-2xl font-bold text-gray-900 mb-4">Available Test Kits</h2>
               <p className="text-gray-600">
                 All test kits include professional laboratory analysis and detailed results within 5-7 business days.
-                <span className="block text-sm text-blue-600 mt-1">
+                {/* <span className="block text-sm text-blue-600 mt-1">
                   ✨ Test kits are displayed in order of priority based on our recommendations.
-                </span>
+                </span> */}
               </p>
               {!user && (
                 <div className="mt-4 bg-blue-50 border border-blue-200 rounded-lg p-4">
