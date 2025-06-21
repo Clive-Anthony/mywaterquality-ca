@@ -90,10 +90,10 @@ export default function PayPalPayment({
         
         onApprove: async (data, actions) => {
           try {
-            console.log('PayPal payment approved:', data);
+            // console.log('PayPal payment approved:', data);
             
             const details = await actions.order.capture();
-            console.log('PayPal payment captured:', details);
+            // console.log('PayPal payment captured:', details);
             
             onSuccess({
               paypalOrderId: data.orderID,

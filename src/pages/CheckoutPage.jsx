@@ -452,11 +452,11 @@ export default function CheckoutPage() {
         }))
       };
   
-      debugLog('ORDER', 'Order data prepared', { 
-        total: orderRequestData.total_amount,
-        itemCount: orderRequestData.items.length,
-        paymentReference: orderRequestData.payment_reference
-      });
+      // debugLog('ORDER', 'Order data prepared', { 
+      //   total: orderRequestData.total_amount,
+      //   itemCount: orderRequestData.items.length,
+      //   paymentReference: orderRequestData.payment_reference
+      // });
   
       // Step 3: Send to backend
       setProcessingStep(3);
@@ -476,11 +476,11 @@ export default function CheckoutPage() {
         'Backend request timed out'
       );
   
-      debugLog('BACKEND', 'Response received', { 
-        status: response.status,
-        statusText: response.statusText,
-        ok: response.ok
-      });
+      // debugLog('BACKEND', 'Response received', { 
+      //   status: response.status,
+      //   statusText: response.statusText,
+      //   ok: response.ok
+      // });
   
       // Step 4: Process response
       setProcessingStep(4);
@@ -506,13 +506,13 @@ export default function CheckoutPage() {
       }
   
       const responseData = JSON.parse(responseText);
-      debugLog('RESPONSE', 'Response parsed successfully', { 
-        success: responseData.success,
-        hasOrder: !!responseData.order,
-        orderNumber: responseData.order?.order_number,
-        cartCleared: responseData.cart_cleared,
-        cartClearMethod: responseData.cart_clear_method
-      });
+      // debugLog('RESPONSE', 'Response parsed successfully', { 
+      //   success: responseData.success,
+      //   hasOrder: !!responseData.order,
+      //   orderNumber: responseData.order?.order_number,
+      //   cartCleared: responseData.cart_cleared,
+      //   cartClearMethod: responseData.cart_clear_method
+      // });
   
       // Step 5: SIMPLIFIED CART CLEARING - Backend handles it, frontend just refreshes
       setProcessingStep(5);
