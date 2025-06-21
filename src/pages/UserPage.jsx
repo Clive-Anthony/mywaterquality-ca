@@ -179,7 +179,7 @@ function DashboardContent() {
   return (
     <>
       {/* Dashboard Summary */}
-      <div className="bg-white shadow rounded-lg overflow-hidden mb-8">
+      {/* <div className="bg-white shadow rounded-lg overflow-hidden mb-8">
         <div className="px-6 py-5 border-b border-gray-200">
           <h3 className="text-lg leading-6 font-medium text-gray-900">
             Your Dashboard
@@ -208,7 +208,7 @@ function DashboardContent() {
             </div>
           </dl>
         </div>
-      </div>
+      </div> */}
 
       {/* Recent Orders Preview */}
       <div className="mb-8">
@@ -246,7 +246,7 @@ function DashboardContent() {
         </div>
 
         {/* Card 2 */}
-        <div className="bg-white overflow-hidden shadow rounded-lg transition-shadow duration-300 hover:shadow-md">
+        {/* <div className="bg-white overflow-hidden shadow rounded-lg transition-shadow duration-300 hover:shadow-md">
           <div className="px-4 py-5 sm:p-6">
             <div className="flex items-center">
               <div className="flex-shrink-0 bg-green-100 rounded-md p-3">
@@ -270,7 +270,7 @@ function DashboardContent() {
               </div>
             </div>
           </div>
-        </div>
+        </div> */}
 
         {/* Card 3 */}
         <div className="bg-white overflow-hidden shadow rounded-lg transition-shadow duration-300 hover:shadow-md">
@@ -287,12 +287,12 @@ function DashboardContent() {
                   Learn best practices for improving and maintaining your water quality.
                 </p>
                 <div className="mt-4">
-                  <button
-                    type="button"
+                  <Link
+                    to='/about-canadas-drinking-water'
                     className="inline-flex items-center px-4 py-2 border border-transparent text-sm font-medium rounded-md text-purple-700 bg-purple-100 hover:bg-purple-200 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-purple-500 transition-colors duration-200"
                   >
                     Read Tips
-                  </button>
+                  </Link>
                 </div>
               </div>
             </div>
@@ -313,12 +313,12 @@ function DashboardContent() {
               <h4 className="font-medium text-gray-900 mb-2">Common Water Contaminants</h4>
               <ul className="list-disc pl-5 text-sm text-gray-600 space-y-1">
                 <li>Lead and heavy metals</li>
-                <li>Bacteria and viruses</li>
+                <li>Bacteria</li>
                 <li>Pesticides and chemicals</li>
                 <li>Nitrates and phosphates</li>
               </ul>
             </div>
-            <div className="bg-white p-4 rounded shadow-sm">
+            {/* <div className="bg-white p-4 rounded shadow-sm">
               <h4 className="font-medium text-gray-900 mb-2">Testing Frequency</h4>
               <ul className="list-disc pl-5 text-sm text-gray-600 space-y-1">
                 <li>Annual testing for most households</li>
@@ -326,7 +326,7 @@ function DashboardContent() {
                 <li>Quarterly for homes with water quality concerns</li>
                 <li>After major plumbing work</li>
               </ul>
-            </div>
+            </div> */}
           </div>
         </div>
       </div>

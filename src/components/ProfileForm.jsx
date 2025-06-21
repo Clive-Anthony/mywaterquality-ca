@@ -32,7 +32,7 @@ export default function ProfileForm() {
         setFetchingProfile(true);
         setError(null);
         
-        console.log('Fetching profile for user:', user.id);
+        // console.log('Fetching profile for user:', user.id);
         
         // Query the profiles table to get user profile data
         const { data, error } = await supabase
@@ -60,7 +60,7 @@ export default function ProfileForm() {
             setError(`Failed to load profile: ${error.message}`);
           }
         } else if (data) {
-          console.log('Profile data loaded:', data);
+          // console.log('Profile data loaded:', data);
           setProfile({
             first_name: data.first_name || '',
             last_name: data.last_name || '',
@@ -148,8 +148,8 @@ export default function ProfileForm() {
     }
     
     try {
-      console.log('Updating profile for user:', user.id);
-      console.log('Profile data:', profile);
+      // console.log('Updating profile for user:', user.id);
+      // console.log('Profile data:', profile);
       
       // Prepare the profile data
       const profileData = {
@@ -186,10 +186,10 @@ export default function ProfileForm() {
         }
       }
 
-      console.log('Profile updated successfully in database:', profileResult);
+      // console.log('Profile updated successfully in database:', profileResult);
 
       // Update user metadata in auth.users (completely non-blocking)
-      console.log('Starting auth metadata update...');
+      // console.log('Starting auth metadata update...');
       const fullName = `${profileData.first_name} ${profileData.last_name}`.trim();
       
       // Don't await this - let it run in background
@@ -231,7 +231,7 @@ export default function ProfileForm() {
       // Clear the failsafe timeout
       clearTimeout(failsafeTimeout);
       // CRITICAL: Always clear loading state
-      console.log('Setting loading to false in finally block');
+      // console.log('Setting loading to false in finally block');
       setLoading(false);
     }
   };

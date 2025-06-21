@@ -54,7 +54,7 @@ export default function App() {
           <ScrollToTop />
           
           {/* Add callback debugger (invisible component) */}
-          <CallbackDebugger />
+          {/* <CallbackDebugger /> */}
           
           {/* ADD THIS LINE - Cart Debugger
           <CartDebugger /> */}
