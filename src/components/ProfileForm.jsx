@@ -205,7 +205,7 @@ export default function ProfileForm() {
         if (metadataError) {
           console.warn('Failed to update auth metadata (profile still saved successfully):', metadataError);
         } else {
-          console.log('Auth metadata updated successfully:', authResult);
+          // console.log('Auth metadata updated successfully:', authResult);
         }
       }).catch((metadataUpdateError) => {
         console.warn('Exception updating auth metadata (profile still saved successfully):', metadataUpdateError);
