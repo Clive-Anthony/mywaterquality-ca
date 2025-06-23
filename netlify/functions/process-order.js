@@ -51,12 +51,7 @@ async function sendOrderConfirmationEmailDirect(orderData, orderItems, customerE
         websiteURL: baseUrl,
         orderDate: new Date(orderData.created_at).toLocaleDateString('en-CA'),
         orderStatus: orderData.status || 'confirmed',
-        // Add coupon information if applicable
-        couponApplied: orderData.coupon_code || null,
-        discountAmount: orderData.discount_amount > 0 ? 
-          new Intl.NumberFormat('en-CA', { style: 'currency', currency: 'CAD' }).format(orderData.discount_amount) : 
-          null,
-        isFreeOrder: orderData.total_amount === 0
+        couponApplied: orderData.coupon_code || 'None'
       }
     };
 
@@ -153,7 +148,7 @@ Email: ${shippingAddress.email}` : 'Not provided';
     // Use the correct admin template ID
     const emailData = {
       transactionalId: 'cmbax4sey1n651h0it0rm6f8k', // Admin notification template ID
-      email: 'development@mywaterquality.ca',
+      email: 'david.phillips@bookerhq.ca',
       dataVariables: {
         customerName: customerName,
         orderNumber: orderData.order_number,
@@ -166,12 +161,7 @@ Email: ${shippingAddress.email}` : 'Not provided';
         paymentMethod: orderData.payment_method || 'PayPal',
         orderStatus: orderData.status || 'confirmed',
         specialInstructions: orderData.special_instructions || 'None provided',
-        // Add coupon information if applicable
-        couponApplied: orderData.coupon_code || null,
-        discountAmount: orderData.discount_amount > 0 ? 
-          new Intl.NumberFormat('en-CA', { style: 'currency', currency: 'CAD' }).format(orderData.discount_amount) : 
-          null,
-        isFreeOrder: orderData.total_amount === 0
+        couponApplied: orderData.coupon_code || 'None'
       }
     };
 
