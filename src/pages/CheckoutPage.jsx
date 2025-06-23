@@ -460,7 +460,7 @@ export default function CheckoutPage() {
         });
         setCouponCode('');
         
-        debugLog('COUPON', 'Coupon applied successfully', result);
+        // debugLog('COUPON', 'Coupon applied successfully', result);
         
         // Force a page refresh by briefly changing and resetting the step
         setCurrentStep(0);
@@ -622,7 +622,7 @@ export default function CheckoutPage() {
   }, [totals, formData, cartItems, user, session, appliedCoupon, forceRefreshCart]);
 
   const handlePaymentSuccess = useCallback(async (paymentDetails) => {
-    debugLog('PAYPAL', 'Payment success received', { paymentDetails });
+    // debugLog('PAYPAL', 'Payment success received', { paymentDetails });
     await processOrder(paymentDetails);
   }, [processOrder]);
 
