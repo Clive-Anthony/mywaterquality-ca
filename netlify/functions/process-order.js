@@ -1,18 +1,3 @@
-// netlify/functions/process-order.js - Updated with coupon support
-const { createClient } = require('@supabase/supabase-js');
-
-// Enhanced logging with better error capture
-function log(level, message, data = null) {
-  const timestamp = new Date().toISOString();
-  const logLine = `[${timestamp}] [${level.toUpperCase()}] ${message}`;
-  
-  if (data) {
-    console.log(logLine, JSON.stringify(data, null, 2));
-  } else {
-    console.log(logLine);
-  }
-}
-
 // FIXED: Admin order notification with correct template ID and proper data structure
 async function sendAdminOrderNotificationDirect(orderData, orderItems, shippingAddress, requestId) {
   try {
@@ -123,6 +108,19 @@ Email: ${shippingAddress.email}` : 'Not provided';
       error: error.message 
     });
     return { success: false, error: error.message };
+  }
+}// netlify/functions/process-order.js - Updated with coupon support
+const { createClient } = require('@supabase/supabase-js');
+
+// Enhanced logging with better error capture
+function log(level, message, data = null) {
+  const timestamp = new Date().toISOString();
+  const logLine = `[${timestamp}] [${level.toUpperCase()}] ${message}`;
+  
+  if (data) {
+    console.log(logLine, JSON.stringify(data, null, 2));
+  } else {
+    console.log(logLine);
   }
 }
 
@@ -531,8 +529,8 @@ exports.handler = async function(event, context) {
       log('info', `✅ Cart cleared successfully: ${JSON.stringify(cartClearResult)}`);
     }
 
-    // FIXED: Send both customer and admin emails with proper error handling FOR ALL ORDERS
-    log('info', `📧 Starting email notifications for ALL order types [${requestId}]`);
+    // FIXED: Send both customer and admin emails with proper error handling
+    log('info', `📧 Starting email notifications [${requestId}]`);
     
     if (process.env.VITE_LOOPS_API_KEY) {
       const customerEmail = orderData.shipping_address?.email;
@@ -602,15 +600,7 @@ exports.handler = async function(event, context) {
           'Free order created successfully!' : 
           'Order created successfully',
         processing_time_ms: processingTime,
-        request_id: requestId,
-        cart_cleared: cartClearResult.success,
-        cart_clear_method: cartClearResult.success ? cartClearResult.method : 'failed',
-        emails_sent: {
-          customer_confirmation: !!process.env.VITE_LOOPS_API_KEY && !!orderData.shipping_address?.email,
-          admin_notification: !!process.env.VITE_LOOPS_API_KEY,
-          customer_includes_items: true,
-          admin_includes_items: true
-        }
+        request_id: requestId
       })
     };
 
