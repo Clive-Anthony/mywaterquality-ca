@@ -1,5 +1,4 @@
-// netlify/functions/process-order.js - FIXED to match your exact schema
-
+// netlify/functions/process-order.js - Updated with coupon support
 const { createClient } = require('@supabase/supabase-js');
 
 // Enhanced logging with better error capture
@@ -11,112 +10,6 @@ function log(level, message, data = null) {
     console.log(logLine, JSON.stringify(data, null, 2));
   } else {
     console.log(logLine);
-  }
-}
-
-// Enhanced error reporting for 502 debugging
-function logCriticalError(error, context, requestId) {
-  console.error('🚨 CRITICAL ERROR DETAILS:', {
-    requestId,
-    timestamp: new Date().toISOString(),
-    context,
-    error: {
-      message: error.message,
-      stack: error.stack,
-      name: error.name,
-      code: error.code
-    },
-    environment: {
-      hasSupabaseUrl: !!process.env.VITE_SUPABASE_URL,
-      hasSupabaseKey: !!process.env.VITE_SUPABASE_SERVICE_KEY,
-      hasLoopsKey: !!process.env.VITE_LOOPS_API_KEY,
-      nodeVersion: process.version,
-      platform: process.platform
-    }
-  });
-}
-
-// ENHANCED: Customer order confirmation email with order items included
-async function sendOrderConfirmationEmailDirect(orderData, orderItems, customerEmail, firstName, requestId) {
-  try {
-    const apiKey = process.env.VITE_LOOPS_API_KEY;
-    if (!apiKey) {
-      throw new Error('Loops API key not configured');
-    }
-
-    log('info', `📧 Sending order confirmation email to ${customerEmail} [${requestId}]`);
-
-    // Format the order total as a currency string
-    const orderTotal = new Intl.NumberFormat('en-CA', {
-      style: 'currency',
-      currency: 'CAD',
-    }).format(orderData.total_amount);
-
-    // Format order items for customer email
-    const orderItemsText = orderItems?.map(item => 
-      `• ${item.product_name} (Qty: ${item.quantity}) - ${new Intl.NumberFormat('en-CA', {
-        style: 'currency',
-        currency: 'CAD',
-      }).format(item.unit_price)} each`
-    ).join('\n') || 'No items listed';
-
-    const baseUrl = process.env.VITE_APP_URL || 'https://mywaterqualityca.netlify.app';
-
-    const emailData = {
-      transactionalId: 'cmb6pqu9c02qht60i7w92yalf', // Customer order confirmation template ID
-      email: customerEmail,
-      dataVariables: {
-        firstName: firstName || 'Valued Customer',
-        orderNumber: orderData.order_number,
-        orderTotal: orderTotal,
-        orderItems: orderItemsText,
-        dashboardLink: `${baseUrl}/dashboard`,
-        websiteURL: baseUrl,
-        orderDate: new Date(orderData.created_at).toLocaleDateString('en-CA'),
-        orderStatus: orderData.status || 'confirmed'
-      }
-    };
-
-    log('info', `📧 Prepared customer email data for order ${orderData.order_number}`, {
-      templateId: emailData.transactionalId,
-      itemCount: orderItems?.length || 0,
-      orderTotal: emailData.dataVariables.orderTotal
-    });
-
-    // Call Loops API directly
-    const response = await fetch('https://app.loops.so/api/v1/transactional', {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        'Authorization': `Bearer ${apiKey}`
-      },
-      body: JSON.stringify(emailData)
-    });
-
-    const responseText = await response.text();
-    log('info', `📧 Customer email Loops API response: ${response.status}`, { responseText });
-
-    if (!response.ok) {
-      let errorData;
-      try {
-        errorData = JSON.parse(responseText);
-      } catch (e) {
-        errorData = { message: responseText || `HTTP ${response.status}` };
-      }
-      throw new Error(`Loops API Error ${response.status}: ${errorData.message}`);
-    }
-
-    log('info', `✅ Order confirmation email sent successfully to ${customerEmail} for order ${orderData.order_number} with ${orderItems?.length || 0} items`);
-    return { success: true };
-
-  } catch (error) {
-    log('error', `❌ Failed to send order confirmation email: ${error.message}`, { 
-      orderNumber: orderData.order_number,
-      customerEmail,
-      itemCount: orderItems?.length || 0,
-      error: error.message 
-    });
-    return { success: false, error: error.message };
   }
 }
 
@@ -170,7 +63,7 @@ Email: ${shippingAddress.email}` : 'Not provided';
     // Use the correct admin template ID
     const emailData = {
       transactionalId: 'cmbax4sey1n651h0it0rm6f8k', // Admin notification template ID
-      email: 'development@mywaterquality.ca',
+      email: 'david.phillips@bookerhq.ca',
       dataVariables: {
         customerName: customerName,
         orderNumber: orderData.order_number,
@@ -182,7 +75,13 @@ Email: ${shippingAddress.email}` : 'Not provided';
         totalAmount: orderData.total_amount,
         paymentMethod: orderData.payment_method || 'PayPal',
         orderStatus: orderData.status || 'confirmed',
-        specialInstructions: orderData.special_instructions || 'None provided'
+        specialInstructions: orderData.special_instructions || 'None provided',
+        // Add coupon information if applicable
+        couponApplied: orderData.coupon_code || null,
+        discountAmount: orderData.discount_amount > 0 ? 
+          new Intl.NumberFormat('en-CA', { style: 'currency', currency: 'CAD' }).format(orderData.discount_amount) : 
+          null,
+        isFreeOrder: orderData.total_amount === 0
       }
     };
 
@@ -222,6 +121,147 @@ Email: ${shippingAddress.email}` : 'Not provided';
     log('error', `❌ Failed to send admin order notification: ${error.message}`, { 
       orderNumber: orderData.order_number,
       error: error.message 
+    });
+    return { success: false, error: error.message };
+  }
+}
+
+// ENHANCED: Customer order confirmation email with order items included
+async function sendOrderConfirmationEmailDirect(orderData, orderItems, customerEmail, firstName, requestId) {
+  try {
+    const apiKey = process.env.VITE_LOOPS_API_KEY;
+    if (!apiKey) {
+      throw new Error('Loops API key not configured');
+    }
+
+    log('info', `📧 Sending order confirmation email to ${customerEmail} [${requestId}]`);
+
+    // Format the order total as a currency string
+    const orderTotal = new Intl.NumberFormat('en-CA', {
+      style: 'currency',
+      currency: 'CAD',
+    }).format(orderData.total_amount);
+
+    // Format order items for customer email
+    const orderItemsText = orderItems?.map(item => 
+      `• ${item.product_name} (Qty: ${item.quantity}) - ${new Intl.NumberFormat('en-CA', {
+        style: 'currency',
+        currency: 'CAD',
+      }).format(item.unit_price)} each`
+    ).join('\n') || 'No items listed';
+
+    const baseUrl = process.env.VITE_APP_URL || 'https://mywaterqualityca.netlify.app';
+
+    const emailData = {
+      transactionalId: 'cmb6pqu9c02qht60i7w92yalf', // Customer order confirmation template ID
+      email: customerEmail,
+      dataVariables: {
+        firstName: firstName || 'Valued Customer',
+        orderNumber: orderData.order_number,
+        orderTotal: orderTotal,
+        orderItems: orderItemsText,
+        dashboardLink: `${baseUrl}/dashboard`,
+        websiteURL: baseUrl,
+        orderDate: new Date(orderData.created_at).toLocaleDateString('en-CA'),
+        orderStatus: orderData.status || 'confirmed',
+        // Add coupon information if applicable
+        couponApplied: orderData.coupon_code || null,
+        discountAmount: orderData.discount_amount > 0 ? 
+          new Intl.NumberFormat('en-CA', { style: 'currency', currency: 'CAD' }).format(orderData.discount_amount) : 
+          null,
+        isFreeOrder: orderData.total_amount === 0
+      }
+    };
+
+    log('info', `📧 Prepared customer email data for order ${orderData.order_number}`, {
+      templateId: emailData.transactionalId,
+      itemCount: orderItems?.length || 0,
+      orderTotal: emailData.dataVariables.orderTotal,
+      isFreeOrder: emailData.dataVariables.isFreeOrder
+    });
+
+    // Call Loops API directly
+    const response = await fetch('https://app.loops.so/api/v1/transactional', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'Authorization': `Bearer ${apiKey}`
+      },
+      body: JSON.stringify(emailData)
+    });
+
+    const responseText = await response.text();
+    log('info', `📧 Customer email Loops API response: ${response.status}`, { responseText });
+
+    if (!response.ok) {
+      let errorData;
+      try {
+        errorData = JSON.parse(responseText);
+      } catch (e) {
+        errorData = { message: responseText || `HTTP ${response.status}` };
+      }
+      throw new Error(`Loops API Error ${response.status}: ${errorData.message}`);
+    }
+
+    log('info', `✅ Order confirmation email sent successfully to ${customerEmail} for order ${orderData.order_number}`);
+    return { success: true };
+
+  } catch (error) {
+    log('error', `❌ Failed to send order confirmation email: ${error.message}`, { 
+      orderNumber: orderData.order_number,
+      customerEmail,
+      error: error.message 
+    });
+    return { success: false, error: error.message };
+  }
+}
+
+// Record coupon usage in the database
+async function recordCouponUsage(supabaseAdmin, couponId, userId, orderId, discountAmount, requestId) {
+  try {
+    log('info', `🎫 Recording coupon usage [${requestId}]`, {
+      couponId,
+      userId,
+      orderId,
+      discountAmount
+    });
+
+    // Insert coupon usage record
+    const { error: usageError } = await supabaseAdmin
+      .from('coupon_usage')
+      .insert([{
+        coupon_id: couponId,
+        user_id: userId,
+        order_id: orderId,
+        discount_amount: discountAmount
+      }]);
+
+    if (usageError) {
+      throw usageError;
+    }
+
+    // Update coupon usage count
+    const { error: updateError } = await supabaseAdmin
+      .from('coupons')
+      .update({ 
+        usage_count: supabaseAdmin.sql`usage_count + 1`,
+        updated_at: new Date().toISOString()
+      })
+      .eq('coupon_id', couponId);
+
+    if (updateError) {
+      throw updateError;
+    }
+
+    log('info', `✅ Coupon usage recorded successfully [${requestId}]`);
+    return { success: true };
+
+  } catch (error) {
+    log('error', `❌ Failed to record coupon usage: ${error.message}`, {
+      couponId,
+      userId,
+      orderId,
+      error: error.message
     });
     return { success: false, error: error.message };
   }
@@ -313,40 +353,6 @@ async function clearUserCart(userId, supabaseAdmin, requestId) {
   }
 }
 
-// Payment recovery mechanism - stores failed payment details for manual processing
-async function storeFailedPayment(paymentData, error, requestId) {
-  try {
-    log('warn', `Storing failed payment for manual recovery [${requestId}]`);
-    
-    console.error('💳 PAYMENT RECOVERY NEEDED:', {
-      requestId,
-      timestamp: new Date().toISOString(),
-      paymentDetails: {
-        paypalOrderId: paymentData.payment_reference,
-        customerEmail: paymentData.shipping_address?.email,
-        totalAmount: paymentData.total_amount,
-        currency: 'CAD'
-      },
-      orderData: {
-        items: paymentData.items?.map(item => ({
-          name: item.product_name,
-          quantity: item.quantity,
-          price: item.unit_price
-        })),
-        shippingAddress: paymentData.shipping_address
-      },
-      error: {
-        message: error.message,
-        context: 'Order creation failed after successful payment'
-      },
-      actionRequired: 'MANUAL_ORDER_CREATION_NEEDED'
-    });
-    
-  } catch (recoveryError) {
-    console.error('Failed to store payment recovery data:', recoveryError);
-  }
-}
-
 // Timeout wrapper to prevent function timeout
 function withFunctionTimeout(promise, timeoutMs = 25000) {
   return Promise.race([
@@ -386,55 +392,34 @@ exports.handler = async function(event, context) {
       };
     }
 
-    // ENHANCED: Environment validation with detailed logging
-    log('info', 'Validating environment variables...');
-    const envIssues = [];
-    
-    if (!process.env.VITE_SUPABASE_URL) envIssues.push('VITE_SUPABASE_URL missing');
-    if (!process.env.VITE_SUPABASE_SERVICE_KEY) envIssues.push('VITE_SUPABASE_SERVICE_KEY missing');
-    
-    if (envIssues.length > 0) {
-      const error = new Error(`Environment configuration error: ${envIssues.join(', ')}`);
-      logCriticalError(error, 'Environment validation', requestId);
+    // Environment validation
+    if (!process.env.VITE_SUPABASE_URL || !process.env.VITE_SUPABASE_SERVICE_KEY) {
       return {
         statusCode: 500,
         headers,
         body: JSON.stringify({ 
           error: 'Server configuration error',
-          requestId,
-          details: 'Missing required environment variables'
+          requestId
         })
       };
     }
 
-    // Parse request body with enhanced error handling
+    // Parse request body
     let orderData;
     try {
-      log('info', 'Parsing request body...');
       orderData = JSON.parse(event.body);
-      
-      log('info', 'Request parsed successfully', { 
-        hasItems: !!orderData.items,
-        itemCount: orderData.items?.length,
-        total: orderData.total_amount,
-        paymentMethod: orderData.payment_method,
-        paymentReference: orderData.payment_reference
-      });
-      
     } catch (parseError) {
-      logCriticalError(parseError, 'JSON parsing', requestId);
       return {
         statusCode: 400,
         headers,
         body: JSON.stringify({ 
           error: 'Invalid JSON in request body',
-          requestId,
-          details: parseError.message
+          requestId
         })
       };
     }
 
-    // Enhanced validation
+    // Enhanced validation for coupon orders
     const validation = validateOrderData(orderData);
     if (!validation.isValid) {
       log('error', 'Order validation failed', { errors: validation.errors });
@@ -449,47 +434,13 @@ exports.handler = async function(event, context) {
       };
     }
 
-    // Create Supabase client with timeout
-    log('info', 'Creating Supabase client...');
+    // Create Supabase client
     const supabaseAdmin = createClient(
       process.env.VITE_SUPABASE_URL,
-      process.env.VITE_SUPABASE_SERVICE_KEY,
-      {
-        auth: {
-          autoRefreshToken: false,
-          persistSession: false
-        }
-      }
+      process.env.VITE_SUPABASE_SERVICE_KEY
     );
 
-    // Test database connection
-    try {
-      log('info', 'Testing database connection...');
-      const { error: connectionError } = await withFunctionTimeout(
-        supabaseAdmin.from('orders').select('id').limit(1),
-        5000
-      );
-      
-      if (connectionError) {
-        throw new Error(`Database connection failed: ${connectionError.message}`);
-      }
-      log('info', 'Database connection successful');
-      
-    } catch (connectionError) {
-      logCriticalError(connectionError, 'Database connection', requestId);
-      return {
-        statusCode: 500,
-        headers,
-        body: JSON.stringify({ 
-          error: 'Database connection failed',
-          requestId,
-          details: connectionError.message
-        })
-      };
-    }
-
-    // Authenticate user with timeout
-    log('info', 'Authenticating user...');
+    // Authenticate user
     const authHeader = event.headers.authorization;
     if (!authHeader?.startsWith('Bearer ')) {
       return {
@@ -503,65 +454,64 @@ exports.handler = async function(event, context) {
     }
 
     const token = authHeader.substring(7);
-    let user;
+    const { data: userData, error: userError } = await withFunctionTimeout(
+      supabaseAdmin.auth.getUser(token),
+      8000
+    );
     
-    try {
-      const { data: userData, error: userError } = await withFunctionTimeout(
-        supabaseAdmin.auth.getUser(token),
-        8000
-      );
-      
-      if (userError || !userData?.user) {
-        throw new Error(`Authentication failed: ${userError?.message || 'No user data'}`);
-      }
-      
-      user = userData.user;
-      log('info', 'User authenticated successfully', { 
-        userId: user.id, 
-        email: user.email 
-      });
-      
-    } catch (authError) {
-      logCriticalError(authError, 'User authentication', requestId);
+    if (userError || !userData?.user) {
       return {
         statusCode: 401,
         headers,
         body: JSON.stringify({ 
           error: 'Authentication failed',
-          requestId,
-          details: authError.message
+          requestId
         })
       };
     }
 
-    // CRITICAL: Wrap order creation in timeout to prevent 502 errors
-    log('info', 'Starting order creation process...');
-    
+    const user = userData.user;
+    log('info', 'User authenticated successfully', { 
+      userId: user.id, 
+      email: user.email,
+      isFreeOrder: orderData.is_free_order || false
+    });
+
+    // Create order with timeout
     const orderResult = await withFunctionTimeout(
       createOrderWithRetry(supabaseAdmin, orderData, user, requestId),
-      20000 // 20 second timeout for order creation
+      20000
     );
 
     if (!orderResult.success) {
-      // If order creation failed after successful payment, store for recovery
-      if (orderData.payment_reference) {
-        await storeFailedPayment(orderData, orderResult.error, requestId);
-      }
-      
-      logCriticalError(orderResult.error, 'Order creation', requestId);
       return {
         statusCode: 500,
         headers,
         body: JSON.stringify({ 
           error: 'Order creation failed',
           requestId,
-          details: orderResult.error.message,
-          paymentCaptured: !!orderData.payment_reference,
-          supportMessage: orderData.payment_reference ? 
-            'Your payment was captured. Please contact support with this reference: ' + requestId :
-            'No payment was captured.'
+          details: orderResult.error.message
         })
       };
+    }
+
+    // Record coupon usage if applicable
+    if (orderData.coupon_id && orderData.discount_amount > 0) {
+      const couponUsageResult = await recordCouponUsage(
+        supabaseAdmin, 
+        orderData.coupon_id, 
+        user.id, 
+        orderResult.order.id, 
+        orderData.discount_amount, 
+        requestId
+      );
+      
+      if (!couponUsageResult.success) {
+        log('warn', 'Coupon usage recording failed but order was successful', {
+          error: couponUsageResult.error,
+          orderId: orderResult.order.id
+        });
+      }
     }
 
     const processingTime = Date.now() - startTime;
@@ -642,39 +592,27 @@ exports.handler = async function(event, context) {
           order_number: orderResult.order.order_number,
           status: orderResult.order.status,
           payment_status: orderResult.order.payment_status,
-          fulfillment_status: orderResult.order.fulfillment_status,
           total_amount: orderResult.order.total_amount,
-          created_at: orderResult.order.created_at,
-          shipping_address: orderResult.order.shipping_address
+          discount_amount: orderResult.order.discount_amount,
+          coupon_code: orderResult.order.coupon_code,
+          is_free_order: orderResult.order.total_amount === 0,
+          created_at: orderResult.order.created_at
         },
-        message: 'Order created successfully',
+        message: orderResult.order.total_amount === 0 ? 
+          'Free order created successfully!' : 
+          'Order created successfully',
         processing_time_ms: processingTime,
-        request_id: requestId,
-        cart_cleared: cartClearResult.success,
-        cart_clear_method: cartClearResult.success ? cartClearResult.method : 'failed',
-        emails_sent: {
-          customer_confirmation: !!process.env.VITE_LOOPS_API_KEY && !!orderData.shipping_address?.email,
-          admin_notification: !!process.env.VITE_LOOPS_API_KEY,
-          customer_includes_items: true,
-          admin_includes_items: true
-        }
+        request_id: requestId
       })
     };
 
   } catch (error) {
     const processingTime = Date.now() - startTime;
-    logCriticalError(error, 'Unexpected function error', requestId);
-    
-    // Check if this was a payment that succeeded but order creation failed
-    let orderData;
-    try {
-      orderData = JSON.parse(event.body);
-      if (orderData?.payment_reference) {
-        await storeFailedPayment(orderData, error, requestId);
-      }
-    } catch (e) {
-      // Ignore parsing errors here
-    }
+    log('error', 'Unexpected function error', { 
+      error: error.message,
+      requestId,
+      processingTime 
+    });
     
     return {
       statusCode: 500,
@@ -683,14 +621,13 @@ exports.handler = async function(event, context) {
         error: 'Internal server error',
         message: error.message,
         request_id: requestId,
-        processing_time_ms: processingTime,
-        paymentStatus: orderData?.payment_reference ? 'CAPTURED_ORDER_FAILED' : 'NO_PAYMENT_CAPTURED'
+        processing_time_ms: processingTime
       })
     };
   }
 };
 
-// Enhanced order creation with retry logic - FIXED TO MATCH YOUR SCHEMA
+// Enhanced order creation with coupon support
 async function createOrderWithRetry(supabaseAdmin, orderData, user, requestId, maxRetries = 2) {
   let lastError;
   
@@ -698,27 +635,31 @@ async function createOrderWithRetry(supabaseAdmin, orderData, user, requestId, m
     try {
       log('info', `Order creation attempt ${attempt}/${maxRetries} [${requestId}]`);
       
-      // FIXED: Match your exact schema - removed order_id field since it's auto-generated as 'id'
+      // Determine payment status based on whether it's a free order
+      const isFreeOrder = orderData.is_free_order || orderData.total_amount === 0;
+      
       const orderInsertData = {
         user_id: user.id,
-        // Don't include 'id' or 'order_number' - they're auto-generated
-        status: 'confirmed', // You have this field
-        payment_status: 'paid', // You have this field  
-        fulfillment_status: 'unfulfilled', // You have this field
+        status: 'confirmed',
+        payment_status: isFreeOrder ? 'not_required' : 'paid',
+        fulfillment_status: 'unfulfilled',
         subtotal: Number(orderData.subtotal) || 0,
         shipping_cost: Number(orderData.shipping_cost) || 0,
         tax_amount: Number(orderData.tax_amount) || 0,
         total_amount: Number(orderData.total_amount),
+        discount_amount: Number(orderData.discount_amount) || 0,
+        coupon_code: orderData.coupon_code || null,
+        coupon_id: orderData.coupon_id || null,
         shipping_address: orderData.shipping_address,
         billing_address: orderData.billing_address,
         special_instructions: orderData.special_instructions || null,
-        payment_method: orderData.payment_method || 'paypal',
-        payment_data: orderData.payment_reference ? 
-          { reference: orderData.payment_reference, completed_at: new Date().toISOString() } : null
-        // created_at and updated_at will be auto-set by your defaults
+        payment_method: isFreeOrder ? 'free' : (orderData.payment_method || 'paypal'),
+        payment_data: isFreeOrder ? 
+          { type: 'free_order', completed_at: new Date().toISOString() } :
+          (orderData.payment_reference ? 
+            { reference: orderData.payment_reference, completed_at: new Date().toISOString() } : null)
       };
 
-      // Create order with timeout - FIXED: Select the correct fields that exist in your schema
       const { data: createdOrder, error: orderError } = await withFunctionTimeout(
         supabaseAdmin
           .from('orders')
@@ -731,6 +672,9 @@ async function createOrderWithRetry(supabaseAdmin, orderData, user, requestId, m
             payment_status,
             fulfillment_status,
             total_amount,
+            discount_amount,
+            coupon_code,
+            coupon_id,
             shipping_address,
             billing_address,
             created_at
@@ -750,7 +694,7 @@ async function createOrderWithRetry(supabaseAdmin, orderData, user, requestId, m
       // Create order items
       if (orderData.items && orderData.items.length > 0) {
         const orderItems = orderData.items.map(item => ({
-          order_id: createdOrder.id, // Use the generated id
+          order_id: createdOrder.id,
           test_kit_id: item.test_kit_id,
           quantity: Number(item.quantity),
           unit_price: Number(item.unit_price),
@@ -771,7 +715,13 @@ async function createOrderWithRetry(supabaseAdmin, orderData, user, requestId, m
         }
       }
 
-      log('info', `Order created successfully on attempt ${attempt} [${requestId}]`);
+      log('info', `Order created successfully on attempt ${attempt} [${requestId}]`, {
+        orderId: createdOrder.id,
+        orderNumber: createdOrder.order_number,
+        isFreeOrder: createdOrder.total_amount === 0,
+        discountAmount: createdOrder.discount_amount
+      });
+      
       return { success: true, order: createdOrder };
       
     } catch (error) {
@@ -789,15 +739,20 @@ async function createOrderWithRetry(supabaseAdmin, orderData, user, requestId, m
   return { success: false, error: lastError };
 }
 
-// Validation function
+// Enhanced validation function
 function validateOrderData(orderData) {
   const errors = [];
   
   if (!orderData.shipping_address) errors.push('shipping_address is required');
   if (!orderData.billing_address) errors.push('billing_address is required');
   if (!orderData.items || !Array.isArray(orderData.items)) errors.push('items array is required');
-  if (!orderData.total_amount || orderData.total_amount <= 0) errors.push('valid total_amount is required');
-  if (!orderData.payment_reference) errors.push('payment_reference is required for completed payments');
+  if (orderData.total_amount === undefined || orderData.total_amount < 0) errors.push('valid total_amount is required');
+  
+  // For non-free orders, require payment reference
+  const isFreeOrder = orderData.is_free_order || orderData.total_amount === 0;
+  if (!isFreeOrder && !orderData.payment_reference) {
+    errors.push('payment_reference is required for paid orders');
+  }
 
   return { isValid: errors.length === 0, errors };
 }

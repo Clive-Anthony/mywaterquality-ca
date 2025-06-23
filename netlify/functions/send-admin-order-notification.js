@@ -56,7 +56,7 @@ Email: ${shippingAddress.email}`;
 
     const emailData = {
       transactionalId: 'cmbax4sey1n651h0it0rm6f8k', // TODO: Replace with actual Loops template ID
-      email: 'development@mywaterquality.ca',
+      email: 'david.phillips@bookerhq.ca',
       dataVariables: {
         customerName: orderData.customer_name,
         orderNumber: orderData.order_number,
