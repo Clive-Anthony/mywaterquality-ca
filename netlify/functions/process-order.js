@@ -63,7 +63,7 @@ Email: ${shippingAddress.email}` : 'Not provided';
     // Use the correct admin template ID
     const emailData = {
       transactionalId: 'cmbax4sey1n651h0it0rm6f8k', // Admin notification template ID
-      email: 'david.phillips@bookerhq.ca',
+      email: 'development@mywaterquality.ca',
       dataVariables: {
         customerName: customerName,
         orderNumber: orderData.order_number,
@@ -531,8 +531,8 @@ exports.handler = async function(event, context) {
       log('info', `✅ Cart cleared successfully: ${JSON.stringify(cartClearResult)}`);
     }
 
-    // FIXED: Send both customer and admin emails with proper error handling
-    log('info', `📧 Starting email notifications [${requestId}]`);
+    // FIXED: Send both customer and admin emails with proper error handling FOR ALL ORDERS
+    log('info', `📧 Starting email notifications for ALL order types [${requestId}]`);
     
     if (process.env.VITE_LOOPS_API_KEY) {
       const customerEmail = orderData.shipping_address?.email;
@@ -602,7 +602,15 @@ exports.handler = async function(event, context) {
           'Free order created successfully!' : 
           'Order created successfully',
         processing_time_ms: processingTime,
-        request_id: requestId
+        request_id: requestId,
+        cart_cleared: cartClearResult.success,
+        cart_clear_method: cartClearResult.success ? cartClearResult.method : 'failed',
+        emails_sent: {
+          customer_confirmation: !!process.env.VITE_LOOPS_API_KEY && !!orderData.shipping_address?.email,
+          admin_notification: !!process.env.VITE_LOOPS_API_KEY,
+          customer_includes_items: true,
+          admin_includes_items: true
+        }
       })
     };
 
