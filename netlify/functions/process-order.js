@@ -1,3 +1,108 @@
+// netlify/functions/process-order.js - FIXED VERSION with proper email notifications for all orders
+const { createClient } = require('@supabase/supabase-js');
+
+// Enhanced logging with better error capture
+function log(level, message, data = null) {
+  const timestamp = new Date().toISOString();
+  const logLine = `[${timestamp}] [${level.toUpperCase()}] ${message}`;
+  
+  if (data) {
+    console.log(logLine, JSON.stringify(data, null, 2));
+  } else {
+    console.log(logLine);
+  }
+}
+
+// FIXED: Customer order confirmation email with order items included
+async function sendOrderConfirmationEmailDirect(orderData, orderItems, customerEmail, firstName, requestId) {
+  try {
+    const apiKey = process.env.VITE_LOOPS_API_KEY;
+    if (!apiKey) {
+      throw new Error('Loops API key not configured');
+    }
+
+    log('info', `📧 Sending order confirmation email to ${customerEmail} [${requestId}]`);
+
+    // Format the order total as a currency string
+    const orderTotal = new Intl.NumberFormat('en-CA', {
+      style: 'currency',
+      currency: 'CAD',
+    }).format(orderData.total_amount);
+
+    // Format order items for customer email
+    const orderItemsText = orderItems?.map(item => 
+      `• ${item.product_name} (Qty: ${item.quantity}) - ${new Intl.NumberFormat('en-CA', {
+        style: 'currency',
+        currency: 'CAD',
+      }).format(item.unit_price)} each`
+    ).join('\n') || 'No items listed';
+
+    const baseUrl = process.env.VITE_APP_URL || 'https://mywaterqualityca.netlify.app';
+
+    const emailData = {
+      transactionalId: 'cmb6pqu9c02qht60i7w92yalf', // Customer order confirmation template ID
+      email: customerEmail,
+      dataVariables: {
+        firstName: firstName || 'Valued Customer',
+        orderNumber: orderData.order_number,
+        orderTotal: orderTotal,
+        orderItems: orderItemsText,
+        dashboardLink: `${baseUrl}/dashboard`,
+        websiteURL: baseUrl,
+        orderDate: new Date(orderData.created_at).toLocaleDateString('en-CA'),
+        orderStatus: orderData.status || 'confirmed',
+        // Add coupon information if applicable
+        couponApplied: orderData.coupon_code || null,
+        discountAmount: orderData.discount_amount > 0 ? 
+          new Intl.NumberFormat('en-CA', { style: 'currency', currency: 'CAD' }).format(orderData.discount_amount) : 
+          null,
+        isFreeOrder: orderData.total_amount === 0
+      }
+    };
+
+    log('info', `📧 Prepared customer email data for order ${orderData.order_number}`, {
+      templateId: emailData.transactionalId,
+      itemCount: orderItems?.length || 0,
+      orderTotal: emailData.dataVariables.orderTotal,
+      isFreeOrder: emailData.dataVariables.isFreeOrder
+    });
+
+    // Call Loops API directly
+    const response = await fetch('https://app.loops.so/api/v1/transactional', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'Authorization': `Bearer ${apiKey}`
+      },
+      body: JSON.stringify(emailData)
+    });
+
+    const responseText = await response.text();
+    log('info', `📧 Customer email Loops API response: ${response.status}`, { responseText });
+
+    if (!response.ok) {
+      let errorData;
+      try {
+        errorData = JSON.parse(responseText);
+      } catch (e) {
+        errorData = { message: responseText || `HTTP ${response.status}` };
+      }
+      throw new Error(`Loops API Error ${response.status}: ${errorData.message}`);
+    }
+
+    log('info', `✅ Order confirmation email sent successfully to ${customerEmail} for order ${orderData.order_number}`);
+    return { success: true };
+
+  } catch (error) {
+    log('error', `❌ Failed to send order confirmation email: ${error.message}`, { 
+      orderNumber: orderData.order_number,
+      customerEmail,
+      error: error.message 
+    });
+    return { success: false, error: error.message };
+  }
+}
+
 // FIXED: Admin order notification with correct template ID and proper data structure
 async function sendAdminOrderNotificationDirect(orderData, orderItems, shippingAddress, requestId) {
   try {
@@ -105,109 +210,6 @@ Email: ${shippingAddress.email}` : 'Not provided';
   } catch (error) {
     log('error', `❌ Failed to send admin order notification: ${error.message}`, { 
       orderNumber: orderData.order_number,
-      error: error.message 
-    });
-    return { success: false, error: error.message };
-  }
-}// netlify/functions/process-order.js - Updated with coupon support
-const { createClient } = require('@supabase/supabase-js');
-
-// Enhanced logging with better error capture
-function log(level, message, data = null) {
-  const timestamp = new Date().toISOString();
-  const logLine = `[${timestamp}] [${level.toUpperCase()}] ${message}`;
-  
-  if (data) {
-    console.log(logLine, JSON.stringify(data, null, 2));
-  } else {
-    console.log(logLine);
-  }
-}
-
-// ENHANCED: Customer order confirmation email with order items included
-async function sendOrderConfirmationEmailDirect(orderData, orderItems, customerEmail, firstName, requestId) {
-  try {
-    const apiKey = process.env.VITE_LOOPS_API_KEY;
-    if (!apiKey) {
-      throw new Error('Loops API key not configured');
-    }
-
-    log('info', `📧 Sending order confirmation email to ${customerEmail} [${requestId}]`);
-
-    // Format the order total as a currency string
-    const orderTotal = new Intl.NumberFormat('en-CA', {
-      style: 'currency',
-      currency: 'CAD',
-    }).format(orderData.total_amount);
-
-    // Format order items for customer email
-    const orderItemsText = orderItems?.map(item => 
-      `• ${item.product_name} (Qty: ${item.quantity}) - ${new Intl.NumberFormat('en-CA', {
-        style: 'currency',
-        currency: 'CAD',
-      }).format(item.unit_price)} each`
-    ).join('\n') || 'No items listed';
-
-    const baseUrl = process.env.VITE_APP_URL || 'https://mywaterqualityca.netlify.app';
-
-    const emailData = {
-      transactionalId: 'cmb6pqu9c02qht60i7w92yalf', // Customer order confirmation template ID
-      email: customerEmail,
-      dataVariables: {
-        firstName: firstName || 'Valued Customer',
-        orderNumber: orderData.order_number,
-        orderTotal: orderTotal,
-        orderItems: orderItemsText,
-        dashboardLink: `${baseUrl}/dashboard`,
-        websiteURL: baseUrl,
-        orderDate: new Date(orderData.created_at).toLocaleDateString('en-CA'),
-        orderStatus: orderData.status || 'confirmed',
-        // Add coupon information if applicable
-        couponApplied: orderData.coupon_code || null,
-        discountAmount: orderData.discount_amount > 0 ? 
-          new Intl.NumberFormat('en-CA', { style: 'currency', currency: 'CAD' }).format(orderData.discount_amount) : 
-          null,
-        isFreeOrder: orderData.total_amount === 0
-      }
-    };
-
-    log('info', `📧 Prepared customer email data for order ${orderData.order_number}`, {
-      templateId: emailData.transactionalId,
-      itemCount: orderItems?.length || 0,
-      orderTotal: emailData.dataVariables.orderTotal,
-      isFreeOrder: emailData.dataVariables.isFreeOrder
-    });
-
-    // Call Loops API directly
-    const response = await fetch('https://app.loops.so/api/v1/transactional', {
-      method: 'POST',
-      headers: {
-        'Content-Type': 'application/json',
-        'Authorization': `Bearer ${apiKey}`
-      },
-      body: JSON.stringify(emailData)
-    });
-
-    const responseText = await response.text();
-    log('info', `📧 Customer email Loops API response: ${response.status}`, { responseText });
-
-    if (!response.ok) {
-      let errorData;
-      try {
-        errorData = JSON.parse(responseText);
-      } catch (e) {
-        errorData = { message: responseText || `HTTP ${response.status}` };
-      }
-      throw new Error(`Loops API Error ${response.status}: ${errorData.message}`);
-    }
-
-    log('info', `✅ Order confirmation email sent successfully to ${customerEmail} for order ${orderData.order_number}`);
-    return { success: true };
-
-  } catch (error) {
-    log('error', `❌ Failed to send order confirmation email: ${error.message}`, { 
-      orderNumber: orderData.order_number,
-      customerEmail,
       error: error.message 
     });
     return { success: false, error: error.message };
@@ -529,51 +531,58 @@ exports.handler = async function(event, context) {
       log('info', `✅ Cart cleared successfully: ${JSON.stringify(cartClearResult)}`);
     }
 
-    // FIXED: Send both customer and admin emails with proper error handling
+    // FIXED: Send both customer and admin emails with proper error handling and await
     log('info', `📧 Starting email notifications [${requestId}]`);
     
     if (process.env.VITE_LOOPS_API_KEY) {
       const customerEmail = orderData.shipping_address?.email;
       const firstName = orderData.shipping_address?.firstName || 'Valued Customer';
       
-      // Send customer confirmation email
-      if (customerEmail) {
-        log('info', `📧 Sending customer confirmation email [${requestId}]`);
-        const customerEmailResult = await sendOrderConfirmationEmailDirect(
-          orderResult.order, 
-          orderData.items, // Pass order items to customer email
-          customerEmail, 
-          firstName, 
+      // FIXED: Properly await both email functions and handle all cases
+      try {
+        // Send customer confirmation email
+        if (customerEmail) {
+          log('info', `📧 Sending customer confirmation email to ${customerEmail} [${requestId}]`);
+          const customerEmailResult = await sendOrderConfirmationEmailDirect(
+            orderResult.order, 
+            orderData.items, // Pass order items to customer email
+            customerEmail, 
+            firstName, 
+            requestId
+          );
+          
+          if (customerEmailResult.success) {
+            log('info', '✅ Customer order confirmation email sent successfully');
+          } else {
+            log('warn', '⚠️ Customer order confirmation email failed (non-critical)', { 
+              error: customerEmailResult.error 
+            });
+          }
+        } else {
+          log('warn', '⚠️ No customer email found, skipping customer confirmation email');
+        }
+
+        // FIXED: Send admin order notification email with proper template ID and await
+        log('info', `📧 Sending admin order notification [${requestId}]`);
+        
+        const adminEmailResult = await sendAdminOrderNotificationDirect(
+          orderResult.order,
+          orderData.items,
+          orderData.shipping_address,
           requestId
         );
         
-        if (customerEmailResult.success) {
-          log('info', '✅ Customer order confirmation email sent successfully (includes order items)');
+        if (adminEmailResult.success) {
+          log('info', '✅ Admin order notification sent successfully');
         } else {
-          log('warn', '⚠️ Customer order confirmation email failed (non-critical)', { 
-            error: customerEmailResult.error 
+          log('warn', '⚠️ Admin order notification failed (non-critical)', { 
+            error: adminEmailResult.error 
           });
         }
-      } else {
-        log('warn', '⚠️ No customer email found, skipping customer confirmation email');
-      }
-
-      // FIXED: Send admin order notification email with proper template ID
-      log('info', `📧 Sending admin order notification with correct template [${requestId}]`);
-      
-      const adminEmailResult = await sendAdminOrderNotificationDirect(
-        orderResult.order,
-        orderData.items,
-        orderData.shipping_address,
-        requestId
-      );
-      
-      if (adminEmailResult.success) {
-        log('info', '✅ Admin order notification sent successfully with template ID: cmbax4sey1n651h0it0rm6f8k');
-      } else {
-        log('warn', '⚠️ Admin order notification failed (non-critical)', { 
-          error: adminEmailResult.error 
-        });
+        
+      } catch (emailError) {
+        log('error', '❌ Email notification process failed', { error: emailError.message });
+        // Don't fail the order - emails are non-critical
       }
       
     } else {
