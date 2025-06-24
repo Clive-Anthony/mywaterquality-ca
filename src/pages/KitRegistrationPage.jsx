@@ -110,9 +110,14 @@ export default function KitRegistrationPage() {
     e.preventDefault();
     
     if (!selectedKit) {
-      setError('Please select a test kit to register');
-      return;
-    }
+        setError('Please select a test kit to register');
+        return;
+      }
+  
+      if (!sampleData.sample_description?.trim()) {
+        setError('Sample description is required');
+        return;
+      }
 
     try {
       setSubmitting(true);
@@ -179,13 +184,13 @@ export default function KitRegistrationPage() {
 
   // Hero section
   const KitRegistrationHero = () => (
-    <div className="relative bg-gradient-to-r from-green-600 to-green-800 py-16">
+    <div className="relative bg-gradient-to-r from-blue-600 to-blue-800 py-16">
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
         <div className="text-center">
           <h1 className="text-4xl font-bold text-white sm:text-5xl">
-            Register Test Kit
+            Register Your Test Kit
           </h1>
-          <p className="mt-4 text-xl text-green-100 max-w-3xl mx-auto">
+          <p className="mt-4 text-xl text-blue-100 max-w-3xl mx-auto">
             Register your water testing kit with sample and location information.
           </p>
         </div>
@@ -198,7 +203,7 @@ export default function KitRegistrationPage() {
       <PageLayout hero={<KitRegistrationHero />}>
         <div className="max-w-4xl mx-auto py-12 px-4 sm:px-6 lg:px-8">
           <div className="text-center">
-            <div className="animate-spin rounded-full h-12 w-12 border-t-2 border-b-2 border-green-500 mx-auto mb-4"></div>
+            <div className="animate-spin rounded-full h-12 w-12 border-t-2 border-b-2 border-blue-500 mx-auto mb-4"></div>
             <p className="text-gray-600">Loading your available test kits...</p>
           </div>
         </div>
@@ -212,7 +217,7 @@ export default function KitRegistrationPage() {
         <div className="bg-white shadow rounded-lg">
           <div className="px-6 py-5 border-b border-gray-200">
             <div className="flex items-center justify-between">
-              <h2 className="text-lg font-medium text-gray-900">
+              <h2 className="text-xl font-bold text-gray-900">
                 Kit Registration
               </h2>
               <button
@@ -366,7 +371,7 @@ export default function KitRegistrationPage() {
                     
                     <div className="md:col-span-2">
                       <label htmlFor="sample-description" className="block text-sm font-medium text-gray-700 mb-1">
-                        Sample Description
+                        Sample Description *
                       </label>
                       <textarea
                         id="sample-description"
@@ -374,7 +379,8 @@ export default function KitRegistrationPage() {
                         value={sampleData.sample_description}
                         onChange={(e) => handleSampleDataChange('sample_description', e.target.value)}
                         className="block w-full border-gray-300 rounded-md shadow-sm focus:ring-green-500 focus:border-green-500"
-                        placeholder="Optional description of the sample (e.g., 'Kitchen tap water', 'Well water from basement')"
+                        placeholder="Required description of the sample (e.g., 'Kitchen tap water', 'Well water from basement')"
+                        required
                       />
                     </div>
                   </div>
@@ -481,7 +487,7 @@ export default function KitRegistrationPage() {
                   <button
                     type="submit"
                     disabled={submitting || !selectedKit}
-                    className="inline-flex items-center px-6 py-3 border border-transparent text-base font-medium rounded-md text-white bg-green-600 hover:bg-green-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-green-500 disabled:opacity-50 disabled:cursor-not-allowed"
+                    className="inline-flex items-center px-6 py-3 border border-transparent text-base font-medium rounded-md text-white bg-blue-600 hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500 disabled:opacity-50 disabled:cursor-not-allowed"
                   >
                     {submitting ? (
                       <>
