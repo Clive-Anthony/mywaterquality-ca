@@ -25,6 +25,7 @@ import TermsConditionsPage from './pages/TermsConditionsPage';
 import ProcessPage from './pages/ProcessPage';
 import ReportPage from './pages/ReportPage';
 import OrderHistoryPage from './pages/OrderHistoryPage';
+import KitRegistrationPage from './pages/KitRegistrationPage';
 import { useState, useEffect } from 'react';
 
 export default function App() {
@@ -108,7 +109,17 @@ export default function App() {
             <Route path="/sampling-instructions" element={<WaterSamplingInstructionsPage />} />
 
             {/* PAYPAL TEST ROUTE - Add this temporarily */}
-            <Route path="/paypal-test" element={<PayPalTest />} />
+            {/* <Route path="/paypal-test" element={<PayPalTest />} /> */}
+
+            {/* Protected kit registration page */}
+            <Route 
+              path="/register-kit" 
+              element={
+                <ProtectedRoute>
+                  <KitRegistrationPage />
+                </ProtectedRoute>
+              } 
+            />
           
             
             {/* Protected checkout page */}

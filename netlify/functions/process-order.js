@@ -148,7 +148,7 @@ Email: ${shippingAddress.email}` : 'Not provided';
     // Use the correct admin template ID
     const emailData = {
       transactionalId: 'cmbax4sey1n651h0it0rm6f8k', // Admin notification template ID
-      email: 'development@mywaterquality.ca', //development@mywaterquality.ca
+      email: 'orders@mywaterquality.ca', //orders@mywaterquality.ca
       dataVariables: {
         customerName: customerName,
         orderNumber: orderData.order_number,
@@ -506,6 +506,31 @@ exports.handler = async function(event, context) {
 
     const processingTime = Date.now() - startTime;
     log('info', `✅ Order processing completed successfully in ${processingTime}ms [${requestId}]`);
+
+    // Create kit registrations for the order
+    try {
+      log('info', `🧪 Creating kit registrations for order ${orderResult.order.id} [${requestId}]`);
+      
+      const { data: registrationsCreated, error: registrationError } = await supabaseAdmin
+        .rpc('create_kit_registrations_for_order', { order_id_param: orderResult.order.id });
+      
+      if (registrationError) {
+        log('warn', 'Kit registration creation failed but order was successful', {
+          error: registrationError.message,
+          orderId: orderResult.order.id
+        });
+      } else {
+        log('info', `✅ Created ${registrationsCreated} kit registrations for order`, {
+          orderId: orderResult.order.id,
+          registrationCount: registrationsCreated
+        });
+      }
+    } catch (registrationException) {
+      log('warn', 'Exception during kit registration creation but order was successful', {
+        error: registrationException.message,
+        orderId: orderResult.order.id
+      });
+    }
 
     // CRITICAL: Clear cart immediately after successful order creation (blocking)
     log('info', `🛒 Clearing cart for user ${user.id} after successful order [${requestId}]`);
