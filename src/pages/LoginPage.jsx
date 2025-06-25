@@ -2,7 +2,9 @@
 import { useState, useEffect, useRef } from 'react';
 import { Link, useNavigate, useLocation } from 'react-router-dom';
 import { signIn, signInWithGoogle } from '../lib/supabaseClient';
-import { useAuth } from '../contexts/AuthContext'; // Add this import
+import { useAuth } from '../contexts/AuthContext';
+import { supabase } from '../lib/supabaseClient';
+
 
 export default function LoginPage() {
   const navigate = useNavigate();
@@ -45,15 +47,41 @@ export default function LoginPage() {
   }, [location, navigate]);
 
   // Handle auth state changes - navigate when user is authenticated
-  useEffect(() => {
-    if (waitingForAuth && user && !authLoading) {
-      console.log('Auth state updated, user is now authenticated, navigating to dashboard');
-      setWaitingForAuth(false);
-      setLoading(false);
-      submissionInProgress.current = false;
-      navigate('/dashboard', { replace: true });
-    }
-  }, [user, authLoading, waitingForAuth, navigate]);
+    useEffect(() => {
+      const handleSuccessfulAuth = async () => {
+        if (waitingForAuth && user && !authLoading) {
+          console.log('Auth state updated, user is now authenticated');
+          
+          try {
+            // Fetch user role to determine redirect destination
+            const { data: userRole } = await supabase.rpc('get_user_role', {
+              user_uuid: user.id
+            });
+            
+            console.log('User role:', userRole);
+            
+            // Navigate based on role
+            const redirectPath = (userRole === 'admin' || userRole === 'super_admin') 
+              ? '/admin-dashboard' 
+              : '/dashboard';
+            
+            console.log('Redirecting to:', redirectPath);
+            navigate(redirectPath, { replace: true });
+            
+          } catch (error) {
+            console.error('Error fetching user role:', error);
+            // Default to regular dashboard on error
+            navigate('/dashboard', { replace: true });
+          } finally {
+            setWaitingForAuth(false);
+            setLoading(false);
+            submissionInProgress.current = false;
+          }
+        }
+      };
+
+      handleSuccessfulAuth();
+    }, [user, authLoading, waitingForAuth, navigate]);
 
   const handleSubmit = async (e) => {
     e.preventDefault();
