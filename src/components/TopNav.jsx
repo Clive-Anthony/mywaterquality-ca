@@ -4,6 +4,7 @@ import { Link, useNavigate, useLocation } from 'react-router-dom';
 import { useAuth } from '../contexts/AuthContext';
 import { useCart } from '../contexts/CartContext';
 import { signOut } from '../lib/supabaseClient';
+import { supabase } from '../lib/supabaseClient';
 
 export default function TopNav() {
   const navigate = useNavigate();
@@ -18,6 +19,7 @@ export default function TopNav() {
   const [updatingItems, setUpdatingItems] = useState({}); // Track which items are being updated
   const learnDropdownRef = useRef(null);
   const mobileMenuRef = useRef(null);
+  const [userRole, setUserRole] = useState(null);
   
   // IMPROVEMENT: Stable cart items ordering to prevent jumping
   const stableCartItems = useMemo(() => {
@@ -73,6 +75,27 @@ export default function TopNav() {
       document.body.style.overflow = 'unset';
     };
   }, [showMobileMenu]);
+
+  useEffect(() => {
+    const fetchUserRole = async () => {
+      if (!user) {
+        setUserRole(null);
+        return;
+      }
+      
+      try {
+        const { data } = await supabase.rpc('get_user_role', {
+          user_uuid: user.id
+        });
+        setUserRole(data);
+      } catch (error) {
+        console.error('Error fetching user role:', error);
+        setUserRole('user'); // Default to regular user
+      }
+    };
+  
+    fetchUserRole();
+  }, [user]);
 
   const handleSignOut = async () => {
     setLoading(true);
@@ -245,18 +268,18 @@ export default function TopNav() {
               Demo Report
             </Link>
 
-            {/* User-only navigation links */}
+            {/* Dashboard - Navigate to admin dashboard if user is admin */}
             {user && (
-              <>
-                <Link 
-                  to="/dashboard" 
-                  className={getLinkClassName('/dashboard', true)}
-                >
-                  Dashboard
-                </Link>
-              </>
-            )}
-
+              <Link 
+                to={userRole === 'admin' || userRole === 'super_admin' ? '/admin-dashboard' : '/dashboard'} 
+                className={getLinkClassName(
+                  userRole === 'admin' || userRole === 'super_admin' ? '/admin-dashboard' : '/dashboard', 
+                  true
+                )}
+              >
+                Dashboard
+              </Link>
+)}
             {/* Learn Dropdown - Always visible */}
             <div className="relative" ref={learnDropdownRef}>
               <button
@@ -638,15 +661,17 @@ export default function TopNav() {
               </Link>
 
               {/* Dashboard - Only show when logged in */}
-              {user && (
-                <Link
-                  to="/dashboard"
-                  onClick={() => handleMobileMenuClick()}
-                  className={getMobileLinkClassName('/dashboard')}
-                >
-                  Dashboard
-                </Link>
-              )}
+                {user && (
+                  <Link
+                    to={userRole === 'admin' || userRole === 'super_admin' ? '/admin-dashboard' : '/dashboard'}
+                    onClick={() => handleMobileMenuClick()}
+                    className={getMobileLinkClassName(
+                      userRole === 'admin' || userRole === 'super_admin' ? '/admin-dashboard' : '/dashboard'
+                    )}
+                  >
+                    Dashboard
+                  </Link>
+                )}
 
               {/* Learn Section with submenu */}
               <div>

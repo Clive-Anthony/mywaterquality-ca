@@ -26,6 +26,8 @@ import ProcessPage from './pages/ProcessPage';
 import ReportPage from './pages/ReportPage';
 import OrderHistoryPage from './pages/OrderHistoryPage';
 import KitRegistrationPage from './pages/KitRegistrationPage';
+import AdminPage from './pages/AdminPage';
+import AdminProtectedRoute from './components/AdminProtectedRoute';
 import { useState, useEffect } from 'react';
 
 export default function App() {
@@ -149,6 +151,16 @@ export default function App() {
                 <ProtectedRoute>
                   <UserPage />
                 </ProtectedRoute>
+              } 
+            />
+
+            {/* Protected admin dashboard */}
+            <Route 
+              path="/admin-dashboard" 
+              element={
+                <AdminProtectedRoute>
+                  <AdminPage />
+                </AdminProtectedRoute>
               } 
             />
             
