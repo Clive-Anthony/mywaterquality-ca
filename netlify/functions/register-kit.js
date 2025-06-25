@@ -292,34 +292,61 @@ async function registerKit(supabase, user, event, headers) {
             .eq('kit_registration_id', updatedKit.kit_registration_id)
             .single();
   
-          if (orderError) {
-            log('warn', 'Could not fetch order data for email notification', { 
-              error: orderError.message,
-              requestId: requestId 
-            });
-          } else {
-            // Send admin notification email
-            log('info', `📧 Sending admin kit registration notification [${requestId}]`);
-            
-            const adminEmailResult = await sendAdminKitRegistrationEmailDirect(
-              updatedKit,
-              {
-                product_name: orderData.order_items.product_name,
-                order_number: orderData.order_items.orders.order_number
-              },
-              orderData.order_items.orders.shipping_address,
-              requestId
-            );
-            
-            if (adminEmailResult.success) {
-              log('info', '✅ Admin kit registration notification sent successfully');
-            } else {
-              log('warn', '⚠️ Admin kit registration notification failed (non-critical)', { 
-                error: adminEmailResult.error,
-                requestId: requestId
-              });
-            }
-          }
+            if (orderError) {
+                log('warn', 'Could not fetch order data for email notification', { 
+                  error: orderError.message,
+                  requestId: requestId 
+                });
+              } else {
+                // Send both admin and customer notification emails
+                const orderInfo = {
+                  product_name: orderData.order_items.product_name,
+                  order_number: orderData.order_items.orders.order_number,
+                  customer_email: user.email // This user reference is in scope here
+                };
+      
+                const emailPromises = [
+                  sendKitRegistrationEmail(
+                    updatedKit,
+                    orderInfo,
+                    orderData.order_items.orders.shipping_address,
+                    'admin',
+                    requestId
+                  ),
+                  sendKitRegistrationEmail(
+                    updatedKit,
+                    orderInfo,
+                    orderData.order_items.orders.shipping_address,
+                    'customer',
+                    requestId
+                  )
+                ];
+      
+                // Send emails in parallel and handle results
+                const emailResults = await Promise.allSettled(emailPromises);
+                
+                emailResults.forEach((result, index) => {
+                  const emailType = index === 0 ? 'admin' : 'customer';
+                  
+                  if (result.status === 'fulfilled') {
+                    if (result.value.success) {
+                      log('info', `✅ ${emailType} kit registration notification sent successfully`, {
+                        recipient: result.value.recipient
+                      });
+                    } else {
+                      log('warn', `⚠️ ${emailType} kit registration notification failed (non-critical)`, { 
+                        error: result.value.error,
+                        requestId: requestId
+                      });
+                    }
+                  } else {
+                    log('error', `❌ ${emailType} email promise rejected`, {
+                      error: result.reason?.message || 'Unknown error',
+                      requestId: requestId
+                    });
+                  }
+                });
+              }
           
         } catch (emailError) {
           log('error', '❌ Email notification process failed', { 
@@ -421,15 +448,38 @@ function validateRegistrationData(data) {
   };
 }
 
-// Send admin notification email for kit registration
-async function sendAdminKitRegistrationEmailDirect(kitRegistration, orderData, shippingAddress, requestId) {
+// Send kit registration notification email (admin or customer)
+async function sendKitRegistrationEmail(kitRegistration, orderData, shippingAddress, emailType, requestId) {
     try {
       const apiKey = process.env.VITE_LOOPS_API_KEY;
       if (!apiKey) {
         throw new Error('Loops API key not configured');
       }
   
-      log('info', `📧 Sending admin kit registration notification for kit ${kitRegistration.display_id} [${requestId}]`);
+      // Email configuration based on type
+      const emailConfig = {
+        admin: {
+          transactionalId: 'cmcb0nosp16ha110iygtfk839',
+          email: 'orders@mywaterquality.ca', // orders@mywaterquality.ca
+          description: 'admin notification'
+        },
+        customer: {
+          transactionalId: 'cmcb295hs1tgsvy0induc3kka',
+          email: orderData.customer_email,
+          description: 'customer confirmation'
+        }
+      };
+  
+      const config = emailConfig[emailType];
+      if (!config) {
+        throw new Error(`Invalid email type: ${emailType}`);
+      }
+  
+      if (!config.email) {
+        throw new Error(`No email address available for ${emailType} notification`);
+      }
+  
+      log('info', `📧 Sending ${config.description} for kit ${kitRegistration.display_id} [${requestId}]`);
   
       // Format the sample date and time for display
       const sampleDate = new Date(kitRegistration.sample_date).toLocaleDateString('en-CA', {
@@ -449,9 +499,10 @@ async function sendAdminKitRegistrationEmailDirect(kitRegistration, orderData, s
         `${shippingAddress.firstName} ${shippingAddress.lastName}`.trim() : 
         'Not provided';
   
+      // Shared data variables for both email types
       const emailData = {
-        transactionalId: 'cmcb0nosp16ha110iygtfk839', // Admin kit registration template ID
-        email: 'orders@mywaterquality.ca',
+        transactionalId: config.transactionalId,
+        email: config.email,
         dataVariables: {
           customerName: customerName,
           kitDisplayID: kitRegistration.display_id,
@@ -471,13 +522,14 @@ async function sendAdminKitRegistrationEmailDirect(kitRegistration, orderData, s
         }
       };
   
-      log('info', `📧 Prepared admin kit registration email data for kit ${kitRegistration.display_id}`, {
+      log('info', `📧 Prepared ${config.description} email data for kit ${kitRegistration.display_id}`, {
         templateId: emailData.transactionalId,
+        recipientEmail: emailData.email,
         kitDisplayID: emailData.dataVariables.kitDisplayID,
         customerName: emailData.dataVariables.customerName
       });
   
-      // Call Loops API directly
+      // Call Loops API
       const response = await fetch('https://app.loops.so/api/v1/transactional', {
         method: 'POST',
         headers: {
@@ -488,7 +540,7 @@ async function sendAdminKitRegistrationEmailDirect(kitRegistration, orderData, s
       });
   
       const responseText = await response.text();
-      log('info', `📧 Admin kit registration email Loops API response: ${response.status}`, { responseText });
+      log('info', `📧 ${config.description} email Loops API response: ${response.status}`, { responseText });
   
       if (!response.ok) {
         let errorData;
@@ -500,14 +552,15 @@ async function sendAdminKitRegistrationEmailDirect(kitRegistration, orderData, s
         throw new Error(`Loops API Error ${response.status}: ${errorData.message}`);
       }
   
-      log('info', `✅ Admin kit registration notification sent successfully for kit ${kitRegistration.display_id}`);
-      return { success: true };
+      log('info', `✅ ${config.description} sent successfully for kit ${kitRegistration.display_id} to ${emailData.email}`);
+      return { success: true, emailType, recipient: emailData.email };
   
     } catch (error) {
-      log('error', `❌ Failed to send admin kit registration email: ${error.message}`, { 
+      log('error', `❌ Failed to send ${emailType} kit registration email: ${error.message}`, { 
         kitDisplayID: kitRegistration.display_id,
+        emailType: emailType,
         error: error.message 
       });
-      return { success: false, error: error.message };
+      return { success: false, error: error.message, emailType };
     }
   }

@@ -92,11 +92,56 @@ export default function KitRegistrationPage() {
     }
   };
 
+  // For data 
   const handleSampleDataChange = (field, value) => {
-    setSampleData(prev => ({
-      ...prev,
-      [field]: value
-    }));
+    // Special handling for date field to ensure proper format
+    if (field === 'sample_date') {
+      // Remove any non-digit characters except hyphens
+      let cleanValue = value.replace(/[^\d-]/g, '');
+      
+      // Ensure proper date format YYYY-MM-DD
+      if (cleanValue.length > 10) {
+        cleanValue = cleanValue.substring(0, 10);
+      }
+      
+      // If user is typing and we have enough characters, format it
+      if (cleanValue.length >= 8 && !cleanValue.includes('-')) {
+        // Convert YYYYMMDD to YYYY-MM-DD
+        cleanValue = cleanValue.substring(0, 4) + '-' + 
+                    cleanValue.substring(4, 6) + '-' + 
+                    cleanValue.substring(6, 8);
+      }
+      
+      // Validate year is 4 digits (1900-2099)
+      const yearMatch = cleanValue.match(/^(\d{1,4})/);
+      if (yearMatch) {
+        let year = yearMatch[1];
+        if (year.length > 4) {
+          year = year.substring(0, 4);
+          cleanValue = year + cleanValue.substring(year.length);
+        }
+        
+        // If year is complete, validate it's reasonable
+        if (year.length === 4) {
+          const yearNum = parseInt(year);
+          if (yearNum < 1900 || yearNum > 2099) {
+            // Reset to current year if unreasonable
+            const currentYear = new Date().getFullYear();
+            cleanValue = currentYear + cleanValue.substring(4);
+          }
+        }
+      }
+      
+      setSampleData(prev => ({
+        ...prev,
+        [field]: cleanValue
+      }));
+    } else {
+      setSampleData(prev => ({
+        ...prev,
+        [field]: value
+      }));
+    }
   };
 
   const handleLocationDataChange = (field, value) => {
@@ -312,7 +357,7 @@ export default function KitRegistrationPage() {
                   </h3>
                   <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
                     <div>
-                      <label htmlFor="sample-date" className="block text-sm font-medium text-gray-700 mb-1">
+                    <label htmlFor="sample-date" className="block text-sm font-medium text-gray-700 mb-1">
                         Sample Date *
                       </label>
                       <input
@@ -321,6 +366,8 @@ export default function KitRegistrationPage() {
                         value={sampleData.sample_date}
                         onChange={(e) => handleSampleDataChange('sample_date', e.target.value)}
                         className="block w-full border-gray-300 rounded-md shadow-sm focus:ring-green-500 focus:border-green-500"
+                        max={new Date().toISOString().split('T')[0]} // Prevent future dates
+                        min="1900-01-01" // Reasonable minimum date
                         required
                       />
                     </div>

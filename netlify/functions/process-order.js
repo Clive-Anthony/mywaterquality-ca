@@ -48,7 +48,6 @@ async function sendOrderConfirmationEmailDirect(orderData, orderItems, customerE
         orderTotal: orderTotal,
         orderItems: orderItemsText,
         dashboardLink: `${baseUrl}/dashboard`,
-        websiteURL: baseUrl,
         orderDate: new Date(orderData.created_at).toLocaleDateString('en-CA'),
         orderStatus: orderData.status || 'confirmed',
         couponApplied: orderData.coupon_code || 'None'
