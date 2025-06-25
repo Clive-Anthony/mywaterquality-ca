@@ -373,7 +373,7 @@ export default function TestKitsPage() {
                             </button>
                           </div>
                           <p className="text-xs text-gray-500 mt-1">
-                            Max: {kit.quantity}
+                            {/* Max: {kit.quantity} */}
                           </p>
                         </div>
                       )}
