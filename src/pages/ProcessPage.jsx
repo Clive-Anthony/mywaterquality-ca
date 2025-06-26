@@ -215,7 +215,7 @@ export default function ProcessPage() {
               Create Your Account
             </Link>
             <Link
-              to="/test-kits"
+              to="/shop"
               className="inline-flex items-center px-8 py-3 border border-white text-base font-medium rounded-md text-white bg-transparent hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-white transition-colors duration-200"
             >
               View Drinking Water Test Kits

@@ -152,7 +152,7 @@ export default function WaterQualityStandardsPage() {
               
               <div className="flex flex-col sm:flex-row gap-4 justify-center">
                 <a
-                  href="/test-kits"
+                  href="/shop"
                   className="inline-flex items-center px-6 py-3 border border-transparent text-base font-medium rounded-md text-blue-600 bg-white hover:bg-gray-50 transition-colors duration-200"
                 >
                   Browse Our Test Kits

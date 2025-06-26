@@ -174,7 +174,7 @@ export default function TopNav() {
     }
 
     if (cartSummary.totalItems === 0) {
-      navigate('/test-kits');
+      navigate('/shop');
       return;
     }
 
@@ -193,7 +193,7 @@ export default function TopNav() {
     }
 
     if (cartSummary.totalItems === 0) {
-      navigate('/test-kits');
+      navigate('/shop');
       return;
     }
 
@@ -231,8 +231,8 @@ export default function TopNav() {
           <div className="hidden lg:flex items-center space-x-4 ml-6">
             {/* Test Kits - Always visible */}
             <Link 
-              to="/test-kits" 
-              className={getLinkClassName('/test-kits')}
+              to="/shop" 
+              className={getLinkClassName('/shop')}
             >
               Browse Test Kits
             </Link>
@@ -413,7 +413,7 @@ export default function TopNav() {
                         </svg>
                         <p className="text-gray-500 text-sm mb-3">Your cart is empty</p>
                         <Link
-                          to="/test-kits"
+                          to="/shop"
                           onClick={() => setShowCartDropdown(false)}
                           className="inline-flex items-center px-3 py-2 border border-transparent text-sm font-medium rounded-md text-blue-700 bg-blue-100 hover:bg-blue-200 transition-colors duration-200"
                         >
@@ -517,7 +517,7 @@ export default function TopNav() {
                           </button>
                           
                           <Link
-                            to="/test-kits"
+                            to="/shop"
                             onClick={() => setShowCartDropdown(false)}
                             className="block w-full text-center text-blue-600 hover:text-blue-800 text-sm py-1"
                           >
@@ -621,9 +621,9 @@ export default function TopNav() {
             <div className="py-2">
               {/* Browse Test Kits */}
               <Link
-                to="/test-kits"
+                to="/shop"
                 onClick={() => handleMobileMenuClick()}
-                className={getMobileLinkClassName('/test-kits')}
+                className={getMobileLinkClassName('/shop')}
               >
                 Browse Test Kits
               </Link>
