@@ -222,7 +222,7 @@ export default function OrdersList({
             <h3 className="text-lg font-medium text-gray-900 mb-2">No Orders Yet</h3>
             <p className="text-gray-500 mb-4">You haven't placed any orders yet.</p>
             <Link
-              to="/test-kits"
+              to="/shop"
               className="inline-flex items-center px-4 py-2 border border-transparent text-sm font-medium rounded-md text-white bg-blue-600 hover:bg-blue-700"
             >
               Browse Test Kits

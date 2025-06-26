@@ -307,7 +307,7 @@ export default function KitRegistrationPage() {
                 <h3 className="text-lg font-medium text-gray-900 mb-2">No Test Kits Available</h3>
                 <p className="text-gray-500 mb-4">You don't have any test kits available for registration.</p>
                 <button
-                  onClick={() => navigate('/test-kits')}
+                  onClick={() => navigate('/shop')}
                   className="inline-flex items-center px-4 py-2 border border-transparent text-sm font-medium rounded-md text-white bg-green-600 hover:bg-green-700"
                 >
                   Order Test Kits

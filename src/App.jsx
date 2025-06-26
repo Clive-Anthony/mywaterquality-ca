@@ -84,7 +84,7 @@ export default function App() {
             <Route path="/" element={<HomePage />} />
             
             {/* Public test kits page */}
-            <Route path="/test-kits" element={<TestKitsPage />} />
+            <Route path="/shop" element={<TestKitsPage />} />
             
             {/* Public Canada's water page */}
             <Route path="/about-canadas-drinking-water" element={<WaterQualityStandardsPage />} />

@@ -134,7 +134,7 @@ export default function TestKitsPage() {
     navigate('/login', { 
       state: { 
         message: 'Please log in to add items to your cart',
-        returnTo: '/test-kits'
+        returnTo: '/shop'
       }
     });
   };
@@ -144,7 +144,7 @@ export default function TestKitsPage() {
     navigate('/signup', { 
       state: { 
         message: 'Create an account to start shopping',
-        returnTo: '/test-kits'
+        returnTo: '/shop'
       }
     });
   };
