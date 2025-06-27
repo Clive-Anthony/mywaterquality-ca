@@ -234,7 +234,7 @@ export default function TopNav() {
               to="/shop" 
               className={getLinkClassName('/shop')}
             >
-              Browse Test Kits
+              Shop Test Kits
             </Link>
 
             {/* Demo Report - Always visible */}
