@@ -257,7 +257,7 @@ export default function TopNav() {
               to="/shop" 
               className={getLinkClassName('/shop')}
             >
-              Browse Test Kits
+              Shop Test Kits
             </Link>
 
             {/* Demo Report - Always visible */}
@@ -440,7 +440,7 @@ export default function TopNav() {
                           onClick={() => setShowCartDropdown(false)}
                           className="inline-flex items-center px-3 py-2 border border-transparent text-sm font-medium rounded-md text-blue-700 bg-blue-100 hover:bg-blue-200 transition-colors duration-200"
                         >
-                          Browse Test Kits
+                          Shop Test Kits
                         </Link>
                       </div>
                     ) : (
@@ -648,7 +648,7 @@ export default function TopNav() {
                 onClick={() => handleMobileMenuClick()}
                 className={getMobileLinkClassName('/shop')}
               >
-                Browse Test Kits
+                Shop Test Kits
               </Link>
 
               {/* Demo Report */}
