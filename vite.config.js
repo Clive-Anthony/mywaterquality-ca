@@ -13,6 +13,7 @@ export default defineConfig({
   resolve: {
     alias: {
       '@': '/src',
+      buffer: 'buffer'
     },
   },
   // Ensure HMR works correctly

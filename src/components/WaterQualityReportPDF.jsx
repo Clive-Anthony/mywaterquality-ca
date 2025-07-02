@@ -193,7 +193,6 @@ cwqiInfoTitle: {
     marginBottom: 15,
   },
 tableContainer: {
-    maxHeight: 650, // Limit table height to prevent page overflow
     marginBottom: 20,
   },
 tableHeader: {
@@ -207,17 +206,20 @@ tableHeader: {
   tableRow: {
     flexDirection: 'row',
     borderBottom: '1 solid #E5E7EB',
-    paddingVertical: 6,
-    paddingHorizontal: 3, // Reduced from 6 to 3
+    paddingVertical: 4, // Reduced padding
+    paddingHorizontal: 3,
     alignItems: 'flex-start',
+    minHeight: 25, // Minimum height for readability
   },
+  
   tableRowExceeded: {
     flexDirection: 'row',
     borderBottom: '1 solid #E5E7EB',
-    paddingVertical: 6,
-    paddingHorizontal: 3, // Reduced from 6 to 3
+    paddingVertical: 4,
+    paddingHorizontal: 3,
     backgroundColor: '#FEF2F2',
     alignItems: 'flex-start',
+    minHeight: 25,
   },
   tableCellHeader: {
     fontSize: 7,
@@ -227,9 +229,10 @@ tableHeader: {
     lineHeight: 1.2,
   },
   tableCell: {
-    fontSize: 9,
+    fontSize: 8, // Smaller default font
     color: '#1F2937',
-    lineHeight: 1.2,
+    lineHeight: 1.3,
+    paddingRight: 3,
   },
   tableCellWide: {
     flex: 3,
@@ -319,10 +322,10 @@ tableHeader: {
     paddingVertical: 2,
   },
   tableCellParameterName: {
-    fontSize: 9,
+    fontSize: 8,
     fontWeight: 'bold',
     color: '#1F2937',
-    lineHeight: 1.1, 
+    lineHeight: 1.2, 
   },
   tableCellUnit: {
     width: '12%',
@@ -631,6 +634,7 @@ alertBoxPlain: {
   },
   
   recommendationsSection: {
+    marginTop: 15, // Add clear separation
     marginBottom: 20,
   },
   
@@ -843,129 +847,140 @@ alertBoxPlain: {
 });
 
 // DEFAULT DATA - uncomment for production
-const customer_first = "John"
-const customer_name = "John Smith";
-const order_number = 1450;
-const sample_description = "Water from Tap";
-const TEST_KIT = "Advanced Water Test Kit";
+// const customer_first = "John"
+// const customer_name = "John Smith";
+// const order_number = 1450;
+// const sample_description = "Water from Tap";
+// const TEST_KIT = "Advanced Water Test Kit";
 
 // CUSTOMER DATA -- uncomment when producing one-off reports
-// const customer_first = "Christina"
-// const customer_name = "Christina Tutsch";
-// const order_number = 1282;
-// const sample_description = "Water Tap";
-// const TEST_KIT = "City Water Test Kit";
+const customer_first = "Nicole"
+const customer_name = "Nicole Cancelli";
+const order_number = 236;
+const sample_description = "Barn Sink - Raw Water";
+const TEST_KIT = "City Water Test Kit";
+
+
 
 
 
 // Generic Parameters Section Component - Update with unified container and new definitions
+// Generic Parameters Section Component - Complete Updated Version
 const ParametersSection = ({ cwqi, concerns, type, title }) => {
-    if (!cwqi) return null;
+  if (!cwqi) return null;
 
-    const getQualityDescription = (rating, hasColiform = false) => {
-      // Special case for coliform detection - return complete message
-      if (hasColiform || rating === 'Poor - Coliform Present') {
-        return 'With health-related parameters, your water quality score is Poor because coliform bacteria have been detected in your water sample. The presence of coliform bacteria indicates potential contamination and renders the water unsafe for consumption, resulting in a score of 0/100.';
-      }
-      
-      switch (rating) {
-        case 'Excellent':
-          return 'almost all parameters meet the guidelines, and any exceedances are very small. Water quality is considered extremely high.';
-        case 'Very Good':
-          return 'one or more parameters slightly exceed guidelines, but overall water quality remains very safe and clean.';
-        case 'Good':
-          return 'some parameters exceed guidelines, usually by small to moderate amounts. Water is generally acceptable, but attention may be needed.';
-        case 'Fair':
-          return 'several parameters exceed guidelines, and some by larger amounts. Water quality may require treatment or monitoring.';
-        case 'Marginal':
-          return 'many parameters exceed guidelines, and/or some exceed them by significant amounts. Water quality is likely to pose issues without treatment.';
-        case 'Poor':
-          return 'most parameters exceed guidelines by large amounts. Water quality is poor and likely unsafe without corrective action.';
-        default:
-          return 'the water quality assessment is based on Canadian Water Quality Index standards.';
-      }
-    };
+  const getQualityDescription = (rating, hasColiform = false) => {
+    // Special case for coliform detection - return complete message
+    if (hasColiform || rating === 'Poor - Coliform Present') {
+      return 'With health-related parameters, your water quality score is Poor because coliform bacteria have been detected in your water sample. The presence of coliform bacteria indicates potential contamination and renders the water unsafe for consumption, resulting in a score of 0/100.';
+    }
+    
+    switch (rating) {
+      case 'Excellent':
+        return 'almost all parameters meet the guidelines, and any exceedances are very small. Water quality is considered extremely high.';
+      case 'Very Good':
+        return 'one or more parameters slightly exceed guidelines, but overall water quality remains very safe and clean.';
+      case 'Good':
+        return 'some parameters exceed guidelines, usually by small to moderate amounts. Water is generally acceptable, but attention may be needed.';
+      case 'Fair':
+        return 'several parameters exceed guidelines, and some by larger amounts. Water quality may require treatment or monitoring.';
+      case 'Marginal':
+        return 'many parameters exceed guidelines, and/or some exceed them by significant amounts. Water quality is likely to pose issues without treatment.';
+      case 'Poor':
+        return 'most parameters exceed guidelines by large amounts. Water quality is poor and likely unsafe without corrective action.';
+      default:
+        return 'the water quality assessment is based on Canadian Water Quality Index standards.';
+    }
+  };
 
-    const hasConcerns = concerns.length > 0;
-    const isHealthType = type === 'health';
-    const hasColiform = cwqi.coliformDetected || false;
+  const hasConcerns = concerns.length > 0;
+  const isHealthType = type === 'health';
+  const hasColiform = cwqi.coliformDetected || false;
 
-    return (
-        <View>
-          {/* Unified Container wrapping both score and text */}
-          <View style={styles.parametersUnifiedContainer}>
-            {/* Parameters Layout */}
-            <View style={styles.parametersContainer}>
-              {/* CWQI Score Card - Left Side (2/5) */}
-              <View style={styles.parameterCwqiSection}>
-                <CWQIComponent cwqi={cwqi} title={title} />
-              </View>
-  
-              {/* Text Section - Right Side (3/5) */}
-              <View style={styles.parameterTextSection}>
-                {hasColiform && isHealthType ? (
-                  // Special handling for coliform - show complete message
-                  <Text style={styles.qualityStatement}>
-                    {getQualityDescription(cwqi.rating, hasColiform)}
+  return (
+      <View>
+        {/* Unified Container wrapping both score and text */}
+        <View style={styles.parametersUnifiedContainer}>
+          {/* Parameters Layout */}
+          <View style={styles.parametersContainer}>
+            {/* CWQI Score Card - Left Side (2/5) */}
+            <View style={styles.parameterCwqiSection}>
+              <CWQIComponent cwqi={cwqi} title={title} />
+            </View>
+
+            {/* Text Section - Right Side (3/5) */}
+            <View style={styles.parameterTextSection}>
+              {hasColiform && isHealthType ? (
+                // Special handling for coliform - show complete message
+                <Text style={styles.qualityStatement}>
+                  {getQualityDescription(cwqi.rating, hasColiform)}
+                </Text>
+              ) : (
+                // Normal handling for non-coliform cases
+                <Text style={styles.qualityStatement}>
+                  <Text style={styles.qualityLevel}>
+                    {isHealthType 
+                      ? `With health-related parameters, your water quality is ${cwqi.rating}` 
+                      : `For aesthetic and operational parameters, your water quality is ${cwqi.rating}`
+                    }
                   </Text>
-                ) : (
-                  // Normal handling for non-coliform cases
-                  <Text style={styles.qualityStatement}>
-                    <Text style={styles.qualityLevel}>
-                      {isHealthType 
-                        ? `With health-related parameters, your water quality is ${cwqi.rating}` 
-                        : `For aesthetic and operational parameters, your water quality is ${cwqi.rating}`
-                      }
+                  <Text>, this means that {getQualityDescription(cwqi.rating, hasColiform)}</Text>
+                </Text>
+              )}
+
+              {hasConcerns && !hasColiform && concerns.length <= 6 && (
+                <View style={styles.parametersList}>
+                  <Text style={styles.parametersListTitle}>
+                    Parameters over the limit ({concerns.length}):
+                  </Text>
+                  {concerns.map((param, index) => (
+                    <Text 
+                      key={index} 
+                      style={isHealthType ? styles.parametersListItemHealth : styles.parametersListItemAO}
+                    >
+                      • {param.parameter_name}
                     </Text>
-                    <Text>, this means that {getQualityDescription(cwqi.rating, hasColiform)}</Text>
+                  ))}
+                </View>
+              )}
+
+              {hasConcerns && !hasColiform && concerns.length > 6 && (
+                <View style={styles.parametersList}>
+                  <Text style={styles.parametersListTitle}>
+                    {concerns.length} parameters exceed recommended limits. See detailed table below for complete information.
                   </Text>
-                )}
-  
-                {hasConcerns && !hasColiform && (
-                  <View style={styles.parametersList}>
-                    <Text style={styles.parametersListTitle}>
-                      Parameters over the limit ({concerns.length}):
-                    </Text>
-                    {concerns.map((param, index) => (
-                      <Text 
-                        key={index} 
-                        style={isHealthType ? styles.parametersListItemHealth : styles.parametersListItemAO}
-                      >
-                        • {param.parameter_name}
-                      </Text>
-                    ))}
-                  </View>
-                )}
-  
-                {!hasConcerns && !hasColiform && (
-                  <Text style={[styles.qualityStatement, { color: '#059669', marginTop: 8 }]}>
-                    All {isHealthType ? 'health-related' : 'aesthetic and operational'} parameters are within acceptable limits.
-                  </Text>
-                )}
-              </View>
+                </View>
+              )}
+
+              {!hasConcerns && !hasColiform && (
+                <Text style={[styles.qualityStatement, { color: '#059669', marginTop: 8 }]}>
+                  All {isHealthType ? 'health-related' : 'aesthetic and operational'} parameters are within acceptable limits.
+                </Text>
+              )}
             </View>
           </View>
-  
-          {/* Potential Score Display - Only show for health parameters with coliform */}
-          {hasColiform && isHealthType && cwqi.potentialScore !== null && (
-            <View style={styles.potentialScoreContainer}>
-              {/* Left side: Title and Score */}
-              <View style={styles.potentialScoreLeft}>
-                <Text style={styles.cwqiTitlePotential}>Potential Score</Text>
-                <Text style={styles.potentialScoreNumber}>
-                  +{cwqi.potentialScore}
-                </Text>
-              </View>
-              
-              {/* Right side: Explanatory Text */}
-              <Text style={styles.potentialScoreText}>
-                Your score could potentially increase by {cwqi.potentialScore} points after removing the coliforms from your drinking water.
+        </View>
+
+        {/* Potential Score Display - Only show for health parameters with coliform */}
+        {hasColiform && isHealthType && cwqi.potentialScore !== null && (
+          <View style={styles.potentialScoreContainer}>
+            {/* Left side: Title and Score */}
+            <View style={styles.potentialScoreLeft}>
+              <Text style={styles.cwqiTitlePotential}>Potential Score</Text>
+              <Text style={styles.potentialScoreNumber}>
+                +{cwqi.potentialScore}
               </Text>
             </View>
-          )}
-        </View>
-      );
-  };
+            
+            {/* Right side: Explanatory Text */}
+            <Text style={styles.potentialScoreText}>
+              Your score could potentially increase by {cwqi.potentialScore} points after removing the coliforms from your drinking water.
+            </Text>
+          </View>
+        )}
+      </View>
+    );
+};
   
 
   // Generic Recommendations Section Component
@@ -1016,17 +1031,23 @@ const ParametersSection = ({ cwqi, concerns, type, title }) => {
 
 // Summary Cards Component - Updated with test kit logic
 const SummaryCards = ({ bacteriological, healthConcerns, aoConcerns, testKit }) => {
-    // Check if any bacteriological parameters exceed limits
-    const bacteriologicalExceeded = bacteriological.some(param => {
-      if (param.parameter_category === 'health') {
-        return param.compliance_status === 'EXCEEDS_MAC';
-      } else if (param.parameter_category === 'ao') {
-        return param.compliance_status === 'EXCEEDS_AO' || 
-               (param.compliance_status === 'AO_RANGE_VALUE' && param.overall_compliance_status === 'WARNING');
-      } else {
-        return param.compliance_status === 'FAIL';
-      }
-    });
+  // Check if any bacteriological parameters exceed limits using result_display_value
+  const bacteriologicalExceeded = bacteriological.some(param => {
+    // Check using result_display_value first, then fallback to other methods
+    if (param.result_display_value?.includes('Detected')) {
+      return true;
+    }
+    
+    // Fallback to compliance status check
+    if (param.parameter_category === 'health') {
+      return param.compliance_status === 'EXCEEDS_MAC';
+    } else if (param.parameter_category === 'ao') {
+      return param.compliance_status === 'EXCEEDS_AO' || 
+             (param.compliance_status === 'AO_RANGE_VALUE' && param.overall_compliance_status === 'WARNING');
+    } else {
+      return param.compliance_status === 'FAIL';
+    }
+  });
   
     const healthConcernsCount = healthConcerns.length;
     const aoConcernsCount = aoConcerns.length;
@@ -1163,94 +1184,111 @@ const CWQIComponent = ({ cwqi, title }) => {
     );
   };
 
-// Replace the PDFTable component with better break handling
+// Replace the PDFTable component with better text wrapping
 const PDFTable = ({ headers, data, keyMapping, showExceeded = false, tableType = 'default', allowBreak = true }) => {
   
-    const getColumnWidths = (tableType) => {
-        if (tableType === 'results') {
-          return [210, 40, 40, 110, 75];
-        } else if (tableType === 'concerns') {
-          return [150, 170, 150];
-        } else if (tableType === 'general') {
-          return [180,120,80];
-        }
-        else if (tableType === 'general3col') {
-            return [120, 80, 60]; // Smaller overall width: Parameter, Result, Unit
-          }
-        return [100, 100, 100, 100, 100];
-      };
+  const getColumnWidths = (tableType) => {
+    if (tableType === 'results') {
+      return [210, 40, 40, 110, 75];
+    } else if (tableType === 'concerns') {
+      return [120, 180, 170]; // Adjusted widths for better text wrapping
+    } else if (tableType === 'general') {
+      return [180,120,80];
+    } else if (tableType === 'general3col') {
+      return [120, 80, 60];
+    }
+    return [100, 100, 100, 100, 100];
+  };
+
+  const columnWidths = getColumnWidths(tableType);
   
-    const columnWidths = getColumnWidths(tableType);
-    
-    // For concerns tables, force to next page if more than 3 rows to avoid breaking
-    const shouldForceNewPage = tableType === 'concerns' && data.length > 3;
-  
-    return (
-      <View style={styles.tableContainer} wrap={false} break={shouldForceNewPage}>
-        <View style={styles.table}>
-          {/* Header Row */}
-          <View style={styles.tableHeader} wrap={false}>
-            {headers.map((header, index) => (
-              <View key={index} style={{ width: columnWidths[index], paddingRight: 2 }}>
-                <Text 
-                  style={[styles.tableCellHeader, { textAlign: index === 0 ? 'left' : 'center' }]}
+  const isParameterExceeded = (param) => {
+    if (param.parameter_category === 'health') {
+      return param.compliance_status === 'EXCEEDS_MAC';
+    } else if (param.parameter_category === 'ao') {
+      if (param.compliance_status === 'EXCEEDS_AO') {
+        return true;
+      }
+      if (param.compliance_status === 'AO_RANGE_VALUE') {
+        return param.overall_compliance_status === 'WARNING';
+      }
+      return false;
+    } else {
+      return param.compliance_status === 'FAIL';
+    }
+  };
+
+  // Split data into smaller chunks for concerns tables
+  const chunkSize = tableType === 'concerns' ? 5 : 25;
+  const chunks = [];
+  for (let i = 0; i < data.length; i += chunkSize) {
+    chunks.push(data.slice(i, i + chunkSize));
+  }
+
+  return (
+    <View>
+      {chunks.map((chunk, chunkIndex) => (
+        <View 
+          key={chunkIndex} 
+          style={[
+            styles.tableContainer,
+            chunkIndex > 0 && tableType === 'concerns' && { marginTop: 15 }
+          ]} 
+          wrap={false}
+          break={chunkIndex > 0 && tableType === 'concerns'}
+        >
+          <View style={styles.table}>
+            {/* Header Row - Show for each chunk */}
+            <View style={styles.tableHeader} wrap={false}>
+              {headers.map((header, index) => (
+                <View key={index} style={{ width: columnWidths[index], paddingRight: 3 }}>
+                  <Text 
+                    style={[styles.tableCellHeader, { textAlign: index === 0 ? 'left' : 'center' }]}
+                    wrap={false}
+                  >
+                    {header}
+                  </Text>
+                </View>
+              ))}
+            </View>
+            
+            {/* Data Rows */}
+            {chunk.map((row, rowIndex) => {
+              const isExceeded = showExceeded && isParameterExceeded(row);
+              
+              return (
+                <View 
+                  key={rowIndex} 
+                  style={isExceeded ? styles.tableRowExceeded : styles.tableRow}
                   wrap={false}
                 >
-                  {header}
-                </Text>
-              </View>
-            ))}
-          </View>
-          
-          {/* Data Rows */}
-            {data.map((row, rowIndex) => {
-            const isParameterExceeded = (param) => {
-                if (param.parameter_category === 'health') {
-                return param.compliance_status === 'EXCEEDS_MAC';
-                } else if (param.parameter_category === 'ao') {
-                if (param.compliance_status === 'EXCEEDS_AO') {
-                    return true;
-                }
-                if (param.compliance_status === 'AO_RANGE_VALUE') {
-                    return param.overall_compliance_status === 'WARNING';
-                }
-                return false;
-                } else {
-                return param.compliance_status === 'FAIL';
-                }
-            };
-
-            const isExceeded = showExceeded && isParameterExceeded(row);
-            
-            return (
-                <View 
-                key={rowIndex} 
-                style={isExceeded ? styles.tableRowExceeded : styles.tableRow}
-                wrap={false}
-                >
-                {keyMapping.map((key, cellIndex) => (
-                    <View key={cellIndex} style={{ width: columnWidths[cellIndex], paddingRight: 2 }}>
-                    <Text 
+                  {keyMapping.map((key, cellIndex) => (
+                    <View key={cellIndex} style={{ width: columnWidths[cellIndex], paddingRight: 3 }}>
+                      <Text 
                         style={[
-                        cellIndex === 0 ? styles.tableCellParameterName : styles.tableCell,
-                        { 
-                            textAlign: cellIndex === 0 ? 'left' : 'center',
-                            fontWeight: cellIndex === 0 ? 'bold' : 'normal'
-                        }
+                          cellIndex === 0 ? styles.tableCellParameterName : styles.tableCell,
+                          { 
+                            textAlign: cellIndex === 0 ? 'left' : (tableType === 'concerns' ? 'left' : 'center'),
+                            fontWeight: cellIndex === 0 ? 'bold' : 'normal',
+                            fontSize: tableType === 'concerns' ? 8 : 9, // Smaller font for concerns
+                            lineHeight: tableType === 'concerns' ? 1.2 : 1.3
+                          }
                         ]}
-                        wrap={cellIndex === 0 ? false : true}
-                    >
+                        wrap={true} // Allow text wrapping
+                      >
                         {typeof key === 'function' ? key(row) : row[key] || 'N/A'}
-                    </Text>
+                      </Text>
                     </View>
-                ))}
+                  ))}
                 </View>
-            );
+              );
             })}
+          </View>
         </View>
-      </View>
-    );
-  };
+      ))}
+    </View>
+  );
+};
 
 // Main PDF Document Component
 const WaterQualityReportPDF = ({ reportData }) => {
@@ -1285,31 +1323,37 @@ const WaterQualityReportPDF = ({ reportData }) => {
   };
 
   // Update the formatLabResult function to handle hybrid parameters
-    const formatLabResult = (param) => {
-    // Use lab's original varchar format - this preserves exact significant digits
-    if (param.result_value && param.result_value.trim() !== '') {
-      return param.result_value.trim();
-    }
-    
-    // Fall back to numeric if result_value is not available
-    const value = param.result_numeric;
-    if (value === null || value === undefined || isNaN(value)) return 'N/A';
-    
-    const num = parseFloat(value);
-    
-    // Handle very small numbers
-    if (Math.abs(num) < 0.001 && num !== 0) {
-      return num.toExponential(2);
-    }
-    
-    // Handle normal range - remove trailing zeros
-    let formatted = num.toString();
-    if (formatted.includes('.')) {
-      formatted = formatted.replace(/\.?0+$/, '');
-    }
-    
-    return formatted;
-  };
+    // Update the formatLabResult function to use result_display_value from the view
+const formatLabResult = (param) => {
+  // Use the pre-formatted display value from the database view
+  if (param.result_display_value && param.result_display_value.trim() !== '') {
+    return param.result_display_value.trim();
+  }
+  
+  // Fallback to original logic if display value is not available
+  if (param.result_value && param.result_value.trim() !== '') {
+    return param.result_value.trim();
+  }
+  
+  // Final fallback to numeric if both display and result values are not available
+  const value = param.result_numeric;
+  if (value === null || value === undefined || isNaN(value)) return 'N/A';
+  
+  const num = parseFloat(value);
+  
+  // Handle very small numbers
+  if (Math.abs(num) < 0.001 && num !== 0) {
+    return num.toExponential(2);
+  }
+  
+  // Handle normal range - remove trailing zeros
+  let formatted = num.toString();
+  if (formatted.includes('.')) {
+    formatted = formatted.replace(/\.?0+$/, '');
+  }
+  
+  return formatted;
+};
   
   // Update the getComplianceStatus function
   const getComplianceStatus = (param) => {
@@ -1405,15 +1449,18 @@ const WaterQualityReportPDF = ({ reportData }) => {
   
         {/* Bacteriological Results */}
         {bacteriological.length > 0 && (() => {
-          // Check for NDOGT readings in Total Coliform or E. coli
+          // Check for coliform detection using result_display_value or compliance status
           const contaminatedParams = bacteriological.filter(param => 
             (param.parameter_name?.toLowerCase().includes('coliform') || 
-             param.parameter_name?.toLowerCase().includes('escherichia') ||
-             param.parameter_name?.toLowerCase().includes('e. coli') ||
-             param.parameter_name?.toLowerCase().includes('e.coli')) &&
-            (param.result_value?.includes('NDOGT') || param.result_numeric?.toString().includes('NDOGT'))
+            param.parameter_name?.toLowerCase().includes('escherichia') ||
+            param.parameter_name?.toLowerCase().includes('e. coli') ||
+            param.parameter_name?.toLowerCase().includes('e.coli')) &&
+            (param.result_display_value?.includes('Detected') || 
+            param.result_value?.includes('NDOGT') || 
+            param.result_numeric?.toString().includes('NDOGT') ||
+            param.compliance_status === 'EXCEEDS_MAC')
           );
-  
+
           if (contaminatedParams.length > 0) {
             // Show contamination warning
             return (
@@ -1450,7 +1497,7 @@ const WaterQualityReportPDF = ({ reportData }) => {
               </View>
             );
           } else {
-            // Show normal bacteriological results
+            // Show normal bacteriological results using result_display_value
             return (
               <View>
                 <Text style={styles.subsectionTitle}>Bacteriological Results</Text>
@@ -1458,7 +1505,7 @@ const WaterQualityReportPDF = ({ reportData }) => {
                   <Text style={styles.alertTextPlain}>
                     Bacterial contamination analysis:
                     {bacteriological.map((param, index) => (
-                      `\n${param.parameter_name}: ${formatLabResult(param)} ${param.result_units || param.parameter_unit || ''}`
+                      `\n${param.parameter_name}: ${param.result_display_value || formatLabResult(param)} ${param.result_units || param.parameter_unit || ''}`
                     ))}
                   </Text>
                 </View>
@@ -1498,35 +1545,45 @@ const WaterQualityReportPDF = ({ reportData }) => {
           />
         </View>
   
-        {/* Health Parameters Summary - Updated Layout */}
-        <View wrap={false} break={true}>
-          <Text style={styles.subsectionTitle}>Health Related Parameters</Text>
-          <ParametersSection 
-            cwqi={healthCWQI} 
-            concerns={healthConcerns}
-            type="health"
-          />
-          <RecommendationsSection 
-            concerns={healthConcerns}
-            type="health"
-          />
-        </View>
-  
-        {healthConcerns.length > 0 && (
-          <View wrap={false} break={healthConcerns.length > 3}>
-            <PDFTable
-              headers={['Parameter', 'Health Effect', 'Treatment Options']}
-              data={healthConcerns}
-              keyMapping={[
-                'parameter_name',
-                (row) => row.health_effects || 'Elevated levels may pose health risks. Consult with a water treatment professional for specific health implications and recommended actions.',
-                (row) => row.treatment_options || 'Multiple treatment options are available including filtration, softening, and chemical treatment. Consult with a certified water treatment professional to determine the best solution for your specific situation.'
-              ]}
-              tableType="concerns"
-              allowBreak={false}
-            />
-          </View>
-        )}
+        {/* Health Parameters Summary - Updated Layout with Proper Spacing */}
+{/* Health Parameters Summary - CWQI Only */}
+<View wrap={false} break={true}>
+  <Text style={styles.subsectionTitle}>Health Related Parameters</Text>
+  <ParametersSection 
+    cwqi={healthCWQI} 
+    concerns={healthConcerns}
+    type="health"
+    title="Health Related Parameters"
+  />
+  <RecommendationsSection 
+    concerns={healthConcerns}
+    type="health"
+  />
+</View>
+
+{/* Force Health Concerns Table to New Page */}
+{healthConcerns.length > 0 && (
+  <View wrap={false} break={true}>
+    <Text style={styles.subsectionTitle}>Health Parameters of Concern - Details</Text>
+    <PDFTable
+      headers={['Parameter', 'Health Effect', 'Treatment Options']}
+      data={healthConcerns}
+      keyMapping={[
+        'parameter_name',
+        (row) => {
+          const healthEffect = row.health_effects || 'Elevated levels may pose health risks. Consult with a water treatment professional for specific health implications and recommended actions.';
+          return healthEffect.length > 120 ? healthEffect.substring(0, 120) + '...' : healthEffect;
+        },
+        (row) => {
+          const treatment = row.treatment_options || 'Multiple treatment options are available including filtration, softening, and chemical treatment. Consult with a certified water treatment professional to determine the best solution for your specific situation.';
+          return treatment.length > 100 ? treatment.substring(0, 100) + '...' : treatment;
+        }
+      ]}
+      tableType="concerns"
+      allowBreak={false}
+    />
+  </View>
+)}
   
         {/* AO Parameters Summary - New Layout */}
         <View wrap={false} break={true}>
@@ -1543,14 +1600,20 @@ const WaterQualityReportPDF = ({ reportData }) => {
         </View>
   
         {aoConcerns.length > 0 && (
-          <View wrap={false} break={aoConcerns.length > 3 || (healthConcerns.length > 0 && aoConcerns.length > 2)}>
+          <View wrap={false}>
             <PDFTable
               headers={['Parameter', 'Description', 'Treatment Options']}
               data={aoConcerns}
               keyMapping={[
                 'parameter_name',
-                (row) => row.description || row.parameter_description || 'A water quality parameter that affects the aesthetic or operational characteristics of your water system.',
-                (row) => row.treatment_options || 'Multiple treatment options are available including filtration, softening, and chemical treatment. Consult with a certified water treatment professional to determine the best solution for your specific situation.'
+                (row) => {
+                  const description = row.description || row.parameter_description || 'A water quality parameter that affects the aesthetic or operational characteristics of your water system.';
+                  return description.length > 120 ? description.substring(0, 120) + '...' : description;
+                },
+                (row) => {
+                  const treatment = row.treatment_options || 'Multiple treatment options are available including filtration, softening, and chemical treatment. Consult with a certified water treatment professional to determine the best solution for your specific situation.';
+                  return treatment.length > 100 ? treatment.substring(0, 100) + '...' : treatment;
+                }
               ]}
               tableType="concerns"
               allowBreak={false}
@@ -1595,45 +1658,39 @@ const WaterQualityReportPDF = ({ reportData }) => {
                 (row) => formatLabResult(row),
                 (row) => row.result_units || row.parameter_unit || 'N/A',
                 (row) => {
-                  // For hybrid parameters in health table, use MAC values
-                  if (row.parameter_category === 'health') {
-                    return row.mac_display || formatValue(row.mac_value, '', 3);
-                  }
-                  return row.objective_display || formatValue(row.objective_value, '', 3);
+                  return row.mac_display_value || row.mac_display || 'No Standard';
                 },
                 (row) => getComplianceStatus(row)
               ]}
               showExceeded={true}
               tableType="results"
+              maxRowsPerPage={20} // Limit rows per page
             />
           </View>
         )}
   
         {/* AO Parameters Table */}
         {aoParameters.length > 0 && (
-          <View break={true}>
-            <Text style={styles.subsectionTitle}>Aesthetic & Operational Parameter Results</Text>
-            <PDFTable
-              headers={['Parameter', 'Result', 'Unit', 'Recommended Maximum Concentration', 'Status']}
-              data={aoParameters}
-              keyMapping={[
-                'parameter_name',
-                (row) => formatLabResult(row),
-                (row) => row.result_units || row.parameter_unit || 'N/A',
-                (row) => {
-                  // For hybrid parameters in AO table, use AO values
-                  if (row.parameter_category === 'ao') {
-                    return row.ao_display || formatValue(row.ao_value, '', 3);
-                  }
-                  return row.objective_display || formatValue(row.objective_value, '', 3);
-                },
-                (row) => getComplianceStatus(row)
-              ]}
-              showExceeded={true}
-              tableType="results"
-            />
-          </View>
-        )}
+        <View break={true}>
+          <Text style={styles.subsectionTitle}>Aesthetic & Operational Parameter Results</Text>
+          <PDFTable
+            headers={['Parameter', 'Result', 'Unit', 'Recommended Maximum Concentration', 'Status']}
+            data={aoParameters}
+            keyMapping={[
+              'parameter_name',
+              (row) => formatLabResult(row),
+              (row) => row.result_units || row.parameter_unit || 'N/A',
+              (row) => {
+                return row.ao_display_value || row.ao_display || 'No Standard';
+              },
+              (row) => getComplianceStatus(row)
+            ]}
+            showExceeded={true}
+            tableType="results"
+            maxRowsPerPage={20} // Limit rows per page
+          />
+        </View>
+      )}
   
         {/* General Parameters Table - Centered and Smaller */}
         {generalParameters && generalParameters.length > 0 && (

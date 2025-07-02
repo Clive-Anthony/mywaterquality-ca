@@ -159,7 +159,7 @@ export default function ReportPage() {
       const { data, error } = await supabase
         .from('vw_test_results_with_parameters')
         .select('*')
-        .eq('sample_number', '2131422')
+        .eq('sample_number', '2157523')
         .order('parameter_name');
 
       if (error) throw error;
