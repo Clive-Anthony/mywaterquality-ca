@@ -175,12 +175,19 @@ export default function ReportPage() {
   };
 
   const formatLabResult = (param) => {
-    // Use lab's original varchar format - this preserves exact significant digits
-    if (param.result_value && param.result_value.trim() !== '') {
-      return param.result_value.trim();
+    // Use the pre-formatted display value from the database view
+    if (param.result_display_value && param.result_display_value.trim() !== '') {
+      // Trim whitespace around operators like "< 0.04" -> "<0.04"
+      return param.result_display_value.trim().replace(/([<>=]+)\s+/g, '$1');
     }
     
-    // Fall back to numeric if result_value is not available
+    // Fallback to original logic if display value is not available
+    if (param.result_value && param.result_value.trim() !== '') {
+      // Trim whitespace around operators
+      return param.result_value.trim().replace(/([<>=]+)\s+/g, '$1');
+    }
+    
+    // Final fallback to numeric if both display and result values are not available
     const value = param.result_numeric;
     if (value === null || value === undefined || isNaN(value)) return 'N/A';
     

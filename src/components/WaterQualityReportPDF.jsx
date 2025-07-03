@@ -1,6 +1,35 @@
 // src/components/WaterQualityReportPDF.jsx - Updated to match web report formatting
 import React from 'react';
 import { Document, Page, Text, View, StyleSheet, Image } from '@react-pdf/renderer';
+import { Buffer } from 'buffer';
+
+
+// Buffer polyfill for @react-pdf/renderer
+if (typeof global === 'undefined') {
+  window.global = window;
+}
+
+// Try to use the built-in Buffer if available, otherwise create a minimal polyfill
+if (typeof global.Buffer === 'undefined') {
+  try {
+    // Try to import buffer package if available
+    const { Buffer } = await import('buffer');
+    global.Buffer = Buffer;
+  } catch (e) {
+    // Minimal Buffer polyfill for @react-pdf/renderer image processing
+    global.Buffer = {
+      from: (data, encoding = 'utf8') => {
+        if (typeof data === 'string') {
+          return new TextEncoder().encode(data);
+        }
+        return data;
+      },
+      isBuffer: (obj) => obj instanceof Uint8Array,
+      alloc: (size) => new Uint8Array(size),
+      allocUnsafe: (size) => new Uint8Array(size)
+    };
+  }
+}
 
 // Create styles for PDF
 const styles = StyleSheet.create({
@@ -200,25 +229,36 @@ tableHeader: {
     backgroundColor: '#F9FAFB',
     borderBottom: '1 solid #E5E7EB',
     paddingVertical: 8,
-    paddingHorizontal: 3, // Reduced from 6 to 3
-    alignItems: 'flex-start',
+    paddingHorizontal: 4, // Reduced from 6 to 3
+    alignItems: 'center',
   },
   tableRow: {
     flexDirection: 'row',
     borderBottom: '1 solid #E5E7EB',
-    paddingVertical: 4, // Reduced padding
-    paddingHorizontal: 3,
-    alignItems: 'flex-start',
-    minHeight: 25, // Minimum height for readability
+    paddingVertical: 6, // Reduced padding
+    paddingHorizontal: 4,
+    alignItems: 'center',
+    minHeight: 30, // Minimum height for readability
   },
-  
+
+  tableContainerFlowable: {
+    marginBottom: 15,
+  },
+tableHeaderRepeatable: {
+  flexDirection: 'row',
+  backgroundColor: '#F9FAFB',
+  borderBottom: '1 solid #E5E7EB',
+  paddingVertical: 8,
+  paddingHorizontal: 3,
+  alignItems: 'flex-start',
+},
   tableRowExceeded: {
     flexDirection: 'row',
     borderBottom: '1 solid #E5E7EB',
-    paddingVertical: 4,
-    paddingHorizontal: 3,
+    paddingVertical: 6,
+    paddingHorizontal: 4,
     backgroundColor: '#FEF2F2',
-    alignItems: 'flex-start',
+    alignItems: 'center',
     minHeight: 25,
   },
   tableCellHeader: {
@@ -231,7 +271,7 @@ tableHeader: {
   tableCell: {
     fontSize: 8, // Smaller default font
     color: '#1F2937',
-    lineHeight: 1.3,
+    lineHeight: 1.4,
     paddingRight: 3,
   },
   tableCellWide: {
@@ -322,10 +362,10 @@ tableHeader: {
     paddingVertical: 2,
   },
   tableCellParameterName: {
-    fontSize: 8,
+    fontSize: 9,
     fontWeight: 'bold',
     color: '#1F2937',
-    lineHeight: 1.2, 
+    lineHeight: 1.3, 
   },
   tableCellUnit: {
     width: '12%',
@@ -432,6 +472,26 @@ alertBoxPlain: {
   tableContainerSummary: {
     marginBottom: 15,
     // Remove maxHeight constraint for summary tables
+},
+// Updated table row style for full text display
+tableRowConcerns: {
+  flexDirection: 'row',
+  borderBottom: '1 solid #E5E7EB',
+  paddingVertical: 6, // Increased padding for better spacing
+  paddingHorizontal: 3,
+  alignItems: 'flex-start', // Align content to top
+  minHeight: 35, // Increased minimum height
+  // Allow the row to expand based on content
+},
+
+// Updated table cell style for better text wrapping
+tableCellConcerns: {
+  fontSize: 8,
+  color: '#1F2937',
+  lineHeight: 1.4, // Increased line height for readability
+  paddingRight: 3,
+  textAlign: 'left',
+  // Ensure text can wrap properly
 },
   summaryCardsContainer: {
     flexDirection: 'row',
@@ -634,8 +694,8 @@ alertBoxPlain: {
   },
   
   recommendationsSection: {
-    marginTop: 15, // Add clear separation
-    marginBottom: 20,
+    marginTop: 10, // Add clear separation
+    marginBottom: 8,
   },
   
   recommendationsHeaderHealth: {
@@ -864,13 +924,12 @@ const TEST_KIT = "City Water Test Kit";
 
 
 
-// Generic Parameters Section Component - Update with unified container and new definitions
-// Generic Parameters Section Component - Complete Updated Version
+// Updated Parameters Section Component with integrated concerns table
 const ParametersSection = ({ cwqi, concerns, type, title }) => {
   if (!cwqi) return null;
 
   const getQualityDescription = (rating, hasColiform = false) => {
-    // Special case for coliform detection - return complete message
+    // ... keep existing getQualityDescription function as is
     if (hasColiform || rating === 'Poor - Coliform Present') {
       return 'With health-related parameters, your water quality score is Poor because coliform bacteria have been detected in your water sample. The presence of coliform bacteria indicates potential contamination and renders the water unsafe for consumption, resulting in a score of 0/100.';
     }
@@ -898,88 +957,239 @@ const ParametersSection = ({ cwqi, concerns, type, title }) => {
   const hasColiform = cwqi.coliformDetected || false;
 
   return (
-      <View>
-        {/* Unified Container wrapping both score and text */}
-        <View style={styles.parametersUnifiedContainer}>
-          {/* Parameters Layout */}
-          <View style={styles.parametersContainer}>
-            {/* CWQI Score Card - Left Side (2/5) */}
-            <View style={styles.parameterCwqiSection}>
-              <CWQIComponent cwqi={cwqi} title={title} />
-            </View>
+    <View>
+      {/* Unified Container with CWQI and Description */}
+      <View style={styles.parametersUnifiedContainer}>
+        <View style={styles.parametersContainer}>
+          {/* CWQI Score Card - Left Side */}
+          <View style={styles.parameterCwqiSection}>
+            <CWQIComponent cwqi={cwqi} title={title} />
+          </View>
 
-            {/* Text Section - Right Side (3/5) */}
-            <View style={styles.parameterTextSection}>
-              {hasColiform && isHealthType ? (
-                // Special handling for coliform - show complete message
-                <Text style={styles.qualityStatement}>
-                  {getQualityDescription(cwqi.rating, hasColiform)}
+          {/* Text Section - Right Side */}
+          <View style={styles.parameterTextSection}>
+            {hasColiform && isHealthType ? (
+              <Text style={styles.qualityStatement}>
+                {getQualityDescription(cwqi.rating, hasColiform)}
+              </Text>
+            ) : (
+              <Text style={styles.qualityStatement}>
+                <Text style={styles.qualityLevel}>
+                  {isHealthType 
+                    ? `With health-related parameters, your water quality is ${cwqi.rating}` 
+                    : `For aesthetic and operational parameters, your water quality is ${cwqi.rating}`
+                  }
                 </Text>
-              ) : (
-                // Normal handling for non-coliform cases
-                <Text style={styles.qualityStatement}>
-                  <Text style={styles.qualityLevel}>
-                    {isHealthType 
-                      ? `With health-related parameters, your water quality is ${cwqi.rating}` 
-                      : `For aesthetic and operational parameters, your water quality is ${cwqi.rating}`
-                    }
-                  </Text>
-                  <Text>, this means that {getQualityDescription(cwqi.rating, hasColiform)}</Text>
+                <Text>, this means that {getQualityDescription(cwqi.rating, hasColiform)}</Text>
+              </Text>
+            )}
+
+            {hasConcerns && !hasColiform && concerns.length <= 6 && (
+              <View style={styles.parametersList}>
+                <Text style={styles.parametersListTitle}>
+                  Parameters over the limit ({concerns.length}):
                 </Text>
-              )}
-
-              {hasConcerns && !hasColiform && concerns.length <= 6 && (
-                <View style={styles.parametersList}>
-                  <Text style={styles.parametersListTitle}>
-                    Parameters over the limit ({concerns.length}):
+                {concerns.map((param, index) => (
+                  <Text 
+                    key={index} 
+                    style={isHealthType ? styles.parametersListItemHealth : styles.parametersListItemAO}
+                  >
+                    • {param.parameter_name}
                   </Text>
-                  {concerns.map((param, index) => (
-                    <Text 
-                      key={index} 
-                      style={isHealthType ? styles.parametersListItemHealth : styles.parametersListItemAO}
-                    >
-                      • {param.parameter_name}
-                    </Text>
-                  ))}
-                </View>
-              )}
+                ))}
+              </View>
+            )}
 
-              {hasConcerns && !hasColiform && concerns.length > 6 && (
-                <View style={styles.parametersList}>
-                  <Text style={styles.parametersListTitle}>
-                    {concerns.length} parameters exceed recommended limits. See detailed table below for complete information.
-                  </Text>
-                </View>
-              )}
-
-              {!hasConcerns && !hasColiform && (
-                <Text style={[styles.qualityStatement, { color: '#059669', marginTop: 8 }]}>
-                  All {isHealthType ? 'health-related' : 'aesthetic and operational'} parameters are within acceptable limits.
+            {hasConcerns && !hasColiform && concerns.length > 6 && (
+              <View style={styles.parametersList}>
+                <Text style={styles.parametersListTitle}>
+                  {concerns.length} parameters exceed recommended limits. See detailed table below for complete information.
                 </Text>
-              )}
-            </View>
+              </View>
+            )}
+
+            {!hasConcerns && !hasColiform && (
+              <Text style={[styles.qualityStatement, { color: '#059669', marginTop: 8 }]}>
+                All {isHealthType ? 'health-related' : 'aesthetic and operational'} parameters are within acceptable limits.
+              </Text>
+            )}
           </View>
         </View>
+      </View>
 
-        {/* Potential Score Display - Only show for health parameters with coliform */}
-        {hasColiform && isHealthType && cwqi.potentialScore !== null && (
-          <View style={styles.potentialScoreContainer}>
-            {/* Left side: Title and Score */}
-            <View style={styles.potentialScoreLeft}>
-              <Text style={styles.cwqiTitlePotential}>Potential Score</Text>
-              <Text style={styles.potentialScoreNumber}>
-                +{cwqi.potentialScore}
-              </Text>
-            </View>
-            
-            {/* Right side: Explanatory Text */}
-            <Text style={styles.potentialScoreText}>
-              Your score could potentially increase by {cwqi.potentialScore} points after removing the coliforms from your drinking water.
+      {/* Potential Score Display */}
+      {hasColiform && isHealthType && cwqi.potentialScore !== null && (
+        <View style={styles.potentialScoreContainer}>
+          <View style={styles.potentialScoreLeft}>
+            <Text style={styles.cwqiTitlePotential}>Potential Score</Text>
+            <Text style={styles.potentialScoreNumber}>
+              +{cwqi.potentialScore}
             </Text>
           </View>
-        )}
+          <Text style={styles.potentialScoreText}>
+            Your score could potentially increase by {cwqi.potentialScore} points after removing the coliforms from your drinking water.
+          </Text>
+        </View>
+      )}
+
+      {/* Recommendations */}
+      <View style={styles.recommendationsSection}>
+        <RecommendationsContent concerns={concerns} type={type} />
       </View>
-    );
+
+      {/* Concerns Table - Directly below, with reduced spacing */}
+      {hasConcerns && (
+        <View style={{ marginTop: 8 }}> {/* Reduced from 15 to 8 */}
+          <Text style={[styles.subsectionTitle, { 
+            fontSize: 12, 
+            marginBottom: 6,  /* Reduced from 10 to 6 */
+            marginTop: 0      /* Ensure no extra top margin */
+          }]}>
+            {isHealthType ? 'Health Parameters of Concern - Details' : 'Aesthetic/Operational Parameters of Concern - Details'}
+          </Text>
+          <ConcernsTable data={concerns} type={type} />
+        </View>
+      )}
+    </View>
+  );
+};
+
+  // Extracted Recommendations Content Component
+const RecommendationsContent = ({ concerns, type }) => {
+  const hasConcerns = concerns.length > 0;
+  const isHealthType = type === 'health';
+
+  const getRecommendationsConfig = () => {
+    if (!hasConcerns) {
+      return {
+        headerStyle: styles.recommendationsHeaderGreen,
+        headerText: 'Recommendations: Continue Monitoring',
+        bodyText: `Your ${isHealthType ? 'health-related' : 'aesthetic and operational'} parameters are within acceptable limits. Continue regular testing to maintain water quality and monitor for any changes.`
+      };
+    }
+
+    if (isHealthType) {
+      return {
+        headerStyle: styles.recommendationsHeaderHealth,
+        headerText: 'Recommendations: Actions Needed',
+        bodyText: 'The following health-related parameters exceed safe limits. We strongly recommend consulting with a water treatment professional and retesting after any treatment is installed.'
+      };
+    } else {
+      return {
+        headerStyle: styles.recommendationsHeaderAO,
+        headerText: 'Recommendations: Consider Treatment',
+        bodyText: 'Some aesthetic or operational parameters exceed recommended limits. While not necessarily health concerns, these may affect taste, odor, or water system performance. Consider treatment options to improve water quality.'
+      };
+    }
+  };
+
+  const config = getRecommendationsConfig();
+
+  return (
+    <View>
+      <Text style={config.headerStyle}>
+        {config.headerText}
+      </Text>
+      <Text style={styles.recommendationsText}>
+        {config.bodyText}
+      </Text>
+    </View>
+  );
+};
+
+  // Continuous Concerns Table with full text and better spacing
+const ConcernsTable = ({ data, type = 'health' }) => {
+  const config = {
+    health: {
+      headers: ['PARAMETER', 'HEALTH EFFECT', 'TREATMENT OPTIONS'],
+      dataMapping: [
+        'parameter_name',
+        (row) => {
+          // Return full health effect text - no truncation
+          return row.health_effects || 'Elevated levels may pose health risks. Consult with a water treatment professional for specific health implications and recommended actions.';
+        },
+        (row) => {
+          // Shorter treatment text since column is smaller
+          const treatment = row.treatment_options || 'Multiple treatment options available. Consult with a certified water treatment professional.';
+          return treatment.length > 60 ? treatment.substring(0, 60) + '...' : treatment;
+        }
+      ]
+    },
+    ao: {
+      headers: ['PARAMETER', 'DESCRIPTION', 'TREATMENT OPTIONS'],
+      dataMapping: [
+        'parameter_name',
+        (row) => {
+          // Return full description text - no truncation
+          return row.description || row.parameter_description || 'A water quality parameter that affects the aesthetic or operational characteristics of your water system.';
+        },
+        (row) => {
+          // Shorter treatment text since column is smaller
+          const treatment = row.treatment_options || 'Multiple treatment options available. Consult with a certified water treatment professional.';
+          return treatment.length > 60 ? treatment.substring(0, 60) + '...' : treatment;
+        }
+      ]
+    }
+  };
+
+  const currentConfig = config[type];
+  
+  // Optimized column widths with more padding space
+  const columnWidths = [95, 260, 110]; // Parameter: 95, Health Effect/Description: 260, Treatment: 110
+  // Total: 465 points + padding = well within page limits
+
+  return (
+    <View>
+      {/* Table Header */}
+      <View style={styles.tableHeader} fixed>
+        {currentConfig.headers.map((header, headerIndex) => (
+          <View key={headerIndex} style={{ 
+            width: columnWidths[headerIndex], 
+            paddingRight: 6 // Increased padding between columns
+          }}>
+            <Text style={[styles.tableCellHeader, { textAlign: 'left' }]}>
+              {header}
+            </Text>
+          </View>
+        ))}
+      </View>
+      
+      {/* Continuous table body with smart breaks */}
+      <View style={styles.tableContainer}>
+        {data.map((row, rowIndex) => (
+          <View 
+            key={rowIndex} 
+            style={[styles.tableRow, { 
+              minHeight: 30, // Minimum height for readability
+              paddingVertical: 5 // Increased vertical padding
+            }]}
+            minPresenceAhead={rowIndex < data.length - 1 ? 30 : 0} // Reserve space for next row
+          >
+            {currentConfig.dataMapping.map((mapFunc, cellIndex) => (
+              <View key={cellIndex} style={{ 
+                width: columnWidths[cellIndex], 
+                paddingRight: 6, // Increased padding between columns
+                alignItems: 'flex-start',
+                justifyContent: 'flex-start'
+              }}>
+                <Text style={[
+                  cellIndex === 0 ? styles.tableCellParameterName : styles.tableCell,
+                  { 
+                    fontSize: cellIndex === 0 ? 9 : 8, 
+                    lineHeight: 1.4, // Better line height for readability
+                    fontWeight: cellIndex === 0 ? 'bold' : 'normal',
+                    textAlign: 'left'
+                  }
+                ]} wrap={true}>
+                  {typeof mapFunc === 'function' ? mapFunc(row) : row[mapFunc]}
+                </Text>
+              </View>
+            ))}
+          </View>
+        ))}
+      </View>
+    </View>
+  );
 };
   
 
@@ -1184,16 +1394,14 @@ const CWQIComponent = ({ cwqi, title }) => {
     );
   };
 
-// Replace the PDFTable component with better text wrapping
+// // Fixed PDFTable with corrected chunking and no gray blocks
 const PDFTable = ({ headers, data, keyMapping, showExceeded = false, tableType = 'default', allowBreak = true }) => {
   
   const getColumnWidths = (tableType) => {
     if (tableType === 'results') {
-      return [210, 40, 40, 110, 75];
-    } else if (tableType === 'concerns') {
-      return [120, 180, 170]; // Adjusted widths for better text wrapping
+      return [180, 70, 35, 100, 90];
     } else if (tableType === 'general') {
-      return [180,120,80];
+      return [180, 120, 80];
     } else if (tableType === 'general3col') {
       return [120, 80, 60];
     }
@@ -1218,41 +1426,56 @@ const PDFTable = ({ headers, data, keyMapping, showExceeded = false, tableType =
     }
   };
 
-  // Split data into smaller chunks for concerns tables
-  const chunkSize = tableType === 'concerns' ? 5 : 25;
-  const chunks = [];
-  for (let i = 0; i < data.length; i += chunkSize) {
-    chunks.push(data.slice(i, i + chunkSize));
-  }
+  // Only apply chunking to results tables
+  if (tableType === 'results') {
+    // Different chunk sizes for results tables only
+    const firstChunkSize = 18;    // First page
+    const subsequentChunkSize = 25; // Subsequent pages
+    
+    // Fixed chunking logic
+    const createChunks = (data, firstChunkSize, subsequentChunkSize) => {
+      const chunks = [];
+      let currentIndex = 0;
+      
+      // First chunk
+      if (data.length > 0) {
+        const firstChunk = data.slice(0, Math.min(firstChunkSize, data.length));
+        chunks.push(firstChunk);
+        currentIndex = firstChunk.length;
+      }
+      
+      // Subsequent chunks
+      while (currentIndex < data.length) {
+        const chunk = data.slice(currentIndex, Math.min(currentIndex + subsequentChunkSize, data.length));
+        chunks.push(chunk);
+        currentIndex += subsequentChunkSize;
+      }
+      
+      return chunks;
+    };
 
-  return (
-    <View>
-      {chunks.map((chunk, chunkIndex) => (
-        <View 
-          key={chunkIndex} 
-          style={[
-            styles.tableContainer,
-            chunkIndex > 0 && tableType === 'concerns' && { marginTop: 15 }
-          ]} 
-          wrap={false}
-          break={chunkIndex > 0 && tableType === 'concerns'}
-        >
-          <View style={styles.table}>
-            {/* Header Row - Show for each chunk */}
-            <View style={styles.tableHeader} wrap={false}>
+    const chunks = createChunks(data, firstChunkSize, subsequentChunkSize);
+
+    return (
+      <View>
+        {chunks.map((chunk, chunkIndex) => (
+          <View 
+            key={chunkIndex}
+            break={chunkIndex > 0} // Force page break between chunks
+            wrap={false} // Prevent breaking within chunks
+          >
+            {/* Header for each chunk */}
+            <View style={styles.tableHeader}>
               {headers.map((header, index) => (
-                <View key={index} style={{ width: columnWidths[index], paddingRight: 3 }}>
-                  <Text 
-                    style={[styles.tableCellHeader, { textAlign: index === 0 ? 'left' : 'center' }]}
-                    wrap={false}
-                  >
-                    {header}
+                <View key={index} style={{ width: columnWidths[index], paddingRight: 6 }}>
+                  <Text style={[styles.tableCellHeader, { textAlign: index === 0 ? 'left' : 'center' }]}>
+                    {chunkIndex > 0 ? `${header} (continued)` : header}
                   </Text>
                 </View>
               ))}
             </View>
             
-            {/* Data Rows */}
+            {/* Rows for this chunk */}
             {chunk.map((row, rowIndex) => {
               const isExceeded = showExceeded && isParameterExceeded(row);
               
@@ -1260,22 +1483,22 @@ const PDFTable = ({ headers, data, keyMapping, showExceeded = false, tableType =
                 <View 
                   key={rowIndex} 
                   style={isExceeded ? styles.tableRowExceeded : styles.tableRow}
-                  wrap={false}
                 >
                   {keyMapping.map((key, cellIndex) => (
-                    <View key={cellIndex} style={{ width: columnWidths[cellIndex], paddingRight: 3 }}>
-                      <Text 
-                        style={[
-                          cellIndex === 0 ? styles.tableCellParameterName : styles.tableCell,
-                          { 
-                            textAlign: cellIndex === 0 ? 'left' : (tableType === 'concerns' ? 'left' : 'center'),
-                            fontWeight: cellIndex === 0 ? 'bold' : 'normal',
-                            fontSize: tableType === 'concerns' ? 8 : 9, // Smaller font for concerns
-                            lineHeight: tableType === 'concerns' ? 1.2 : 1.3
-                          }
-                        ]}
-                        wrap={true} // Allow text wrapping
-                      >
+                    <View key={cellIndex} style={{ 
+                      width: columnWidths[cellIndex], 
+                      paddingRight: 6,
+                      justifyContent: 'center'
+                    }}>
+                      <Text style={[
+                        cellIndex === 0 ? styles.tableCellParameterName : styles.tableCell,
+                        { 
+                          textAlign: cellIndex === 0 ? 'left' : 'center',
+                          fontWeight: cellIndex === 0 ? 'bold' : 'normal',
+                          fontSize: 9,
+                          lineHeight: 1.3
+                        }
+                      ]}>
                         {typeof key === 'function' ? key(row) : row[key] || 'N/A'}
                       </Text>
                     </View>
@@ -1283,9 +1506,75 @@ const PDFTable = ({ headers, data, keyMapping, showExceeded = false, tableType =
                 </View>
               );
             })}
+            
+            {/* Progress indicator */}
+            {chunks.length > 1 && (
+              <View style={{ marginTop: 8, alignItems: 'center' }}>
+                <Text style={{ fontSize: 8, color: '#6B7280' }}>
+                  {(() => {
+                    const startIndex = chunks.slice(0, chunkIndex).reduce((sum, c) => sum + c.length, 0) + 1;
+                    const endIndex = chunks.slice(0, chunkIndex + 1).reduce((sum, c) => sum + c.length, 0);
+                    return `Showing ${startIndex}-${endIndex} of ${data.length} parameters`;
+                  })()}
+                </Text>
+              </View>
+            )}
           </View>
-        </View>
-      ))}
+        ))}
+      </View>
+    );
+  }
+
+  // For all other table types (concerns, general, etc.) - single continuous table
+  return (
+    <View>
+      {/* Single header */}
+      <View style={styles.tableHeader}>
+        {headers.map((header, index) => (
+          <View key={index} style={{ width: columnWidths[index], paddingRight: 6 }}>
+            <Text 
+              style={[styles.tableCellHeader, { textAlign: index === 0 ? 'left' : 'center' }]}
+            >
+              {header}
+            </Text>
+          </View>
+        ))}
+      </View>
+      
+      {/* All data rows in one container */}
+      {data.map((row, rowIndex) => {
+        const isExceeded = showExceeded && isParameterExceeded(row);
+        
+        return (
+          <View 
+            key={rowIndex} 
+            style={isExceeded ? styles.tableRowExceeded : styles.tableRow}
+            minPresenceAhead={25} // Reserve space for next row
+          >
+            {keyMapping.map((key, cellIndex) => (
+              <View key={cellIndex} style={{ 
+                width: columnWidths[cellIndex], 
+                paddingRight: 6,
+                justifyContent: 'center'
+              }}>
+                <Text 
+                  style={[
+                    cellIndex === 0 ? styles.tableCellParameterName : styles.tableCell,
+                    { 
+                      textAlign: cellIndex === 0 ? 'left' : 'center',
+                      fontWeight: cellIndex === 0 ? 'bold' : 'normal',
+                      fontSize: 9,
+                      lineHeight: 1.3
+                    }
+                  ]}
+                >
+                  {typeof key === 'function' ? key(row) : row[key] || 'N/A'}
+                </Text>
+              </View>
+            ))}
+          </View>
+        );
+      })}
     </View>
   );
 };
@@ -1544,82 +1833,35 @@ const formatLabResult = (param) => {
             style={styles.waterFirstLogoImage}
           />
         </View>
-  
-        {/* Health Parameters Summary - Updated Layout with Proper Spacing */}
-{/* Health Parameters Summary - CWQI Only */}
-<View wrap={false} break={true}>
-  <Text style={styles.subsectionTitle}>Health Related Parameters</Text>
-  <ParametersSection 
-    cwqi={healthCWQI} 
-    concerns={healthConcerns}
-    type="health"
-    title="Health Related Parameters"
-  />
-  <RecommendationsSection 
-    concerns={healthConcerns}
-    type="health"
-  />
-</View>
 
-{/* Force Health Concerns Table to New Page */}
-{healthConcerns.length > 0 && (
-  <View wrap={false} break={true}>
-    <Text style={styles.subsectionTitle}>Health Parameters of Concern - Details</Text>
-    <PDFTable
-      headers={['Parameter', 'Health Effect', 'Treatment Options']}
-      data={healthConcerns}
-      keyMapping={[
-        'parameter_name',
-        (row) => {
-          const healthEffect = row.health_effects || 'Elevated levels may pose health risks. Consult with a water treatment professional for specific health implications and recommended actions.';
-          return healthEffect.length > 120 ? healthEffect.substring(0, 120) + '...' : healthEffect;
-        },
-        (row) => {
-          const treatment = row.treatment_options || 'Multiple treatment options are available including filtration, softening, and chemical treatment. Consult with a certified water treatment professional to determine the best solution for your specific situation.';
-          return treatment.length > 100 ? treatment.substring(0, 100) + '...' : treatment;
-        }
-      ]}
-      tableType="concerns"
-      allowBreak={false}
-    />
-  </View>
-)}
+        {/* Footer */}
+        <Text style={styles.footer}>
+          This report is generated based on laboratory analysis results. For questions about your water quality or treatment options, please consult with a qualified water treatment professional.
+        </Text>
+      </Page>
   
-        {/* AO Parameters Summary - New Layout */}
-        <View wrap={false} break={true}>
+        {/* Health Parameters Section - All in one */}
+        <Page size="A4" style={styles.page}>
+        <View>
+          <Text style={styles.subsectionTitle}>Health Related Parameters</Text>
+          <ParametersSection 
+            cwqi={healthCWQI} 
+            concerns={healthConcerns}
+            type="health"
+            title="Health Related Parameters"
+          />
+        </View>
+  
+        {/* AO Parameters Section - All in one */}
+        <View break={true}>
           <Text style={styles.subsectionTitle}>Aesthetic and Operational Parameters</Text>
           <ParametersSection 
             cwqi={aoCWQI} 
             concerns={aoConcerns}
             type="ao"
-          />
-          <RecommendationsSection 
-            concerns={aoConcerns}
-            type="ao"
+            title="Aesthetic and Operational Parameters"
           />
         </View>
-  
-        {aoConcerns.length > 0 && (
-          <View wrap={false}>
-            <PDFTable
-              headers={['Parameter', 'Description', 'Treatment Options']}
-              data={aoConcerns}
-              keyMapping={[
-                'parameter_name',
-                (row) => {
-                  const description = row.description || row.parameter_description || 'A water quality parameter that affects the aesthetic or operational characteristics of your water system.';
-                  return description.length > 120 ? description.substring(0, 120) + '...' : description;
-                },
-                (row) => {
-                  const treatment = row.treatment_options || 'Multiple treatment options are available including filtration, softening, and chemical treatment. Consult with a certified water treatment professional to determine the best solution for your specific situation.';
-                  return treatment.length > 100 ? treatment.substring(0, 100) + '...' : treatment;
-                }
-              ]}
-              tableType="concerns"
-              allowBreak={false}
-            />
-          </View>
-        )}
   
         {/* General Recommendations Section */}
         <View style={styles.recommendationsSection} break={true}>
@@ -1635,11 +1877,6 @@ const formatLabResult = (param) => {
             </Text>
           </View>
         </View>
-  
-        {/* Footer */}
-        <Text style={styles.footer}>
-          This report is generated based on laboratory analysis results. For questions about your water quality or treatment options, please consult with a qualified water treatment professional.
-        </Text>
       </Page>
   
       {/* Page 2: Full Results Tables */}
@@ -1783,7 +2020,7 @@ const formatLabResult = (param) => {
           • Amplitude: The degree to which each failed parameter exceeds its objective.
         </Text>
         
-        <Text style={styles.cwqiInfoText}>
+        {/* <Text style={styles.cwqiInfoText}>
           The concentration reported by the laboratory for each parameter is characterized by a colouring system:
         </Text>
         
@@ -1793,7 +2030,7 @@ const formatLabResult = (param) => {
         
         <Text style={styles.cwqiInfoList}>
           • Red: Concentration fails to meet the standards/guidelines
-        </Text>
+        </Text> */}
         
         {/* CWQI Rating Table */}
         <View style={styles.cwqiRatingTable} break={false} wrap={false}>
