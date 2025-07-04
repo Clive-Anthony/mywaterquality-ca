@@ -9,7 +9,7 @@ import { supabase } from '../lib/supabaseClient';
 export default function TopNav() {
   const navigate = useNavigate();
   const location = useLocation();
-  const { user } = useAuth();
+  const { user, isReady } = useAuth();
   const { cartSummary, cartItems, updateCartItemQuantity, removeFromCart } = useCart();
   const [loading, setLoading] = useState(false);
   const [showCartDropdown, setShowCartDropdown] = useState(false);
@@ -76,26 +76,28 @@ export default function TopNav() {
     };
   }, [showMobileMenu]);
 
-  useEffect(() => {
-    const fetchUserRole = async () => {
-      if (!user) {
-        setUserRole(null);
-        return;
-      }
-      
-      try {
-        const { data } = await supabase.rpc('get_user_role', {
-          user_uuid: user.id
-        });
-        setUserRole(data);
-      } catch (error) {
-        console.error('Error fetching user role:', error);
-        setUserRole('user'); // Default to regular user
-      }
-    };
-  
-    fetchUserRole();
-  }, [user]);
+  // In src/components/TopNav.jsx, replace the existing useEffect for fetching user role:
+
+useEffect(() => {
+  const fetchUserRole = async () => {
+    if (!user || !isReady) { // Add isReady check
+      setUserRole(null);
+      return;
+    }
+    
+    try {
+      const { data } = await supabase.rpc('get_user_role', {
+        user_uuid: user.id
+      });
+      setUserRole(data);
+    } catch (error) {
+      console.error('Error fetching user role:', error);
+      setUserRole('user'); // Default to regular user
+    }
+  };
+
+  fetchUserRole();
+}, [user, isReady]); 
 
   const handleSignOut = async () => {
     setLoading(true);

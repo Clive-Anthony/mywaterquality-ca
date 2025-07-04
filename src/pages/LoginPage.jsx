@@ -9,7 +9,7 @@ import { supabase } from '../lib/supabaseClient';
 export default function LoginPage() {
   const navigate = useNavigate();
   const location = useLocation();
-  const { user, loading: authLoading } = useAuth(); // Add this
+  const { user, loading: authLoading, isReady } = useAuth(); // Add this
   const [email, setEmail] = useState('');
   const [password, setPassword] = useState('');
   const [loading, setLoading] = useState(false);
@@ -47,10 +47,10 @@ export default function LoginPage() {
   }, [location, navigate]);
 
   // Handle auth state changes - navigate when user is authenticated
-    useEffect(() => {
-      const handleSuccessfulAuth = async () => {
-        if (waitingForAuth && user && !authLoading) {
-          console.log('Auth state updated, user is now authenticated');
+      useEffect(() => {
+        const handleSuccessfulAuth = async () => {
+          if (waitingForAuth && user && !authLoading && isReady) { // Add isReady check
+            console.log('Auth state updated, user is now authenticated');
           
           try {
             // Fetch user role to determine redirect destination

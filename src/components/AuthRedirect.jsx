@@ -20,6 +20,24 @@ const AuthRedirect = () => {
     };
   }, []);
 
+  // Helper function to determine redirect path based on user role
+  const getRedirectPath = async (user) => {
+    try {
+      const { data: userRole } = await supabase.rpc('get_user_role', {
+        user_uuid: user.id
+      });
+      
+      console.log('User role for redirect:', userRole);
+      
+      return (userRole === 'admin' || userRole === 'super_admin') 
+        ? '/admin-dashboard' 
+        : '/dashboard';
+    } catch (error) {
+      console.error('Error fetching user role for redirect:', error);
+      return '/dashboard'; // Default fallback
+    }
+  };
+
   useEffect(() => {
     const handleRedirect = async () => {
       // Prevent multiple simultaneous processing
@@ -130,17 +148,19 @@ const AuthRedirect = () => {
         console.log('Session established successfully');
         setStatus('success');
 
+        // Get redirect path based on user role
+        const redirectPath = await getRedirectPath(data.user);
+        
         // Wait a bit for AuthContext to update, then navigate
         setTimeout(() => {
           if (mountedRef.current) {
-            // Get intended destination
-            const returnTo = sessionStorage.getItem('auth_return_to') || '/dashboard';
+            // Clear any stored return path since we're determining path by role
             sessionStorage.removeItem('auth_return_to');
             
-            console.log('Navigating to:', returnTo);
-            navigate(returnTo, { replace: true });
+            console.log('Navigating to:', redirectPath);
+            navigate(redirectPath, { replace: true });
           }
-        }, 1000); // Reduced from 1500ms to be more responsive
+        }, 1000);
 
       } catch (error) {
         console.error('Auth redirect error:', error);
@@ -167,10 +187,23 @@ const AuthRedirect = () => {
 
   // Don't render anything if already authenticated (avoid interference)
   if (isAuthenticated && isReady) {
-    // Redirect authenticated users away immediately
-    const returnTo = sessionStorage.getItem('auth_return_to') || '/dashboard';
-    sessionStorage.removeItem('auth_return_to');
-    navigate(returnTo, { replace: true });
+    // For authenticated users, determine redirect path and navigate
+    const handleAuthenticatedRedirect = async () => {
+      try {
+        const { data: { user } } = await supabase.auth.getUser();
+        if (user) {
+          const redirectPath = await getRedirectPath(user);
+          navigate(redirectPath, { replace: true });
+        } else {
+          navigate('/dashboard', { replace: true });
+        }
+      } catch (error) {
+        console.error('Error handling authenticated redirect:', error);
+        navigate('/dashboard', { replace: true });
+      }
+    };
+    
+    handleAuthenticatedRedirect();
     return null;
   }
 

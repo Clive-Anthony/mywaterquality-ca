@@ -5,22 +5,32 @@ import { useAuth } from '../contexts/AuthContext';
 import { supabase } from '../lib/supabaseClient';
 
 export default function AdminProtectedRoute({ children }) {
-  const { user, loading: authLoading } = useAuth();
+  const { user, loading: authLoading, isReady } = useAuth();
   const [userRole, setUserRole] = useState(null);
   const [roleLoading, setRoleLoading] = useState(true);
+  const [roleFetchAttempted, setRoleFetchAttempted] = useState(false);
   const [error, setError] = useState(null);
   
-  // Fetch user role when user is available
+  // Fetch user role when user is available and auth is ready
   useEffect(() => {
     const fetchUserRole = async () => {
-      if (!user) {
+      // If auth is ready but there's no user, we don't need to fetch role
+      if (isReady && !user) {
         setRoleLoading(false);
+        setRoleFetchAttempted(true); // Mark as attempted so we can redirect to login
         return;
+      }
+
+      // Wait for auth to be ready and user to be available
+      if (!isReady || !user) {
+        return; // Don't set roleFetchAttempted yet, keep waiting
       }
 
       try {
         setRoleLoading(true);
         setError(null);
+
+        // console.log('Fetching role for user:', user.id);
 
         // Call the get_user_role function to get user's role
         const { data, error } = await supabase.rpc('get_user_role', {
@@ -33,20 +43,33 @@ export default function AdminProtectedRoute({ children }) {
 
         console.log('User role fetched:', data);
         setUserRole(data);
+        setRoleFetchAttempted(true);
       } catch (err) {
         console.error('Error fetching user role:', err);
         setError(err.message);
         setUserRole('user'); // Default to regular user on error
+        setRoleFetchAttempted(true);
       } finally {
         setRoleLoading(false);
       }
     };
 
     fetchUserRole();
-  }, [user]);
+  }, [user, isReady]);
+
+  // Reset state when user changes (including sign out)
+  useEffect(() => {
+    if (isReady && !user) {
+      // User signed out, reset all state
+      setUserRole(null);
+      setRoleLoading(false);
+      setRoleFetchAttempted(true);
+      setError(null);
+    }
+  }, [user, isReady]);
   
   // Show loading spinner while checking auth status and role
-  if (authLoading || roleLoading) {
+  if (authLoading || !isReady || (user && (roleLoading || !roleFetchAttempted))) {
     return (
       <div className="flex justify-center items-center h-screen">
         <div className="text-center">
@@ -79,19 +102,20 @@ export default function AdminProtectedRoute({ children }) {
     );
   }
   
-  // Redirect to dashboard if user doesn't have admin role
-    // Wait for role to be loaded before making redirect decision
-    if (!roleLoading && userRole && userRole !== 'admin' && userRole !== 'super_admin') {
-        console.log('User does not have admin role, redirecting to dashboard. User role:', userRole);
-        return <Navigate to="/dashboard" replace />;
+  // Only make redirect decisions AFTER we've attempted to fetch the role
+  if (roleFetchAttempted) {
+    // Redirect to dashboard if user doesn't have admin role
+    if (userRole && userRole !== 'admin' && userRole !== 'super_admin') {
+      console.log('User does not have admin role, redirecting to dashboard. User role:', userRole);
+      return <Navigate to="/dashboard" replace />;
     }
     
-    // Don't redirect if we're still loading the role or if role is null (still loading)
-    if (!roleLoading && userRole === null) {
-        // Role fetch completed but returned null - this might be an error case
-        console.log('Role fetch completed but no role found, treating as regular user');
-        return <Navigate to="/dashboard" replace />;
+    // If role is null after fetch attempt, assume not admin
+    if (userRole === null) {
+      console.log('Role fetch completed but no role found, treating as regular user');
+      return <Navigate to="/dashboard" replace />;
     }
+  }
   
   // Render children if user has admin role
   return children;
