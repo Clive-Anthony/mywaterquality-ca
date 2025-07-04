@@ -1,34 +1,16 @@
-// src/components/WaterQualityReportPDF.jsx - Updated to match web report formatting
+// src/components/WaterQualityReportPDF.jsx - Updated to fix Buffer issues
 import React from 'react';
 import { Document, Page, Text, View, StyleSheet, Image } from '@react-pdf/renderer';
 import { Buffer } from 'buffer';
-
 
 // Buffer polyfill for @react-pdf/renderer
 if (typeof global === 'undefined') {
   window.global = window;
 }
 
-// Try to use the built-in Buffer if available, otherwise create a minimal polyfill
+// Set up Buffer globally for @react-pdf/renderer
 if (typeof global.Buffer === 'undefined') {
-  try {
-    // Try to import buffer package if available
-    const { Buffer } = await import('buffer');
-    global.Buffer = Buffer;
-  } catch (e) {
-    // Minimal Buffer polyfill for @react-pdf/renderer image processing
-    global.Buffer = {
-      from: (data, encoding = 'utf8') => {
-        if (typeof data === 'string') {
-          return new TextEncoder().encode(data);
-        }
-        return data;
-      },
-      isBuffer: (obj) => obj instanceof Uint8Array,
-      alloc: (size) => new Uint8Array(size),
-      allocUnsafe: (size) => new Uint8Array(size)
-    };
-  }
+  global.Buffer = Buffer;
 }
 
 // Create styles for PDF
