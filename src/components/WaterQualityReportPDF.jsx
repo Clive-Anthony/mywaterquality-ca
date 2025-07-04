@@ -299,21 +299,21 @@ tableHeaderRepeatable: {
     marginBottom: 2,
   },
   recommendationBox: {
-    backgroundColor: '#EFF6FF',
-    border: '1 solid #DBEAFE',
-    borderRadius: 5,
-    padding: 10,
+    backgroundColor: '#FFFFFF', // White background
+    border: '1 solid  #D1D5DB', // Grey border
+    borderRadius: 8,
+    padding: 12, // Slightly increased padding
     marginBottom: 10,
   },
   recommendationTitle: {
-    fontSize: 10,
+    fontSize: 12, // Increased from 10
     fontWeight: 'bold',
-    color: '#1E40AF',
-    marginBottom: 5,
+    color: '#1F2937', // Dark grey/black to match rest of PDF
+    marginBottom: 12, // Increased spacing
   },
   recommendationText: {
-    fontSize: 9,
-    color: '#1E40AF',
+    fontSize: 11, // Increased from 9
+    color: '#374151', // Grey to match rest of PDF text
     lineHeight: 1.4,
   },
   recommendationList: {
@@ -918,10 +918,8 @@ const test_kit_display = "Advanced Water Test Kit"
 // const customer_name = "Nicole Cancelli";
 // const order_number = 236;
 // const sample_description = "Barn Sink - Raw Water";
-// const TEST_KIT = "City Water Test Kit";
+// const TEST_KIT = "Advanced Water Test Kit";
 // const test_kit_display = "Multiple Test Kits"
-
-
 
 
 
@@ -1273,7 +1271,7 @@ const SummaryCards = ({ bacteriological, healthConcerns, aoConcerns, testKit }) 
     const aoConcernsCount = aoConcerns.length;
     
     // Determine if bacteriological card should be shown
-    const showBacteriologicalCard = testKit === "Advanced Water Test Kit";
+    const showBacteriologicalCard = testKit === "Advanced Water Test Kit" || testKit === "City Water Test Kit";
   
     return (
         <View style={showBacteriologicalCard ? styles.summaryCardsContainer : styles.summaryCardsContainerTwoCards}>
@@ -1654,6 +1652,42 @@ const formatLabResult = (param) => {
           aoConcerns={aoConcerns}
           testKit={TEST_KIT}
         />
+
+        {/* Concerns Summary Text Box - Show when there are concerns but no coliform contamination */}
+        {(healthConcerns.length > 0 || aoConcerns.length > 0) && 
+        !bacteriological.some(param => 
+          (param.parameter_name?.toLowerCase().includes('coliform') || 
+            param.parameter_name?.toLowerCase().includes('escherichia') ||
+            param.parameter_name?.toLowerCase().includes('e. coli') ||
+            param.parameter_name?.toLowerCase().includes('e.coli')) &&
+          (param.result_display_value?.includes('Detected') || 
+            param.result_value?.includes('NDOGT') || 
+            param.result_numeric?.toString().includes('NDOGT') ||
+            param.compliance_status === 'EXCEEDS_MAC')
+        ) && (
+          <View style={styles.recommendationBox}>
+            <Text style={styles.recommendationTitle}>
+              Results Explanation
+            </Text>
+            <Text style={[styles.recommendationText, { fontWeight: 'bold' }]}>
+              There are {healthConcerns.length > 0 && aoConcerns.length > 0 ? 'health-related and aesthetic' : 
+                        healthConcerns.length > 0 ? 'health-related' : 'aesthetic'} concerns.
+            </Text>
+            {healthConcerns.length > 0 && (
+              <Text style={[styles.recommendationText, { marginTop: 8 }]}>
+                We strongly recommend consulting with a water treatment professional and retesting after any treatment is installed.
+              </Text>
+            )}
+            {aoConcerns.length > 0 && (
+              <Text style={[styles.recommendationText, { marginTop: 8 }]}>
+                While not necessarily health concerns, these may affect taste, odor, or water system performance. Consider treatment options to improve water quality.
+              </Text>
+            )}
+            <Text style={[styles.recommendationText, { marginTop: 8 }]}>
+              Please refer to the Recommendations tables in the report for actions you can take to improve water quality.
+            </Text>
+          </View>
+        )}
   
         {/* Bacteriological Results */}
           {bacteriological.length > 0 && (() => {
@@ -1703,20 +1737,6 @@ const formatLabResult = (param) => {
                         After disinfection, it is important to <Text style={styles.alertTextBold}>re-test your water</Text> to confirm the effectiveness of treatment before resuming consumption.
                       </Text>
                     </View>
-                  </View>
-                </View>
-              );
-            } else {
-              // Show no coliforms detected box with green border
-              return (
-                <View>
-                  <View style={styles.noColiformsBox}>
-                    <Text style={styles.summaryCardTitle}>
-                      Bacteriological Results
-                    </Text>
-                    <Text style={styles.noColiformsText}>
-                      No Coliforms were detected in your water
-                    </Text>
                   </View>
                 </View>
               );
@@ -1968,8 +1988,10 @@ const formatLabResult = (param) => {
         />
       </View>
       )}
+      </Page>
   
         {/* General Parameters Table - Centered and Smaller */}
+        <Page size="A4" style={styles.page}>
         {generalParameters && generalParameters.length > 0 && (
           <View break={generalParameters.length > 15}>
             <Text style={styles.subsectionTitle}>General Parameter Results</Text>
