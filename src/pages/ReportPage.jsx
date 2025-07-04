@@ -801,198 +801,197 @@ export default function ReportPage() {
           
           <div className="p-6">
             {/* Health Parameters Table */}
-            {healthParameters.length > 0 && (
-              <div className="mb-8">
-                <h3 className="text-lg font-semibold text-gray-900 mb-4">Health Parameter Results (MAC)</h3>
-                <div className="overflow-x-auto">
-                  <table className="min-w-full divide-y divide-gray-200">
-                    <thead className="bg-gray-50">
-                      <tr>
-                        <th className="w-1/4 px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Parameter</th>
-                        <th className="w-1/6 px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Result</th>
-                        <th className="w-1/6 px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Unit</th>
-                        <th className="w-1/4 px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Recommended Maximum Concentration</th>
-                        <th className="w-1/6 px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Status</th>
-                      </tr>
-                    </thead>
-                    <tbody className="bg-white divide-y divide-gray-200">
-                    {healthParameters.map((param, index) => {
-                        const isExceeded = isParameterExceeded(param);
-                        return (
-                            <tr key={index} className={isExceeded ? 'bg-red-50' : ''}>
-                            <td className="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900">
-                                {param.parameter_name}
-                            </td>
-                            <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
-                                {formatLabResult(param)}
-                            </td>
-                            <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
-                                {param.result_units || param.parameter_unit || 'N/A'}
-                            </td>
-                            <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
-                                {param.mac_display || formatValue(param.mac_value, '', 3)}
-                            </td>
-                            <td className="px-6 py-4 whitespace-nowrap">
-                                <div className="flex items-center">
-                                {getConcernIcon(isExceeded)}
-                                <span className={`ml-2 text-sm ${isExceeded ? 'text-red-600' : 'text-green-600'}`}>
-                                    {param.compliance_status === 'MEETS_MAC' ? 'Within Limit' : 
-                                    param.compliance_status === 'EXCEEDS_MAC' ? 'Exceeds Limit' : 
-                                    'No Standard'}
-                                </span>
-                                </div>
-                            </td>
-                            </tr>
-                        );
-                        })}
-                    </tbody>
-                  </table>
-                </div>
+          {healthParameters.length > 0 && (
+            <div className="mb-8">
+              <h3 className="text-lg font-semibold text-gray-900 mb-4">Health Parameter Results (MAC)</h3>
+              <div className="overflow-x-auto">
+                <table className="min-w-full divide-y divide-gray-200">
+                  <thead className="bg-gray-50">
+                    <tr>
+                      <th className="w-1/4 px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Parameter</th>
+                      <th className="w-1/6 px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Result</th>
+                      <th className="w-1/6 px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Unit</th>
+                      <th className="w-1/4 px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Recommended Maximum Concentration</th>
+                      <th className="w-1/6 px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Status</th>
+                    </tr>
+                  </thead>
+                  <tbody className="bg-white divide-y divide-gray-200">
+                  {healthParameters.map((param, index) => {
+                      const isExceeded = isParameterExceeded(param);
+                      return (
+                          <tr key={index} className={isExceeded ? 'bg-red-50' : ''}>
+                          <td className="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900">
+                              {param.parameter_name}
+                          </td>
+                          <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
+                              {formatLabResult(param)}
+                          </td>
+                          <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
+                              {param.result_units || param.parameter_unit || 'N/A'}
+                          </td>
+                          <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
+                              {param.mac_display_value || param.mac_display || 'No Standard'}
+                          </td>
+                          <td className="px-6 py-4 whitespace-nowrap">
+                              <div className="flex items-center">
+                              {getConcernIcon(isExceeded)}
+                              <span className={`ml-2 text-sm ${isExceeded ? 'text-red-600' : 'text-green-600'}`}>
+                                  {param.compliance_status === 'MEETS_MAC' ? 'Within Limit' : 
+                                  param.compliance_status === 'EXCEEDS_MAC' ? 'Exceeds Limit' : 
+                                  'No Standard'}
+                              </span>
+                              </div>
+                          </td>
+                          </tr>
+                      );
+                      })}
+                  </tbody>
+                </table>
               </div>
-            )}
+            </div>
+          )}
 
-            {/* AO Parameters Table */}
-            {aoParameters.length > 0 && (
-              <div className="mb-8">
-                <h3 className="text-lg font-semibold text-gray-900 mb-4">Aesthetic & Operational Parameter Results (AO)</h3>
-                <div className="overflow-x-auto">
-                  <table className="min-w-full divide-y divide-gray-200">
-                    <thead className="bg-gray-50">
-                      <tr>
-                        <th className="w-1/4 px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Parameter</th>
-                        <th className="w-1/6 px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Result</th>
-                        <th className="w-1/6 px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Unit</th>
-                        <th className="w-1/4 px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Recommended Maximum Concentration</th>
-                        <th className="w-1/6 px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Status</th>
+          {/* AO Parameters Table */}
+          {aoParameters.length > 0 && (
+            <div className="mb-8">
+              <h3 className="text-lg font-semibold text-gray-900 mb-4">Aesthetic & Operational Parameter Results (AO)</h3>
+              <div className="overflow-x-auto">
+                <table className="min-w-full divide-y divide-gray-200">
+                  <thead className="bg-gray-50">
+                    <tr>
+                      <th className="w-1/4 px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Parameter</th>
+                      <th className="w-1/6 px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Result</th>
+                      <th className="w-1/6 px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Unit</th>
+                      <th className="w-1/4 px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Recommended Maximum Concentration</th>
+                      <th className="w-1/6 px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Status</th>
+                    </tr>
+                  </thead>
+                  <tbody className="bg-white divide-y divide-gray-200">
+              {aoParameters.map((param, index) => {
+                  const isExceeded = isParameterExceeded(param);
+                  
+                  // Get the overall compliance status for range values
+                  const originalParam = reportData?.rawData?.find(r => 
+                      r.parameter_name === param.parameter_name && 
+                      r.sample_number === param.sample_number
+                  );
+                  
+                  const getStatusText = () => {
+                      if (param.compliance_status === 'MEETS_AO') {
+                      return 'Within Limit';
+                      } else if (param.compliance_status === 'EXCEEDS_AO') {
+                      return 'Exceeds Limit';
+                      } else if (param.compliance_status === 'AO_RANGE_VALUE') {
+                      if (originalParam?.compliance_status === 'WARNING') {
+                          return 'Outside Range';
+                      } else if (originalParam?.compliance_status === 'PASS') {
+                          return 'Within Range';
+                      } else {
+                          return 'Range Value';
+                      }
+                      } else {
+                      return 'No Standard';
+                      }
+                  };
+
+                  return (
+                      <tr key={index} className={isExceeded ? 'bg-red-50' : ''}>
+                      <td className="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900">
+                          {param.parameter_name}
+                      </td>
+                      <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
+                          {formatLabResult(param)}
+                      </td>
+                      <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
+                          {param.result_units || param.parameter_unit || 'N/A'}
+                      </td>
+                      <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
+                          {param.ao_display_value || param.ao_display || 'No Standard'}
+                      </td>
+                      <td className="px-6 py-4 whitespace-nowrap">
+                          <div className="flex items-center">
+                          {getConcernIcon(isExceeded)}
+                          <span className={`ml-2 text-sm ${isExceeded ? 'text-red-600' : 'text-green-600'}`}>
+                              {getStatusText()}
+                          </span>
+                          </div>
+                      </td>
                       </tr>
-                    </thead>
-                    <tbody className="bg-white divide-y divide-gray-200">
-                {aoParameters.map((param, index) => {
-                    const isExceeded = isParameterExceeded(param);
-                    
-                    // Get the overall compliance status for range values
-                    const originalParam = reportData?.rawData?.find(r => 
-                        r.parameter_name === param.parameter_name && 
-                        r.sample_number === param.sample_number
-                    );
-                    
-                    const getStatusText = () => {
-                        if (param.compliance_status === 'MEETS_AO') {
-                        return 'Within Limit';
-                        } else if (param.compliance_status === 'EXCEEDS_AO') {
-                        return 'Exceeds Limit';
-                        } else if (param.compliance_status === 'AO_RANGE_VALUE') {
-                        if (originalParam?.compliance_status === 'WARNING') {
-                            return 'Outside Range';
-                        } else if (originalParam?.compliance_status === 'PASS') {
-                            return 'Within Range';
-                        } else {
-                            return 'Range Value';
-                        }
-                        } else {
-                        return 'No Standard';
-                        }
-                    };
-
-                    return (
-                        <tr key={index} className={isExceeded ? 'bg-red-50' : ''}>
-                        <td className="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900">
-                            {param.parameter_name}
-                        </td>
-                        <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
-                            {formatLabResult(param)}
-                        </td>
-                        <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
-                            {param.result_units || param.parameter_unit || 'N/A'}
-                        </td>
-                        <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
-                            {param.ao_display || formatValue(param.ao_value, '', 3)}
-                        </td>
-                        <td className="px-6 py-4 whitespace-nowrap">
-                            <div className="flex items-center">
-                            {getConcernIcon(isExceeded)}
-                            <span className={`ml-2 text-sm ${isExceeded ? 'text-red-600' : 'text-green-600'}`}>
-                                {getStatusText()}
-                            </span>
-                            </div>
-                        </td>
-                        </tr>
-                    );
-                    })}
-                    </tbody>
-                  </table>
-                </div>
+                  );
+                  })}
+                  </tbody>
+                </table>
               </div>
-            )}
+            </div>
+          )}
 
             {/* Parameters of Concern Details */}
             {(healthConcerns.length > 0 || aoConcerns.length > 0) && (
               <div>
                 
                 {healthConcerns.length > 0 && (
-                  <div className="mb-8">
-                    <h3 className="text-lg font-semibold text-gray-900 mb-4">Health Parameters of Concern - Details</h3>
-                    <div className="overflow-x-auto">
-                      <table className="min-w-full divide-y divide-gray-200">
-                        <thead className="bg-gray-50">
-                          <tr>
-                            <th className="w-1/4 px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Parameter</th>
-                            <th className="w-1/3 px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Description</th>
-                            <th className="w-5/12 px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Health Effect</th>
+                <div className="mb-8">
+                  <h3 className="text-lg font-semibold text-gray-900 mb-4">Health Parameters of Concern - Details</h3>
+                  <div className="overflow-x-auto">
+                    <table className="min-w-full divide-y divide-gray-200">
+                      <thead className="bg-gray-50">
+                        <tr>
+                          <th className="w-1/4 px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Parameter</th>
+                          <th className="w-1/3 px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Health Effect</th>
+                          <th className="w-5/12 px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Treatment Options</th>
+                        </tr>
+                      </thead>
+                      <tbody className="bg-white divide-y divide-gray-200">
+                        {healthConcerns.map((param, index) => (
+                          <tr key={index}>
+                            <td className="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900">
+                              {param.parameter_name}
+                            </td>
+                            <td className="px-6 py-4 text-sm text-gray-900">
+                              {param.health_effects || 'Elevated levels may pose health risks. Consult with a water treatment professional for specific health implications and recommended actions.'}
+                            </td>
+                            <td className="px-6 py-4 text-sm text-gray-900">
+                              {param.treatment_options || 'Multiple treatment options are available including filtration, softening, and chemical treatment. Consult with a certified water treatment professional to determine the best solution for your specific situation.'}
+                            </td>
                           </tr>
-                        </thead>
-                        <tbody className="bg-white divide-y divide-gray-200">
-                          {healthConcerns.map((param, index) => (
-                            <tr key={index}>
-                              <td className="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900">
-                                {param.parameter_name}
-                              </td>
-                              <td className="px-6 py-4 text-sm text-gray-900">
-                                {param.description || param.parameter_description || 'A water quality parameter that requires monitoring for health and safety compliance.'}
-                              </td>
-                              <td className="px-6 py-4 text-sm text-gray-900">
-                                {param.health_effects || 'Elevated levels may pose health risks. Consult with a water treatment professional for specific health implications and recommended actions.'}
-                              </td>
-                            </tr>
-                          ))}
-                        </tbody>
-                      </table>
-                    </div>
+                        ))}
+                      </tbody>
+                    </table>
                   </div>
-                )}
+                </div>
+              )}
 
-             
-                {aoConcerns.length > 0 && (
-                  <div className="mb-8">
-                    <h3 className="text-lg font-semibold text-gray-900 mb-4">Aesthetic/Operational Parameters of Concern - Details</h3>
-                    <div className="overflow-x-auto">
-                      <table className="min-w-full divide-y divide-gray-200">
-                        <thead className="bg-gray-50">
-                          <tr>
-                            <th className="w-1/4 px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Parameter</th>
-                            <th className="w-1/3 px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Description</th>
-                            <th className="w-5/12 px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Treatment Options</th>
+              {aoConcerns.length > 0 && (
+                <div className="mb-8">
+                  <h3 className="text-lg font-semibold text-gray-900 mb-4">Aesthetic/Operational Parameters of Concern - Details</h3>
+                  <div className="overflow-x-auto">
+                    <table className="min-w-full divide-y divide-gray-200">
+                      <thead className="bg-gray-50">
+                        <tr>
+                          <th className="w-1/4 px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Parameter</th>
+                          <th className="w-1/3 px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Aesthetic Considerations</th>
+                          <th className="w-5/12 px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Treatment Options</th>
+                        </tr>
+                      </thead>
+                      <tbody className="bg-white divide-y divide-gray-200">
+                        {aoConcerns.map((param, index) => (
+                          <tr key={index}>
+                            <td className="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900">
+                              {param.parameter_name}
+                            </td>
+                            <td className="px-6 py-4 text-sm text-gray-900">
+                              {param.aesthetic_considerations || param.description || param.parameter_description || 'A water quality parameter that affects the aesthetic or operational characteristics of your water system.'}
+                            </td>
+                            <td className="px-6 py-4 text-sm text-gray-900">
+                              {param.treatment_options || 'Multiple treatment options are available including filtration, softening, and chemical treatment. Consult with a certified water treatment professional to determine the best solution for your specific situation.'}
+                            </td>
                           </tr>
-                        </thead>
-                        <tbody className="bg-white divide-y divide-gray-200">
-                          {aoConcerns.map((param, index) => (
-                            <tr key={index}>
-                              <td className="px-6 py-4 whitespace-nowrap text-sm font-medium text-gray-900">
-                                {param.parameter_name}
-                              </td>
-                              <td className="px-6 py-4 text-sm text-gray-900">
-                                {param.description || param.parameter_description || 'A water quality parameter that affects the aesthetic or operational characteristics of your water system.'}
-                              </td>
-                              <td className="px-6 py-4 text-sm text-gray-900">
-                                {param.treatment_options || 'Multiple treatment options are available including filtration, softening, and chemical treatment. Consult with a certified water treatment professional to determine the best solution for your specific situation.'}
-                              </td>
-                            </tr>
-                          ))}
-                        </tbody>
-                      </table>
-                    </div>
+                        ))}
+                      </tbody>
+                    </table>
                   </div>
-                )}
+                </div>
+              )}
               </div>
             )}
           </div>
