@@ -183,8 +183,8 @@ cwqiInfoTitle: {
     marginBottom: 8,
   },
   cwqiRatingTable: {
-    marginTop: 15,
-    marginBottom: 15,
+    marginTop: 12,
+    marginBottom: 12,
   },
   cwqiRatingHeader: {
     flexDirection: 'row',
@@ -410,6 +410,8 @@ alertBoxPlain: {
     color: '#1F2937', // Black text
     lineHeight: 1.6,
     marginBottom: 15,
+    marginLeft: 10, // Add left margin to align with title box
+    marginRight: 10, // Add right margin to align with title box
   },
   sampleInfoContainer: {
     flexDirection: 'row',
@@ -854,33 +856,33 @@ tableCellConcerns: {
   assessmentPage: {
     flexDirection: 'column',
     backgroundColor: '#FFFFFF',
-    padding: 50, // Increased margins
-    paddingBottom: 70,
-    fontSize: 11, // Size 11 font
-    fontFamily: 'Helvetica', // Arial equivalent in PDF
-    lineHeight: 1.2, // Line spacing 1.2
+    padding: 60, // Increased from 50 to 60
+    paddingBottom: 80, // Increased from 70 to 80
+    fontSize: 10, // Reduced from 11 to 10 for better fit
+    fontFamily: 'Helvetica',
+    lineHeight: 1.15, // Reduced from 1.2 to 1.15 for tighter spacing
   },
   assessmentInfoTitle: {
-    fontSize: 14,
+    fontSize: 13, // Reduced from 14
     fontWeight: 'bold',
-    marginTop: 20,
-    marginBottom: 15,
+    marginTop: 18, // Reduced from 20
+    marginBottom: 12, // Reduced from 15
     color: '#374151',
   },
   
   assessmentInfoText: {
-    fontSize: 11,
+    fontSize: 10, // Reduced from 11
     color: '#374151',
-    lineHeight: 1.2,
-    marginBottom: 12,
+    lineHeight: 1.15, // Reduced from 1.2
+    marginBottom: 10, // Reduced from 12
   },
   
   assessmentInfoList: {
-    fontSize: 11,
+    fontSize: 10, // Reduced from 11
     color: '#374151',
-    lineHeight: 1.2,
+    lineHeight: 1.15, // Reduced from 1.2
     marginLeft: 15,
-    marginBottom: 12,
+    marginBottom: 10, // Reduced from 12
   },
 
   perfectWaterBox: {
@@ -913,7 +915,8 @@ tableCellConcerns: {
     marginTop: 10,
   },
   noColiformsText: {
-    fontSize: 11,
+    fontSize: 10,
+    marginTop:4,
     color: '#374151',
     textAlign: 'center',
     fontWeight: 'normal',
@@ -921,19 +924,20 @@ tableCellConcerns: {
 });
 
 // DEFAULT DATA - uncomment for production
-// const customer_first = "John"
-// const customer_name = "John Smith";
-// const order_number = 1450;
-// const sample_description = "Water from Tap";
-// const TEST_KIT = "Advanced Water Test Kit";
+const customer_first = "John"
+const customer_name = "John Smith";
+const order_number = 1450;
+const sample_description = "Water from Tap";
+const TEST_KIT = "Advanced Water Test Kit";
+const test_kit_display = "Advanced Water Test Kit"
 
 // CUSTOMER DATA -- uncomment when producing one-off reports
-const customer_first = "Nicole"
-const customer_name = "Nicole Cancelli";
-const order_number = 236;
-const sample_description = "Barn Sink - Raw Water";
-const TEST_KIT = "City Water Test Kit";
-const test_kit_display = "Multiple Test Kits"
+// const customer_first = "Nicole"
+// const customer_name = "Nicole Cancelli";
+// const order_number = 236;
+// const sample_description = "Barn Sink - Raw Water";
+// const TEST_KIT = "City Water Test Kit";
+// const test_kit_display = "Multiple Test Kits"
 
 
 
@@ -1423,7 +1427,8 @@ const PDFTable = ({ headers, data, keyMapping, showExceeded = false, tableType =
   
   const getColumnWidths = (tableType) => {
     if (tableType === 'results') {
-      return [180, 70, 35, 100, 90];
+      // Updated widths for new order: Parameter, Unit, Objective, Result, Status
+      return [180, 35, 100, 70, 90];
     } else if (tableType === 'general') {
       return [180, 120, 80];
     } else if (tableType === 'general3col') {
@@ -1669,71 +1674,72 @@ const formatLabResult = (param) => {
         />
   
         {/* Bacteriological Results */}
-        {bacteriological.length > 0 && (() => {
-          // Check for coliform detection using result_display_value or compliance status
-          const contaminatedParams = bacteriological.filter(param => 
-            (param.parameter_name?.toLowerCase().includes('coliform') || 
-            param.parameter_name?.toLowerCase().includes('escherichia') ||
-            param.parameter_name?.toLowerCase().includes('e. coli') ||
-            param.parameter_name?.toLowerCase().includes('e.coli')) &&
-            (param.result_display_value?.includes('Detected') || 
-            param.result_value?.includes('NDOGT') || 
-            param.result_numeric?.toString().includes('NDOGT') ||
-            param.compliance_status === 'EXCEEDS_MAC')
-          );
+          {bacteriological.length > 0 && (() => {
+            // Check for coliform detection using result_display_value or compliance status
+            const contaminatedParams = bacteriological.filter(param => 
+              (param.parameter_name?.toLowerCase().includes('coliform') || 
+              param.parameter_name?.toLowerCase().includes('escherichia') ||
+              param.parameter_name?.toLowerCase().includes('e. coli') ||
+              param.parameter_name?.toLowerCase().includes('e.coli')) &&
+              (param.result_display_value?.includes('Detected') || 
+              param.result_value?.includes('NDOGT') || 
+              param.result_numeric?.toString().includes('NDOGT') ||
+              param.compliance_status === 'EXCEEDS_MAC')
+            );
 
-          if (contaminatedParams.length > 0) {
-            // Show contamination warning
-            return (
-              <View>
-                <Text style={styles.subsectionTitle}>Bacteriological Results</Text>
-                <View style={styles.alertBoxContamination}>
-                  <View style={styles.alertIconContainer}>
-                    <Text style={styles.alertIcon}>⚠</Text>
+            if (contaminatedParams.length > 0) {
+              // Show contamination warning
+              return (
+                <View>
+                  <View style={styles.alertBoxContamination}>
+                    <View style={styles.alertIconContainer}>
+                      <Text style={styles.alertIcon}>⚠</Text>
+                    </View>
+                    <View style={styles.alertContentContainer}>
+                      <Text style={styles.alertTextBold}>
+                        Bacteriological Results - Important Notice: Coliform Bacteria Detected
+                      </Text>
+                      <Text style={[styles.alertTextContamination, { marginTop: 6 }]}>
+                        Coliform bacteria have been detected in your drinking water sample. While not necessarily harmful themselves, their presence indicates that disease-causing organisms may also be present. Immediate action is recommended.
+                      </Text>
+                      <Text style={[styles.alertTextBold, { marginTop: 8 }]}>
+                        Disinfect Your Well System:
+                      </Text>
+                      <Text style={[styles.alertTextContamination, { marginTop: 4 }]}>
+                        To reduce the risk of illness, you should disinfect your well and water system. This process is commonly referred to as "shock chlorination."
+                      </Text>
+                      <Text style={[styles.alertTextContamination, { marginTop: 6 }]}>
+                        We strongly recommend that you:
+                      </Text>
+                      <Text style={[styles.alertTextContamination, { marginTop: 4, marginLeft: 10 }]}>
+                        • <Text style={styles.alertTextBold}>Contact a licensed water well contractor</Text> to inspect and disinfect your well, <Text style={styles.alertTextBold}>or</Text>
+                      </Text>
+                      <Text style={[styles.alertTextContamination, { marginTop: 2, marginLeft: 10 }]}>
+                        • <Text style={styles.alertTextBold}>Follow the well disinfection instructions</Text> provided by Health Canada: <Text style={styles.alertTextLink}>https://www.canada.ca/en/health-canada/services/environment/drinking-water/well/treat.html</Text>
+                      </Text>
+                      <Text style={[styles.alertTextContamination, { marginTop: 8 }]}>
+                        After disinfection, it is important to <Text style={styles.alertTextBold}>re-test your water</Text> to confirm the effectiveness of treatment before resuming consumption.
+                      </Text>
+                    </View>
                   </View>
-                  <View style={styles.alertContentContainer}>
-                    <Text style={styles.alertTextBold}>
-                      Important Notice: Coliform Bacteria Detected
+                </View>
+              );
+            } else {
+              // Show no coliforms detected box with green border
+              return (
+                <View>
+                  <View style={styles.noColiformsBox}>
+                    <Text style={styles.summaryCardTitle}>
+                      Bacteriological Results
                     </Text>
-                    <Text style={[styles.alertTextContamination, { marginTop: 6 }]}>
-                      Coliform bacteria have been detected in your drinking water sample. While not necessarily harmful themselves, their presence indicates that disease-causing organisms may also be present. Immediate action is recommended.
-                    </Text>
-                    <Text style={[styles.alertTextBold, { marginTop: 8 }]}>
-                      Disinfect Your Well System:
-                    </Text>
-                    <Text style={[styles.alertTextContamination, { marginTop: 4 }]}>
-                      To reduce the risk of illness, you should disinfect your well and water system. This process is commonly referred to as "shock chlorination."
-                    </Text>
-                    <Text style={[styles.alertTextContamination, { marginTop: 6 }]}>
-                      We strongly recommend that you:
-                    </Text>
-                    <Text style={[styles.alertTextContamination, { marginTop: 4, marginLeft: 10 }]}>
-                      • <Text style={styles.alertTextBold}>Contact a licensed water well contractor</Text> to inspect and disinfect your well, <Text style={styles.alertTextBold}>or</Text>
-                    </Text>
-                    <Text style={[styles.alertTextContamination, { marginTop: 2, marginLeft: 10 }]}>
-                      • <Text style={styles.alertTextBold}>Follow the well disinfection instructions</Text> provided by Health Canada: <Text style={styles.alertTextLink}>https://www.canada.ca/en/health-canada/services/environment/drinking-water/well/treat.html</Text>
-                    </Text>
-                    <Text style={[styles.alertTextContamination, { marginTop: 8 }]}>
-                      After disinfection, it is important to <Text style={styles.alertTextBold}>re-test your water</Text> to confirm the effectiveness of treatment before resuming consumption.
+                    <Text style={styles.noColiformsText}>
+                      No Coliforms were detected in your water
                     </Text>
                   </View>
                 </View>
-              </View>
-            );
-          } else {
-            // Show no coliforms detected box with green border
-            return (
-              <View>
-                <Text style={styles.subsectionTitle}>Bacteriological Results</Text>
-                <View style={styles.noColiformsBox}>
-                  <Text style={styles.noColiformsText}>
-                    No Coliforms were detected in your water
-                  </Text>
-                </View>
-              </View>
-            );
-          }
-        })()}
+              );
+            }
+          })()}
 
         {/* Perfect Water Quality Message - Show when both CWQI scores = 100 */}
       {healthCWQI?.score === 100 && aoCWQI?.score === 100 && (
@@ -1767,123 +1773,11 @@ const formatLabResult = (param) => {
         </View>
 
         {/* Footer */}
-        <Text style={styles.footer}>
+        {/* <Text style={styles.footer}>
           This report is generated based on laboratory analysis results. For questions about your water quality or treatment options, please consult with a qualified water treatment professional.
-        </Text>
+        </Text> */}
       </Page>
-  
-        {/* Health Parameters Section - All in one */}
-        <Page size="A4" style={styles.page}>
-        <View>
-          <Text style={styles.subsectionTitle}>Health Related Parameters</Text>
-          <ParametersSection 
-            cwqi={healthCWQI} 
-            concerns={healthConcerns}
-            type="health"
-            title="Health Related Parameters"
-          />
-        </View>
-  
-        {/* AO Parameters Section - All in one */}
-        <View break={true}>
-          <Text style={styles.subsectionTitle}>Aesthetic and Operational Parameters</Text>
-          <ParametersSection 
-            cwqi={aoCWQI} 
-            concerns={aoConcerns}
-            type="ao"
-            title="Aesthetic and Operational Parameters"
-          />
-        </View>
-  
-        {/* General Recommendations Section */}
-        <View style={styles.recommendationsSection} break={true}>
-          <Text style={styles.generalRecommendationsTitle}>
-            General Recommendations
-          </Text>
-          <View style={styles.recommendationListBlack}>
-            <Text style={styles.recommendationListBlack}>
-              1. The water quality results presented in this Report Card should be carefully reviewed by a water treatment expert if treatment is necessary to improve the potability of the drinking water supply. A qualified professional can assess the results, recommend appropriate treatment solutions, and ensure that the water meets established drinking water standards or guidelines for safety and quality.
-            </Text>
-            <Text style={[styles.recommendationListBlack, { marginTop: 10 }]}>
-              2. If you have any questions on your drinking water quality results, please schedule a meeting with our professional hydrogeologist.
-            </Text>
-          </View>
-        </View>
-      </Page>
-  
-      {/* Page 2: Full Results Tables */}
-      <Page size="A4" style={styles.page}>
-        <Text style={styles.sectionTitle}>Full Results</Text>
-        
-        {/* Health Parameters Table */}
-        {healthParameters.length > 0 && (
-          <View>
-            <Text style={styles.subsectionTitle}>Health-Related Parameter Results </Text>
-            <PDFTable
-              headers={['Parameter', 'Result', 'Unit', 'Recommended Maximum Concentration', 'Status']}
-              data={healthParameters}
-              keyMapping={[
-                'parameter_name',
-                (row) => formatLabResult(row),
-                (row) => row.result_units || row.parameter_unit || 'N/A',
-                (row) => {
-                  return row.mac_display_value || row.mac_display || 'No Standard';
-                },
-                (row) => getComplianceStatus(row)
-              ]}
-              showExceeded={true}
-              tableType="results"
-              maxRowsPerPage={20} // Limit rows per page
-            />
-          </View>
-        )}
-  
-        {/* AO Parameters Table */}
-        {aoParameters.length > 0 && (
-        <View break={true}>
-          <Text style={styles.subsectionTitle}>Aesthetic & Operational Parameter Results</Text>
-          <PDFTable
-            headers={['Parameter', 'Result', 'Unit', 'Recommended Maximum Concentration', 'Status']}
-            data={aoParameters}
-            keyMapping={[
-              'parameter_name',
-              (row) => formatLabResult(row),
-              (row) => row.result_units || row.parameter_unit || 'N/A',
-              (row) => {
-                return row.ao_display_value || row.ao_display || 'No Standard';
-              },
-              (row) => getComplianceStatus(row)
-            ]}
-            showExceeded={true}
-            tableType="results"
-            maxRowsPerPage={20} // Limit rows per page
-          />
-        </View>
-      )}
-  
-        {/* General Parameters Table - Centered and Smaller */}
-        {generalParameters && generalParameters.length > 0 && (
-          <View break={generalParameters.length > 15}>
-            <Text style={styles.subsectionTitle}>General Parameter Results</Text>
-            <View style={styles.centeredTableContainer}>
-              <PDFTable
-                headers={['Parameter', 'Result', 'Unit']}
-                data={generalParameters}
-                keyMapping={[
-                  'parameter_name',
-                  (row) => formatLabResult(row),
-                  (row) => row.result_units || row.parameter_unit || ''
-                ]}
-                showExceeded={false}
-                tableType="general3col"
-              />
-            </View>
-          </View>
-        )}
-  
-        <Text style={styles.pageNumber} render={({ pageNumber }) => `Page ${pageNumber}`} fixed />
-      </Page>
-  
+
       {/* Page 3: About Your Water Quality Assessment */}
       <Page size="A4" style={styles.page}>
         <Text style={styles.sectionTitle}>About Your Water Quality Assessment</Text>
@@ -1965,16 +1859,16 @@ const formatLabResult = (param) => {
         </Text> */}
         
         {/* CWQI Rating Table */}
-        <View style={styles.cwqiRatingTable} break={false} wrap={false}>
+        <View style={styles.cwqiRatingTable} wrap={false}>
           <View style={styles.tableHeader}>
-            <View style={{ width: 80, paddingRight: 5 }}>
-              <Text style={[styles.tableCellHeader, { textAlign: 'left' }]}>RATING</Text>
+            <View style={{ width: 70, paddingRight: 4 }}> {/* Reduced width and padding */}
+              <Text style={[styles.tableCellHeader, { textAlign: 'left', fontSize: 7 }]}>RATING</Text>
             </View>
-            <View style={{ width: 80, paddingRight: 5 }}>
-              <Text style={[styles.tableCellHeader, { textAlign: 'center' }]}>CWQI SCORE</Text>
+            <View style={{ width: 70, paddingRight: 4 }}> {/* Reduced width and padding */}
+              <Text style={[styles.tableCellHeader, { textAlign: 'center', fontSize: 7 }]}>CWQI SCORE</Text>
             </View>
-            <View style={{ width: 300, paddingRight: 5 }}>
-              <Text style={[styles.tableCellHeader, { textAlign: 'left' }]}>WHAT DOES THE SCORE MEAN?</Text>
+            <View style={{ width: 280, paddingRight: 4 }}> {/* Reduced width and padding */}
+              <Text style={[styles.tableCellHeader, { textAlign: 'left', fontSize: 7 }]}>WHAT DOES THE SCORE MEAN?</Text>
             </View>
           </View>
           
@@ -1986,15 +1880,15 @@ const formatLabResult = (param) => {
             { rating: 'Marginal', score: '45-64', description: 'Many parameters exceed guidelines, and/or some exceed them by significant amounts. Water quality is likely to pose issues without treatment.' },
             { rating: 'Poor', score: '0-44', description: 'Most parameters exceed guidelines by large amounts. Water quality is poor and likely unsafe without corrective action.' }
           ].map((item, index) => (
-            <View key={index} style={styles.tableRow} wrap={false}>
-              <View style={{ width: 80, paddingRight: 5 }}>
-                <Text style={[styles.tableCell, { fontWeight: 'bold', textAlign: 'left' }]}>{item.rating}</Text>
+            <View key={index} style={[styles.tableRow, { paddingVertical: 3 }]} wrap={false}> {/* Reduced padding */}
+              <View style={{ width: 70, paddingRight: 4 }}>
+                <Text style={[styles.tableCell, { fontWeight: 'bold', textAlign: 'left', fontSize: 8 }]}>{item.rating}</Text>
               </View>
-              <View style={{ width: 80, paddingRight: 5 }}>
-                <Text style={[styles.tableCell, { textAlign: 'center' }]}>{item.score}</Text>
+              <View style={{ width: 70, paddingRight: 4 }}>
+                <Text style={[styles.tableCell, { textAlign: 'center', fontSize: 8 }]}>{item.score}</Text>
               </View>
-              <View style={{ width: 300, paddingRight: 5 }}>
-                <Text style={[styles.tableCell, { textAlign: 'left' }]}>{item.description}</Text>
+              <View style={{ width: 280, paddingRight: 4 }}>
+                <Text style={[styles.tableCell, { textAlign: 'left', fontSize: 8, lineHeight: 1.2 }]}>{item.description}</Text>
               </View>
             </View>
           ))}
@@ -2003,6 +1897,120 @@ const formatLabResult = (param) => {
   
         <Text style={styles.pageNumber} render={({ pageNumber }) => `Page ${pageNumber}`} fixed />
       </Page>
+  
+        {/* Health Parameters Section - All in one */}
+        <Page size="A4" style={styles.page}>
+        <View>
+          <Text style={styles.subsectionTitle}>Health Related Parameters</Text>
+          <ParametersSection 
+            cwqi={healthCWQI} 
+            concerns={healthConcerns}
+            type="health"
+            title="Health Related Parameters"
+          />
+        </View>
+  
+        {/* AO Parameters Section - All in one */}
+        <View break={true}>
+          <Text style={styles.subsectionTitle}>Aesthetic and Operational Parameters</Text>
+          <ParametersSection 
+            cwqi={aoCWQI} 
+            concerns={aoConcerns}
+            type="ao"
+            title="Aesthetic and Operational Parameters"
+          />
+        </View>
+  
+        {/* General Recommendations Section */}
+        <View style={styles.recommendationsSection} break={true}>
+          <Text style={styles.generalRecommendationsTitle}>
+            General Recommendations
+          </Text>
+          <View style={styles.recommendationListBlack}>
+            <Text style={styles.recommendationListBlack}>
+              1. The water quality results presented in this Report Card should be carefully reviewed by a water treatment expert if treatment is necessary to improve the potability of the drinking water supply. A qualified professional can assess the results, recommend appropriate treatment solutions, and ensure that the water meets established drinking water standards or guidelines for safety and quality.
+            </Text>
+            <Text style={[styles.recommendationListBlack, { marginTop: 10 }]}>
+              2. If you have any questions on your drinking water quality results, please schedule a meeting with our professional hydrogeologist.
+            </Text>
+          </View>
+        </View>
+      </Page>
+  
+      {/* Page 2: Full Results Tables */}
+      <Page size="A4" style={styles.page}>
+        <Text style={styles.sectionTitle}>Full Results</Text>
+        
+        {/* Health Parameters Table */}
+      {healthParameters.length > 0 && (
+        <View>
+          <Text style={styles.subsectionTitle}>Health-Related Parameter Results </Text>
+          <PDFTable
+            headers={['Parameter', 'Unit', 'Recommended Maximum Concentration', 'Result', 'Status']}
+            data={healthParameters}
+            keyMapping={[
+              'parameter_name',
+              (row) => row.result_units || row.parameter_unit || 'N/A',
+              (row) => {
+                return row.mac_display_value || row.mac_display || 'No Standard';
+              },
+              (row) => formatLabResult(row),
+              (row) => getComplianceStatus(row)
+            ]}
+            showExceeded={true}
+            tableType="results"
+            maxRowsPerPage={20} // Limit rows per page
+          />
+        </View>
+      )}
+
+      {/* AO Parameters Table */}
+      {aoParameters.length > 0 && (
+      <View break={true}>
+        <Text style={styles.subsectionTitle}>Aesthetic & Operational Parameter Results</Text>
+        <PDFTable
+          headers={['Parameter', 'Unit', 'Recommended Maximum Concentration', 'Result', 'Status']}
+          data={aoParameters}
+          keyMapping={[
+            'parameter_name',
+            (row) => row.result_units || row.parameter_unit || 'N/A',
+            (row) => {
+              return row.ao_display_value || row.ao_display || 'No Standard';
+            },
+            (row) => formatLabResult(row),
+            (row) => getComplianceStatus(row)
+          ]}
+          showExceeded={true}
+          tableType="results"
+          maxRowsPerPage={20} // Limit rows per page
+        />
+      </View>
+      )}
+  
+        {/* General Parameters Table - Centered and Smaller */}
+        {generalParameters && generalParameters.length > 0 && (
+          <View break={generalParameters.length > 15}>
+            <Text style={styles.subsectionTitle}>General Parameter Results</Text>
+            <View style={styles.centeredTableContainer}>
+              <PDFTable
+                headers={['Parameter', 'Result', 'Unit']}
+                data={generalParameters}
+                keyMapping={[
+                  'parameter_name',
+                  (row) => formatLabResult(row),
+                  (row) => row.result_units || row.parameter_unit || ''
+                ]}
+                showExceeded={false}
+                tableType="general3col"
+              />
+            </View>
+          </View>
+        )}
+  
+        <Text style={styles.pageNumber} render={({ pageNumber }) => `Page ${pageNumber}`} fixed />
+      </Page>
+  
+    
     </Document>
   );
 };
