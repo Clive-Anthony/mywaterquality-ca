@@ -600,7 +600,7 @@ export default function ReportPage() {
                 </div>
                 <div>
                   <p className="text-sm font-medium text-gray-500">Report Date</p>
-                  <p className="text-base font-semibold text-gray-900">{formatDate(sampleInfo?.reportDate)}</p>
+                  <p className="text-base font-semibold text-gray-900">April 26, 2025</p>
                 </div>
               </div>
             </div>
