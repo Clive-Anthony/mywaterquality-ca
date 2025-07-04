@@ -904,6 +904,20 @@ tableCellConcerns: {
     lineHeight: 1.4,
     textAlign: 'center',
   },
+  noColiformsBox: {
+    backgroundColor: '#FFFFFF',
+    border: '2 solid #059669', // Green border
+    borderRadius: 8,
+    padding: 15,
+    marginBottom: 20,
+    marginTop: 10,
+  },
+  noColiformsText: {
+    fontSize: 11,
+    color: '#374151',
+    textAlign: 'center',
+    fontWeight: 'normal',
+  },
 });
 
 // DEFAULT DATA - uncomment for production
@@ -919,6 +933,7 @@ const customer_name = "Nicole Cancelli";
 const order_number = 236;
 const sample_description = "Barn Sink - Raw Water";
 const TEST_KIT = "City Water Test Kit";
+const test_kit_display = "Multiple Test Kits"
 
 
 
@@ -1116,12 +1131,21 @@ const ConcernsTable = ({ data, type = 'health' }) => {
       ]
     },
     ao: {
-      headers: ['PARAMETER', 'DESCRIPTION', 'TREATMENT OPTIONS'],
+      headers: ['PARAMETER', 'AESTHETIC CONSIDERATIONS', 'TREATMENT OPTIONS'],
       dataMapping: [
         'parameter_name',
         (row) => {
-          // Return full description text - no truncation
-          return row.description || row.parameter_description || 'A water quality parameter that affects the aesthetic or operational characteristics of your water system.';
+          // Use aesthetic_considerations first, fallback to description
+          const aestheticConsiderations = row.aesthetic_considerations;
+          const description = row.description || row.parameter_description;
+          
+          if (aestheticConsiderations && aestheticConsiderations.trim() !== '') {
+            return aestheticConsiderations;
+          } else if (description && description.trim() !== '') {
+            return description;
+          } else {
+            return 'A water quality parameter that affects the aesthetic or operational characteristics of your water system.';
+          }
         },
         (row) => {
           // Shorter treatment text since column is smaller
@@ -1135,7 +1159,7 @@ const ConcernsTable = ({ data, type = 'health' }) => {
   const currentConfig = config[type];
   
   // Optimized column widths with more padding space
-  const columnWidths = [95, 260, 110]; // Parameter: 95, Health Effect/Description: 260, Treatment: 110
+  const columnWidths = [95, 260, 110]; // Parameter: 95, Health Effect/Aesthetic Considerations: 260, Treatment: 110
   // Total: 465 points + padding = well within page limits
 
   return (
@@ -1394,8 +1418,8 @@ const CWQIComponent = ({ cwqi, title }) => {
     );
   };
 
-// // Fixed PDFTable with corrected chunking and no gray blocks
-const PDFTable = ({ headers, data, keyMapping, showExceeded = false, tableType = 'default', allowBreak = true }) => {
+// Clean PDFTable with continuous table approach (no chunking)
+const PDFTable = ({ headers, data, keyMapping, showExceeded = false, tableType = 'default' }) => {
   
   const getColumnWidths = (tableType) => {
     if (tableType === 'results') {
@@ -1426,110 +1450,11 @@ const PDFTable = ({ headers, data, keyMapping, showExceeded = false, tableType =
     }
   };
 
-  // Only apply chunking to results tables
-  if (tableType === 'results') {
-    // Different chunk sizes for results tables only
-    const firstChunkSize = 18;    // First page
-    const subsequentChunkSize = 25; // Subsequent pages
-    
-    // Fixed chunking logic
-    const createChunks = (data, firstChunkSize, subsequentChunkSize) => {
-      const chunks = [];
-      let currentIndex = 0;
-      
-      // First chunk
-      if (data.length > 0) {
-        const firstChunk = data.slice(0, Math.min(firstChunkSize, data.length));
-        chunks.push(firstChunk);
-        currentIndex = firstChunk.length;
-      }
-      
-      // Subsequent chunks
-      while (currentIndex < data.length) {
-        const chunk = data.slice(currentIndex, Math.min(currentIndex + subsequentChunkSize, data.length));
-        chunks.push(chunk);
-        currentIndex += subsequentChunkSize;
-      }
-      
-      return chunks;
-    };
-
-    const chunks = createChunks(data, firstChunkSize, subsequentChunkSize);
-
-    return (
-      <View>
-        {chunks.map((chunk, chunkIndex) => (
-          <View 
-            key={chunkIndex}
-            break={chunkIndex > 0} // Force page break between chunks
-            wrap={false} // Prevent breaking within chunks
-          >
-            {/* Header for each chunk */}
-            <View style={styles.tableHeader}>
-              {headers.map((header, index) => (
-                <View key={index} style={{ width: columnWidths[index], paddingRight: 6 }}>
-                  <Text style={[styles.tableCellHeader, { textAlign: index === 0 ? 'left' : 'center' }]}>
-                    {chunkIndex > 0 ? `${header} (continued)` : header}
-                  </Text>
-                </View>
-              ))}
-            </View>
-            
-            {/* Rows for this chunk */}
-            {chunk.map((row, rowIndex) => {
-              const isExceeded = showExceeded && isParameterExceeded(row);
-              
-              return (
-                <View 
-                  key={rowIndex} 
-                  style={isExceeded ? styles.tableRowExceeded : styles.tableRow}
-                >
-                  {keyMapping.map((key, cellIndex) => (
-                    <View key={cellIndex} style={{ 
-                      width: columnWidths[cellIndex], 
-                      paddingRight: 6,
-                      justifyContent: 'center'
-                    }}>
-                      <Text style={[
-                        cellIndex === 0 ? styles.tableCellParameterName : styles.tableCell,
-                        { 
-                          textAlign: cellIndex === 0 ? 'left' : 'center',
-                          fontWeight: cellIndex === 0 ? 'bold' : 'normal',
-                          fontSize: 9,
-                          lineHeight: 1.3
-                        }
-                      ]}>
-                        {typeof key === 'function' ? key(row) : row[key] || 'N/A'}
-                      </Text>
-                    </View>
-                  ))}
-                </View>
-              );
-            })}
-            
-            {/* Progress indicator */}
-            {chunks.length > 1 && (
-              <View style={{ marginTop: 8, alignItems: 'center' }}>
-                <Text style={{ fontSize: 8, color: '#6B7280' }}>
-                  {(() => {
-                    const startIndex = chunks.slice(0, chunkIndex).reduce((sum, c) => sum + c.length, 0) + 1;
-                    const endIndex = chunks.slice(0, chunkIndex + 1).reduce((sum, c) => sum + c.length, 0);
-                    return `Showing ${startIndex}-${endIndex} of ${data.length} parameters`;
-                  })()}
-                </Text>
-              </View>
-            )}
-          </View>
-        ))}
-      </View>
-    );
-  }
-
-  // For all other table types (concerns, general, etc.) - single continuous table
+  // Single continuous table for all table types
   return (
     <View>
-      {/* Single header */}
-      <View style={styles.tableHeader}>
+      {/* Fixed header that repeats on each page */}
+      <View style={styles.tableHeader} fixed>
         {headers.map((header, index) => (
           <View key={index} style={{ width: columnWidths[index], paddingRight: 6 }}>
             <Text 
@@ -1541,24 +1466,31 @@ const PDFTable = ({ headers, data, keyMapping, showExceeded = false, tableType =
         ))}
       </View>
       
-      {/* All data rows in one container */}
-      {data.map((row, rowIndex) => {
-        const isExceeded = showExceeded && isParameterExceeded(row);
-        
-        return (
-          <View 
-            key={rowIndex} 
-            style={isExceeded ? styles.tableRowExceeded : styles.tableRow}
-            minPresenceAhead={25} // Reserve space for next row
-          >
-            {keyMapping.map((key, cellIndex) => (
-              <View key={cellIndex} style={{ 
-                width: columnWidths[cellIndex], 
-                paddingRight: 6,
-                justifyContent: 'center'
-              }}>
-                <Text 
-                  style={[
+      {/* Continuous table body with natural page breaks */}
+      <View style={styles.tableContainer}>
+        {data.map((row, rowIndex) => {
+          const isExceeded = showExceeded && isParameterExceeded(row);
+          
+          return (
+            <View 
+              key={rowIndex} 
+              style={[
+                isExceeded ? styles.tableRowExceeded : styles.tableRow,
+                { 
+                  minHeight: 25,
+                  paddingVertical: 4
+                }
+              ]}
+              minPresenceAhead={rowIndex < data.length - 1 ? 25 : 0}
+            >
+              {keyMapping.map((key, cellIndex) => (
+                <View key={cellIndex} style={{ 
+                  width: columnWidths[cellIndex], 
+                  paddingRight: 6,
+                  alignItems: cellIndex === 0 ? 'flex-start' : 'center',
+                  justifyContent: 'center'
+                }}>
+                  <Text style={[
                     cellIndex === 0 ? styles.tableCellParameterName : styles.tableCell,
                     { 
                       textAlign: cellIndex === 0 ? 'left' : 'center',
@@ -1566,15 +1498,15 @@ const PDFTable = ({ headers, data, keyMapping, showExceeded = false, tableType =
                       fontSize: 9,
                       lineHeight: 1.3
                     }
-                  ]}
-                >
-                  {typeof key === 'function' ? key(row) : row[key] || 'N/A'}
-                </Text>
-              </View>
-            ))}
-          </View>
-        );
-      })}
+                  ]} wrap={true}>
+                    {typeof key === 'function' ? key(row) : row[key] || 'N/A'}
+                  </Text>
+                </View>
+              ))}
+            </View>
+          );
+        })}
+      </View>
     </View>
   );
 };
@@ -1682,7 +1614,7 @@ const formatLabResult = (param) => {
         <View style={styles.header}>
           <View>
             <Text style={styles.headerTitle}>{customer_first}'s Water Quality Report</Text>
-            <Text style={styles.headerSubtitle}>Order No {order_number}  - {TEST_KIT}</Text>
+            <Text style={styles.headerSubtitle}>Order No {order_number}  - {test_kit_display}</Text>
           </View>
           <Image 
             src="/MWQ-logo-final.png" 
@@ -1704,7 +1636,7 @@ const formatLabResult = (param) => {
             </View>
             <View style={styles.tableRowSampleLast}>
               <Text style={styles.tableCellSampleLabel}>Test Kit</Text>
-              <Text style={styles.tableCellSampleValue}>{TEST_KIT}</Text>
+              <Text style={styles.tableCellSampleValue}>{test_kit_display}</Text>
             </View>
           </View>
           
@@ -1753,49 +1685,49 @@ const formatLabResult = (param) => {
           if (contaminatedParams.length > 0) {
             // Show contamination warning
             return (
-              <View style={styles.alertBoxContamination}>
-                <View style={styles.alertIconContainer}>
-                  <Text style={styles.alertIcon}>⚠</Text>
-                </View>
-                <View style={styles.alertContentContainer}>
-                  <Text style={styles.alertTextBold}>
-                    Important Notice: Coliform Bacteria Detected
-                  </Text>
-                  <Text style={[styles.alertTextContamination, { marginTop: 6 }]}>
-                    Coliform bacteria have been detected in your drinking water sample. While not necessarily harmful themselves, their presence indicates that disease-causing organisms may also be present. Immediate action is recommended.
-                  </Text>
-                  <Text style={[styles.alertTextBold, { marginTop: 8 }]}>
-                    Disinfect Your Well System:
-                  </Text>
-                  <Text style={[styles.alertTextContamination, { marginTop: 4 }]}>
-                    To reduce the risk of illness, you should disinfect your well and water system. This process is commonly referred to as "shock chlorination."
-                  </Text>
-                  <Text style={[styles.alertTextContamination, { marginTop: 6 }]}>
-                    We strongly recommend that you:
-                  </Text>
-                  <Text style={[styles.alertTextContamination, { marginTop: 4, marginLeft: 10 }]}>
-                    • <Text style={styles.alertTextBold}>Contact a licensed water well contractor</Text> to inspect and disinfect your well, <Text style={styles.alertTextBold}>or</Text>
-                  </Text>
-                  <Text style={[styles.alertTextContamination, { marginTop: 2, marginLeft: 10 }]}>
-                    • <Text style={styles.alertTextBold}>Follow the well disinfection instructions</Text> provided by Health Canada: <Text style={styles.alertTextLink}>https://www.canada.ca/en/health-canada/services/environment/drinking-water/well/treat.html</Text>
-                  </Text>
-                  <Text style={[styles.alertTextContamination, { marginTop: 8 }]}>
-                    After disinfection, it is important to <Text style={styles.alertTextBold}>re-test your water</Text> to confirm the effectiveness of treatment before resuming consumption.
-                  </Text>
+              <View>
+                <Text style={styles.subsectionTitle}>Bacteriological Results</Text>
+                <View style={styles.alertBoxContamination}>
+                  <View style={styles.alertIconContainer}>
+                    <Text style={styles.alertIcon}>⚠</Text>
+                  </View>
+                  <View style={styles.alertContentContainer}>
+                    <Text style={styles.alertTextBold}>
+                      Important Notice: Coliform Bacteria Detected
+                    </Text>
+                    <Text style={[styles.alertTextContamination, { marginTop: 6 }]}>
+                      Coliform bacteria have been detected in your drinking water sample. While not necessarily harmful themselves, their presence indicates that disease-causing organisms may also be present. Immediate action is recommended.
+                    </Text>
+                    <Text style={[styles.alertTextBold, { marginTop: 8 }]}>
+                      Disinfect Your Well System:
+                    </Text>
+                    <Text style={[styles.alertTextContamination, { marginTop: 4 }]}>
+                      To reduce the risk of illness, you should disinfect your well and water system. This process is commonly referred to as "shock chlorination."
+                    </Text>
+                    <Text style={[styles.alertTextContamination, { marginTop: 6 }]}>
+                      We strongly recommend that you:
+                    </Text>
+                    <Text style={[styles.alertTextContamination, { marginTop: 4, marginLeft: 10 }]}>
+                      • <Text style={styles.alertTextBold}>Contact a licensed water well contractor</Text> to inspect and disinfect your well, <Text style={styles.alertTextBold}>or</Text>
+                    </Text>
+                    <Text style={[styles.alertTextContamination, { marginTop: 2, marginLeft: 10 }]}>
+                      • <Text style={styles.alertTextBold}>Follow the well disinfection instructions</Text> provided by Health Canada: <Text style={styles.alertTextLink}>https://www.canada.ca/en/health-canada/services/environment/drinking-water/well/treat.html</Text>
+                    </Text>
+                    <Text style={[styles.alertTextContamination, { marginTop: 8 }]}>
+                      After disinfection, it is important to <Text style={styles.alertTextBold}>re-test your water</Text> to confirm the effectiveness of treatment before resuming consumption.
+                    </Text>
+                  </View>
                 </View>
               </View>
             );
           } else {
-            // Show normal bacteriological results using result_display_value
+            // Show no coliforms detected box with green border
             return (
               <View>
                 <Text style={styles.subsectionTitle}>Bacteriological Results</Text>
-                <View style={styles.alertBoxPlain}>
-                  <Text style={styles.alertTextPlain}>
-                    Bacterial contamination analysis:
-                    {bacteriological.map((param, index) => (
-                      `\n${param.parameter_name}: ${param.result_display_value || formatLabResult(param)} ${param.result_units || param.parameter_unit || ''}`
-                    ))}
+                <View style={styles.noColiformsBox}>
+                  <Text style={styles.noColiformsText}>
+                    No Coliforms were detected in your water
                   </Text>
                 </View>
               </View>
