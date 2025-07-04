@@ -611,8 +611,25 @@ export default function CheckoutPage() {
         });
       });
 
-      // Navigate to dashboard with success
-      window.location.href = '/dashboard?order_success=true&order_number=' + responseData.order.order_number;
+      // UPDATED: Determine redirect path based on user role
+      let redirectPath = '/dashboard';
+      try {
+        const { data: userRole } = await supabase.rpc('get_user_role', {
+          user_uuid: user.id
+        });
+        
+        if (userRole === 'admin' || userRole === 'super_admin') {
+          redirectPath = '/admin-dashboard';
+        }
+      } catch (roleError) {
+        debugLog('ROLE', 'Failed to get user role, defaulting to user dashboard', { 
+          error: roleError.message 
+        });
+        // Default to user dashboard if role check fails
+      }
+
+      // Navigate to appropriate dashboard with success
+      window.location.href = `${redirectPath}?order_success=true&order_number=${responseData.order.order_number}`;
 
     } catch (error) {
       debugLog('ERROR', 'Order processing failed', { error: error.message });
