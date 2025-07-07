@@ -6,6 +6,7 @@ import ProtectedRoute from './components/ProtectedRoute';
 import AuthRedirect from './components/AuthRedirect';
 import CallbackDebugger from './components/CallbackDebugger';
 import ScrollToTop from './components/ScrollToTop';
+import LegacyKitClaimPage from './pages/LegacyKitClaimPage';
 // import CartDebugger from './components/CartDebugger'; // ADD THIS LINE
 import SignupPage from './pages/SignupPage';
 import LoginPage from './pages/LoginPage';
@@ -119,6 +120,16 @@ export default function App() {
               element={
                 <ProtectedRoute>
                   <KitRegistrationPage />
+                </ProtectedRoute>
+              } 
+            />
+
+            {/* Protected legacy kit claim page (not in navigation) */}
+            <Route 
+              path="/claim-kit" 
+              element={
+                <ProtectedRoute>
+                  <LegacyKitClaimPage />
                 </ProtectedRoute>
               } 
             />

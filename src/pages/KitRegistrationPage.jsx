@@ -4,6 +4,7 @@ import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../contexts/AuthContext';
 import { supabase } from '../lib/supabaseClient';
 import PageLayout from '../components/PageLayout';
+import { useLocation } from 'react-router-dom';
 
 export default function KitRegistrationPage() {
   const { user } = useAuth();
@@ -52,10 +53,50 @@ export default function KitRegistrationPage() {
     { value: 'YT', label: 'Yukon' }
   ];
 
+  const location = useLocation();
+  const [claimSuccess, setClaimSuccess] = useState(false);
+
   // Load available kits on mount
   useEffect(() => {
     loadAvailableKits();
   }, []);
+
+  useEffect(() => {
+    // Check if redirected from claim page with success
+    if (location.state?.message) {
+      setClaimSuccess(location.state.message);
+      // Clear the state to prevent showing on refresh
+      window.history.replaceState({}, document.title);
+      
+      // Auto-hide success message after 10 seconds
+      setTimeout(() => {
+        setClaimSuccess(false);
+      }, 10000);
+    }
+  }, [location.state]);
+  
+  // Add this success message component after the existing success message in the JSX
+  {/* Claim Success Message */}
+  {claimSuccess && (
+    <div className="mb-6 bg-green-50 border-l-4 border-green-500 p-4 rounded">
+      <div className="flex items-center justify-between">
+        <div className="flex items-center">
+          <svg className="h-5 w-5 text-green-500 mr-2" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M5 13l4 4L19 7" />
+          </svg>
+          <span className="text-green-700 font-medium">{claimSuccess}</span>
+        </div>
+        <button
+          onClick={() => setClaimSuccess(false)}
+          className="text-green-400 hover:text-green-600"
+        >
+          <svg className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M6 18L18 6M6 6l12 12" />
+          </svg>
+        </button>
+      </div>
+    </div>
+  )}
 
   const loadAvailableKits = async () => {
     try {
