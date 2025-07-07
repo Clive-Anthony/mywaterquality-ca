@@ -28,36 +28,11 @@ export default function OrdersList({
         // console.log('Loading orders for user:', user.id);
 
         const { data, error } = await supabase
-          .from('orders')
-          .select(`
-            id,
-            order_number,
-            status,
-            payment_status,
-            fulfillment_status,
-            subtotal,
-            shipping_cost,
-            tax_amount,
-            total_amount,
-            shipping_address,
-            special_instructions,
-            created_at,
-            updated_at,
-            shipped_at,
-            delivered_at,
-            order_items (
-              order_item_id,
-              test_kit_id,
-              quantity,
-              unit_price,
-              total_price,
-              product_name,
-              product_description
-            )
-          `)
-          .eq('user_id', user.id)
-          .order('created_at', { ascending: false })
-          .limit(compact ? 5 : 50); // Limit for compact view
+        .from('vw_user_orders')
+        .select('*')
+        // .eq('user_id', user.id)
+        .order('created_at', { ascending: false })
+        .limit(compact ? 5 : 50);
 
         if (error) {
           throw error;
@@ -238,20 +213,20 @@ export default function OrdersList({
                     <div className="flex-1 min-w-0">
                       <div className="flex items-center justify-between mb-2">
                         <div>
-                          <p className="text-sm font-medium text-gray-900">
-                            Order #{order.order_number}
+                        <p className="text-sm font-medium text-gray-900 flex items-center">
+                            #{order.order_number}
                           </p>
                           <p className="text-xs text-gray-500">
                             {formatDate(order.created_at)}
                           </p>
                         </div>
                         <div className="text-right">
-                          <p className="text-sm font-semibold text-gray-900">
-                            {formatPrice(order.total_amount)}
-                          </p>
-                          <p className="text-xs text-gray-500">
-                            {order.order_items.length} item{order.order_items.length !== 1 ? 's' : ''}
-                          </p>
+                        <p className="text-sm font-semibold text-gray-900">
+                          {order.source === 'legacy' ? 'Legacy Kit' : formatPrice(order.total_amount)}
+                        </p>
+                        <p className="text-xs text-gray-500">
+                        {order.items?.length || 0} item{(order.items?.length || 0) !== 1 ? 's' : ''}
+                      </p>
                         </div>
                       </div>
                       
@@ -268,16 +243,16 @@ export default function OrdersList({
                       {/* Compact Order Items */}
                       {!compact && (
                         <div className="text-xs text-gray-600">
-                          {order.order_items.slice(0, 1).map((item) => (
-                            <span key={item.order_item_id}>
-                              {item.product_name} × {item.quantity}
-                            </span>
-                          ))}
-                          {order.order_items.length > 1 && (
-                            <span className="text-gray-500">
-                              {' '}+{order.order_items.length - 1} more
-                            </span>
-                          )}
+                          {order.items?.slice(0, 1).map((item) => (
+                          <span key={item.order_item_id}>
+                            {item.product_name} × {item.quantity}
+                          </span>
+                        ))}
+                        {(order.items?.length || 0) > 1 && (
+                          <span className="text-gray-500">
+                            {' '}+{(order.items?.length || 0) - 1} more
+                          </span>
+                        )}
                         </div>
                       )}
                     </div>
@@ -329,8 +304,14 @@ export default function OrdersList({
 
               {/* Order Summary */}
               <div className="mb-6">
-                <h4 className="text-sm font-medium text-gray-900 mb-2">Order Summary</h4>
-                <div className="bg-gray-50 rounded-lg p-4">
+              <h4 className="text-sm font-medium text-gray-900 mb-2">Order Summary</h4>
+              <div className="bg-gray-50 rounded-lg p-4">
+                {selectedOrder.source === 'legacy' ? (
+                  <div className="text-center py-4">
+                    <p className="text-gray-600 font-medium">Legacy Test Kit</p>
+                    <p className="text-sm text-gray-500 mt-1">No payment was required for this kit</p>
+                  </div>
+                ) : (
                   <div className="space-y-2">
                     <div className="flex justify-between text-sm">
                       <span>Subtotal</span>
@@ -351,14 +332,15 @@ export default function OrdersList({
                       </div>
                     </div>
                   </div>
-                </div>
+                )}
               </div>
+            </div>
 
               {/* Order Items */}
               <div className="mb-6">
                 <h4 className="text-sm font-medium text-gray-900 mb-2">Items</h4>
                 <div className="space-y-3">
-                  {selectedOrder.order_items.map((item) => (
+                   {selectedOrder.items?.map((item) => (
                     <div key={item.order_item_id} className="flex justify-between items-start">
                       <div className="flex-1">
                         <p className="text-sm font-medium text-gray-900">{item.product_name}</p>
@@ -375,14 +357,22 @@ export default function OrdersList({
 
               {/* Shipping Address */}
               <div className="mb-6">
-                <h4 className="text-sm font-medium text-gray-900 mb-2">Shipping Address</h4>
-                <div className="text-sm text-gray-600">
-                  <p>{selectedOrder.shipping_address.firstName} {selectedOrder.shipping_address.lastName}</p>
-                  <p>{selectedOrder.shipping_address.address}</p>
-                  <p>{selectedOrder.shipping_address.city}, {selectedOrder.shipping_address.province} {selectedOrder.shipping_address.postalCode}</p>
-                  <p>{selectedOrder.shipping_address.country}</p>
-                </div>
+              <h4 className="text-sm font-medium text-gray-900 mb-2">Shipping Address</h4>
+              <div className="text-sm text-gray-600">
+                {selectedOrder.shipping_address ? (
+                  <>
+                    <p>{selectedOrder.shipping_address.firstName} {selectedOrder.shipping_address.lastName}</p>
+                    <p>{selectedOrder.shipping_address.address}</p>
+                    <p>{selectedOrder.shipping_address.city}, {selectedOrder.shipping_address.province} {selectedOrder.shipping_address.postalCode}</p>
+                    <p>{selectedOrder.shipping_address.country}</p>
+                  </>
+                ) : (
+                  <p className="text-gray-400 italic">
+                    {selectedOrder.source === 'legacy' ? 'Legacy kit - no shipping address' : 'No shipping address available'}
+                  </p>
+                )}
               </div>
+            </div>
 
               {/* Order Dates */}
               <div className="border-t border-gray-200 pt-4">
