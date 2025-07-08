@@ -78,6 +78,7 @@ export default function AdminOrdersList({
         confirmed: 'bg-blue-100 text-blue-800',
         processing: 'bg-blue-100 text-blue-800',
         shipped: 'bg-indigo-100 text-indigo-800',
+        registered: 'bg-green-100 text-green-800',
         delivered: 'bg-green-100 text-green-800',
         cancelled: 'bg-red-100 text-red-800',
         refunded: 'bg-gray-100 text-gray-800'
@@ -253,7 +254,7 @@ export default function AdminOrdersList({
                         </div>
                       </td>
                       <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
-                        {formatPrice(order.total_amount)}
+                        {order.source === 'legacy' ? 'Legacy Kit' : formatPrice(order.total_amount)}
                       </td>
                       <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
                         {formatDate(order.created_at)}
@@ -331,26 +332,33 @@ export default function AdminOrdersList({
               <div className="mb-6">
                 <h4 className="text-sm font-medium text-gray-900 mb-2">Order Summary</h4>
                 <div className="bg-gray-50 rounded-lg p-4">
-                  <div className="space-y-2">
-                    <div className="flex justify-between text-sm">
-                      <span>Subtotal</span>
-                      <span>{formatPrice(selectedOrder.subtotal)}</span>
+                  {selectedOrder.source === 'legacy' ? (
+                    <div className="text-center py-4">
+                      <p className="text-gray-600 font-medium">Legacy Test Kit</p>
+                      <p className="text-sm text-gray-500 mt-1">No payment was required for this kit</p>
                     </div>
-                    <div className="flex justify-between text-sm">
-                      <span>Shipping</span>
-                      <span>{selectedOrder.shipping_cost === 0 ? 'Free' : formatPrice(selectedOrder.shipping_cost)}</span>
-                    </div>
-                    <div className="flex justify-between text-sm">
-                      <span>Tax</span>
-                      <span>{formatPrice(selectedOrder.tax_amount)}</span>
-                    </div>
-                    <div className="border-t border-gray-200 pt-2">
-                      <div className="flex justify-between font-medium">
-                        <span>Total</span>
-                        <span>{formatPrice(selectedOrder.total_amount)}</span>
+                  ) : (
+                    <div className="space-y-2">
+                      <div className="flex justify-between text-sm">
+                        <span>Subtotal</span>
+                        <span>{formatPrice(selectedOrder.subtotal)}</span>
+                      </div>
+                      <div className="flex justify-between text-sm">
+                        <span>Shipping</span>
+                        <span>{selectedOrder.shipping_cost === 0 ? 'Free' : formatPrice(selectedOrder.shipping_cost)}</span>
+                      </div>
+                      <div className="flex justify-between text-sm">
+                        <span>Tax</span>
+                        <span>{formatPrice(selectedOrder.tax_amount)}</span>
+                      </div>
+                      <div className="border-t border-gray-200 pt-2">
+                        <div className="flex justify-between font-medium">
+                          <span>Total</span>
+                          <span>{formatPrice(selectedOrder.total_amount)}</span>
+                        </div>
                       </div>
                     </div>
-                  </div>
+                  )}
                 </div>
               </div>
 
@@ -374,10 +382,18 @@ export default function AdminOrdersList({
               <div className="mb-6">
                 <h4 className="text-sm font-medium text-gray-900 mb-2">Shipping Address</h4>
                 <div className="text-sm text-gray-600">
-                  <p>{selectedOrder.shipping_address.firstName} {selectedOrder.shipping_address.lastName}</p>
-                  <p>{selectedOrder.shipping_address.address}</p>
-                  <p>{selectedOrder.shipping_address.city}, {selectedOrder.shipping_address.province} {selectedOrder.shipping_address.postalCode}</p>
-                  <p>{selectedOrder.shipping_address.country}</p>
+                  {selectedOrder.shipping_address ? (
+                    <>
+                      <p>{selectedOrder.shipping_address.firstName} {selectedOrder.shipping_address.lastName}</p>
+                      <p>{selectedOrder.shipping_address.address}</p>
+                      <p>{selectedOrder.shipping_address.city}, {selectedOrder.shipping_address.province} {selectedOrder.shipping_address.postalCode}</p>
+                      <p>{selectedOrder.shipping_address.country}</p>
+                    </>
+                  ) : (
+                    <p className="text-gray-400 italic">
+                      {selectedOrder.source === 'legacy' ? 'Legacy kit - no shipping address' : 'No shipping address available'}
+                    </p>
+                  )}
                 </div>
               </div>
 
