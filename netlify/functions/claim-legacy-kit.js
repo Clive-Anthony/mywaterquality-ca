@@ -1,4 +1,4 @@
-// netlify/functions/claim-legacy-kit.js
+// netlify/functions/claim-legacy-kit.js - UPDATED for is_claimed/claimed_at
 const { createClient } = require('@supabase/supabase-js');
 
 function log(level, message, data = null) {
@@ -101,14 +101,15 @@ exports.handler = async function(event, context) {
       userEmail: user.email
     });
 
-    // Check if kit exists and is unclaimed
+    // Check if kit exists - UPDATED to use is_claimed 
     const { data: existingKit, error: findError } = await supabase
       .from('legacy_kit_registrations')
       .select(`
         id,
         kit_code,
         user_id,
-        is_active,
+        is_claimed,
+        claimed_at,
         registration_status,
         test_kits (
           name,
@@ -134,79 +135,47 @@ exports.handler = async function(event, context) {
       };
     }
 
-    // Check if kit is already claimed
-    if (existingKit.user_id) {
-      // Check if it's claimed by the same user
-      if (existingKit.user_id === user.id) {
-        log('info', 'Kit already claimed by same user', { 
-          kitCode: cleanKitCode,
-          userId: user.id
-        });
-        
-        return {
-          statusCode: 200,
-          headers,
-          body: JSON.stringify({
-            success: true,
-            message: 'This kit is already claimed by you',
-            kit: {
-              id: existingKit.id,
-              kit_code: existingKit.kit_code,
-              product_name: existingKit.test_kits.name,
-              already_owned: true
-            }
-          })
-        };
-      } else {
-        log('warn', 'Kit already claimed by different user', { 
-          kitCode: cleanKitCode,
-          claimedByUserId: existingKit.user_id,
-          attemptingUserId: user.id
-        });
-        
-        return {
-          statusCode: 409,
-          headers,
-          body: JSON.stringify({ 
-            error: `This kit code has already been claimed by another user. If you believe this is an error, please contact support.`,
-            success: false
-          })
-        };
-      }
-    }
-
-    // Check if kit is active
-    if (!existingKit.is_active) {
-      log('warn', 'Inactive kit claim attempted', { 
+    // UPDATED: Check if kit is already claimed - reject ALL claimed kits
+    if (existingKit.is_claimed || existingKit.user_id) {
+        log('warn', 'Kit already claimed', { 
         kitCode: cleanKitCode,
-        userId: user.id
-      });
-      
-      return {
-        statusCode: 400,
+        isClaimedFlag: existingKit.is_claimed,
+        hasUserId: !!existingKit.user_id,
+        claimedByUserId: existingKit.user_id,
+        attemptingUserId: user.id,
+        claimedAt: existingKit.claimed_at
+        });
+        
+        return {
+        statusCode: 409,
         headers,
         body: JSON.stringify({ 
-          error: `This kit code is not available for claiming. Please contact support for assistance.`,
-          success: false
+            error: `This kit code has already been claimed. Each kit can only be claimed once.`,
+            success: false
         })
-      };
+        };
     }
 
-    // Claim the kit by updating user_id
+    // Claim the kit - UPDATED to set both is_claimed and claimed_at
+    const claimTimestamp = new Date().toISOString();
     const { data: claimedKit, error: claimError } = await supabase
       .from('legacy_kit_registrations')
       .update({ 
         user_id: user.id,
-        claimed_at: new Date().toISOString(),
-        updated_at: new Date().toISOString()
+        is_claimed: true,
+        claimed_at: claimTimestamp,
+        updated_at: claimTimestamp
       })
       .eq('id', existingKit.id)
-      .eq('user_id', null) // Ensure it's still unclaimed
+      .eq('is_claimed', false) // Ensure it's still unclaimed
+      .is('user_id', null)
       .select(`
         id,
         kit_code,
         display_id,
         user_id,
+        is_claimed,
+        claimed_at,
         registration_status,
         test_kits (
           name,
@@ -264,7 +233,8 @@ exports.handler = async function(event, context) {
       kitCode: cleanKitCode,
       userId: user.id,
       kitId: claimedKit.id,
-      userEmail: user.email
+      userEmail: user.email,
+      claimedAt: claimedKit.claimed_at
     });
 
     return {
@@ -279,6 +249,8 @@ exports.handler = async function(event, context) {
           display_id: claimedKit.display_id || claimedKit.kit_code,
           product_name: claimedKit.test_kits.name,
           registration_status: claimedKit.registration_status,
+          is_claimed: claimedKit.is_claimed,
+          claimed_at: claimedKit.claimed_at,
           already_owned: false
         }
       })

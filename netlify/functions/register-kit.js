@@ -134,11 +134,14 @@ async function getAvailableKitRegistrations(supabase, user, headers) {
           sample_description,
           person_taking_sample,
           created_at,
+          is_claimed,
+          claimed_at,
           test_kits!inner (
             name
           )
         `)
         .eq('user_id', user.id)
+        .eq('is_claimed', true)
         .order('created_at', { ascending: false })
     ]);
 
@@ -199,7 +202,9 @@ function formatKit(kit, source) {
       ...baseFormat,
       product_name: kit.test_kits.name,
       order_number: `LEGACY-${kit.kit_code}`,
-      order_date: kit.created_at
+      order_date: kit.claimed_at || kit.created_at,  // Use claimed_at if available
+      claimed_at: kit.claimed_at,
+      is_claimed: kit.is_claimed
     };
   } else {
     return {
@@ -308,14 +313,16 @@ function parseAndValidateRequest(body) {
 async function determineKitType(supabase, kitRegistrationId, userId) {
   // Try legacy first
   const { data: legacyKit, error: legacyError } = await supabase
-    .from('legacy_kit_registrations')
-    .select(`
-      id, kit_code, display_id, registration_status, sample_date, 
-      person_taking_sample, test_kits (name, description)
-    `)
-    .eq('id', kitRegistrationId)
-    .eq('user_id', userId)
-    .single();
+  .from('legacy_kit_registrations')
+  .select(`
+    id, kit_code, display_id, registration_status, sample_date, 
+    person_taking_sample, is_claimed, claimed_at,
+    test_kits (name, description)
+  `)
+  .eq('id', kitRegistrationId)
+  .eq('user_id', userId)
+  .eq('is_claimed', true)  // Ensure kit is claimed by user
+  .single();
 
   if (!legacyError && legacyKit) {
     return { source: 'legacy', kit: legacyKit };

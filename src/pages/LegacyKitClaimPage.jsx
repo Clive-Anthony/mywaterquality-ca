@@ -1,6 +1,7 @@
-// src/pages/LegacyKitClaimPage.jsx
+// src/pages/LegacyKitClaimPage.jsx - Updated with success popup
+
 import { useState } from 'react';
-import { useNavigate } from 'react-router-dom';
+import { useNavigate, Link } from 'react-router-dom';
 import { useAuth } from '../contexts/AuthContext';
 import { supabase } from '../lib/supabaseClient';
 import PageLayout from '../components/PageLayout';
@@ -12,6 +13,8 @@ export default function LegacyKitClaimPage() {
   const [kitCode, setKitCode] = useState('');
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState(null);
+  const [showSuccessModal, setShowSuccessModal] = useState(false); // NEW STATE
+  const [claimedKitData, setClaimedKitData] = useState(null); // NEW STATE
 
   // Hero section
   const ClaimKitHero = () => (
@@ -28,6 +31,54 @@ export default function LegacyKitClaimPage() {
       </div>
     </div>
   );
+
+  // NEW SUCCESS MODAL COMPONENT
+  const SuccessModal = ({ isOpen, onContinue, kitData }) => {
+    if (!isOpen) return null;
+
+    return (
+      <div className="fixed inset-0 bg-gray-600 bg-opacity-50 overflow-y-auto h-full w-full z-50">
+        <div className="relative top-20 mx-auto p-5 border w-96 shadow-lg rounded-md bg-white">
+          <div className="mt-3 text-center">
+            {/* Success Icon */}
+            <div className="mx-auto flex items-center justify-center h-12 w-12 rounded-full bg-green-100 mb-4">
+              <svg className="h-6 w-6 text-green-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M5 13l4 4L19 7"></path>
+              </svg>
+            </div>
+            
+            {/* Title */}
+            <h3 className="text-lg leading-6 font-medium text-gray-900 mb-2">
+              Test Kit Successfully Claimed!
+            </h3>
+            
+            {/* Message */}
+            <div className="mt-2 px-7 py-3">
+              <p className="text-sm text-gray-500 mb-3">
+                You have successfully claimed test kit:
+              </p>
+              <p className="text-lg font-medium text-gray-900 mb-3">
+                {kitData?.kit_code}
+              </p>
+              <p className="text-sm text-gray-600">
+                Click "Continue" below to register this test kit with your sample information.
+              </p>
+            </div>
+            
+            {/* Continue Button */}
+            <div className="items-center px-4 py-3">
+              <button
+                onClick={onContinue}
+                className="px-6 py-3 bg-blue-600 text-white text-base font-medium rounded-md w-full shadow-sm hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-blue-300"
+              >
+                Continue to Registration
+              </button>
+            </div>
+          </div>
+        </div>
+      </div>
+    );
+  };
 
   const handleSubmit = async (e) => {
     e.preventDefault();
@@ -63,13 +114,10 @@ export default function LegacyKitClaimPage() {
       const result = await response.json();
 
       if (response.ok && result.success) {
-        // Successfully claimed, navigate to registration page
-        navigate('/register-kit', { 
-          state: { 
-            message: `Kit ${kitCode.toUpperCase()} successfully claimed! You can now register it.`,
-            claimedKit: result.kit
-          }
-        });
+        // UPDATED: Show modal instead of navigating immediately
+        setClaimedKitData(result.kit);
+        setShowSuccessModal(true);
+        setKitCode(''); // Clear the form
       } else {
         // Show error message
         setError(result.error || 'Failed to claim kit');
@@ -81,6 +129,17 @@ export default function LegacyKitClaimPage() {
     } finally {
       setLoading(false);
     }
+  };
+
+  // NEW FUNCTION: Handle continue from modal
+  const handleContinueToRegistration = () => {
+    setShowSuccessModal(false);
+    navigate('/register-kit', { 
+      state: { 
+        message: `Kit ${claimedKitData.kit_code} successfully claimed! You can now register it.`,
+        claimedKit: claimedKitData
+      }
+    });
   };
 
   return (
@@ -221,13 +280,29 @@ export default function LegacyKitClaimPage() {
                 <ul className="text-sm text-gray-600 space-y-1">
                   <li>• Double-check the bottom side of your delivery box lid</li>
                   <li>• Make sure you're entering the code exactly as shown</li>
-                  <li>• Contact our support team at info@mywaterquality.ca</li>
+                  <li>
+                    • Contact our support team at{' '}
+                    <Link 
+                      to="/contact" 
+                      className="text-blue-600 hover:text-blue-800 underline"
+                    >
+                      our contact page
+                    </Link>{' '}
+                    or email info@mywaterquality.ca
+                  </li>
                 </ul>
               </div>
             </div>
           </div>
         </div>
       </div>
+
+      {/* SUCCESS MODAL */}
+      <SuccessModal 
+        isOpen={showSuccessModal}
+        onContinue={handleContinueToRegistration}
+        kitData={claimedKitData}
+      />
     </PageLayout>
   );
 }
