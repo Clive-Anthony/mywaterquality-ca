@@ -13,12 +13,15 @@ function CustomStatusDropdown({ value, onChange, options }) {
   const selectedOption = options.find(opt => opt.value === value);
 
   // Calculate position when opening
-  const handleToggle = () => {
+  const handleToggle = (e) => {
+    e.preventDefault();
+    e.stopPropagation();
+    
     if (!isOpen && buttonRef.current) {
       const rect = buttonRef.current.getBoundingClientRect();
       setPosition({
-        top: rect.bottom + window.scrollY + 4,
-        left: rect.left + window.scrollX
+        top: rect.bottom + 4, // Don't add scrollY for fixed positioning
+        left: rect.left        // Don't add scrollX for fixed positioning
       });
     }
     setIsOpen(!isOpen);
@@ -41,7 +44,15 @@ function CustomStatusDropdown({ value, onChange, options }) {
         ref={buttonRef}
         type="button"
         onClick={handleToggle}
-        className="text-xs font-medium rounded-full px-3 py-2 lg:px-2.5 lg:py-1 xl:px-2.5 xl:py-0.5 border border-gray-300 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 bg-white flex items-center justify-between min-w-[120px] w-full lg:w-auto"
+        className="text-xs font-medium rounded-full px-3 py-2 lg:px-2.5 lg:py-1 xl:px-2.5 xl:py-0.5 border border-gray-300 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 bg-white flex items-center justify-between min-w-[120px] w-full lg:w-auto cursor-pointer relative"
+        style={{ 
+          touchAction: 'manipulation',
+          userSelect: 'none',
+          WebkitUserSelect: 'none',
+          WebkitTapHighlightColor: 'transparent',
+          minHeight: '44px', // Ensure minimum touch target size
+          zIndex: 10
+        }}
       >
         <span className="truncate text-left flex-1">{selectedOption?.label}</span>
         <svg className="ml-1 h-3 w-3 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
@@ -73,7 +84,12 @@ function CustomStatusDropdown({ value, onChange, options }) {
               className={`w-full text-left px-4 py-3 text-sm hover:bg-gray-100 focus:bg-gray-100 focus:outline-none block ${
                 option.value === value ? 'bg-blue-50 text-blue-600' : ''
               }`}
-              style={{ whiteSpace: 'normal', lineHeight: '1.4' }}
+              style={{ 
+                whiteSpace: 'normal', 
+                lineHeight: '1.4',
+                touchAction: 'manipulation',
+                WebkitTapHighlightColor: 'transparent'
+              }}
             >
               {option.label}
             </button>
@@ -105,7 +121,7 @@ export default function AdminOrdersList({
   const statusOptions = [
     { value: 'confirmed', label: 'Confirmed' },
     { value: 'en_route_to_customer', label: 'En Route to Customer' },
-    { value: 'delivered_awaiting_registration', label: 'Delivered to Customer - Awaiting Registration' },
+    { value: 'delivered_awaiting_registration', label: 'Delivered Awaiting Registration' },
     { value: 'registered', label: 'Registered' },
     { value: 'en_route_to_lab', label: 'En Route to Lab' },
     { value: 'delivered_to_lab', label: 'Delivered to Lab' },
@@ -274,8 +290,6 @@ export default function AdminOrdersList({
       year: 'numeric',
       month: 'short',
       day: 'numeric',
-      hour: '2-digit',
-      minute: '2-digit',
     });
   };
 
@@ -474,9 +488,6 @@ export default function AdminOrdersList({
                       Status
                     </th>
                     <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                      Amount
-                    </th>
-                    <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
                       Date
                     </th>
                     <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
@@ -526,13 +537,13 @@ export default function AdminOrdersList({
                           )}
                         </div>
                       </td>
-                      <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
+                      {/* <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
                         {order.source === 'legacy' ? 'Legacy Kit' : formatPrice(order.total_amount)}
-                      </td>
+                      </td> */}
                       <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
                         {formatDate(order.created_at)}
                       </td>
-                      <td className="px-6 py-4 whitespace-nowrap text-right text-sm font-medium">
+                      <td className="px-6 py-4 whitespace-nowrap text-middle text-sm font-medium">
                         <button
                           onClick={() => showOrderDetailsModal(order)}
                           className="text-blue-600 hover:text-blue-900"
@@ -607,7 +618,7 @@ export default function AdminOrdersList({
                           </div>
                         </div>
                       </td>
-                      <td className="px-4 py-4 text-right">
+                      <td className="px-4 py-4 text-middle">
                         <button
                           onClick={() => showOrderDetailsModal(order)}
                           className="text-blue-600 hover:text-blue-900 text-sm font-medium"
