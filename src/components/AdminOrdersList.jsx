@@ -15,6 +15,121 @@ export default function AdminOrdersList({
   const [selectedOrder, setSelectedOrder] = useState(null);
   const [showOrderDetails, setShowOrderDetails] = useState(false);
 
+  const [editMode, setEditMode] = useState(false);
+const [editedStatuses, setEditedStatuses] = useState({});
+const [showCancelDialog, setShowCancelDialog] = useState(false);
+const [saving, setSaving] = useState(false);
+
+// Status options for the dropdown
+const statusOptions = [
+  { value: 'confirmed', label: 'Confirmed' },
+  { value: 'en_route_to_customer', label: 'En Route to Customer' },
+  { value: 'delivered_awaiting_registration', label: 'Delivered to Customer - Awaiting Registration' },
+  { value: 'registered', label: 'Registered' },
+  { value: 'en_route_to_lab', label: 'En Route to Lab' },
+  { value: 'delivered_to_lab', label: 'Delivered to Lab' },
+  { value: 'test_results_received', label: 'Test Results Received' },
+  { value: 'report_generated', label: 'Report Generated' },
+  { value: 'report_delivered', label: 'Report Delivered' }
+];
+
+// Helper function to get display label for status
+const getStatusDisplayLabel = (status) => {
+  const option = statusOptions.find(opt => opt.value === status);
+  return option ? option.label : status.replace(/_/g, ' ').replace(/\b\w/g, l => l.toUpperCase());
+};
+
+// Handle status change in edit mode
+const handleStatusChange = (orderId, newStatus) => {
+  // Find the original order to compare
+  const originalOrder = orders.find(o => o.id === orderId);
+  
+  setEditedStatuses(prev => {
+    const updated = { ...prev };
+    
+    if (originalOrder && newStatus === originalOrder.status) {
+      // If the new status matches the original, remove it from edited statuses
+      delete updated[orderId];
+    } else {
+      // If it's different from original, track the change
+      updated[orderId] = newStatus;
+    }
+    
+    console.log('Updated editedStatuses:', updated);
+    return updated;
+  });
+};
+
+// Save all status changes
+const handleSaveChanges = async () => {
+  setSaving(true);
+  try {
+    const promises = Object.entries(editedStatuses).map(async ([orderId, newStatus]) => {
+      // Find the order to determine if it's legacy or regular
+      const order = orders.find(o => o.id === orderId);
+      
+      if (order.source === 'legacy') {
+        // Update legacy kit registration status
+        const { error } = await supabase
+          .from('legacy_kit_registrations')
+          .update({ status: newStatus })
+          .eq('id', orderId);
+        
+        if (error) throw error;
+      } else {
+        // Update regular order status
+        const { error } = await supabase
+          .from('orders')
+          .update({ status: newStatus })
+          .eq('id', orderId);
+        
+        if (error) throw error;
+      }
+    });
+
+    await Promise.all(promises);
+    
+    // Refresh the orders list
+    const { data, error } = await supabase
+      .from('vw_admin_orders')
+      .select('*')
+      .eq('environment', 'prod')
+      .order('created_at', { ascending: false })
+      .limit(compact ? 10 : 100);
+
+    if (error) throw error;
+    setOrders(data || []);
+    
+    // Exit edit mode and clear changes
+    setEditMode(false);
+    setEditedStatuses({});
+  } catch (err) {
+    console.error('Error saving status changes:', err);
+    setError('Failed to save changes: ' + err.message);
+  } finally {
+    setSaving(false);
+  }
+};
+
+// Handle cancel with confirmation
+const handleCancelChanges = () => {
+  console.log('Cancel clicked, editedStatuses:', editedStatuses);
+  console.log('Number of changes:', Object.keys(editedStatuses).length);
+
+  if (Object.keys(editedStatuses).length > 0) {
+    setShowCancelDialog(true);
+  } else {
+    setEditMode(false);
+  }
+};
+
+// Confirm cancel action
+const confirmCancelChanges = () => {
+  setEditMode(false);
+  setEditedStatuses({});
+  setShowCancelDialog(false);
+};
+
   // Load admin orders from vw_admin_orders
   useEffect(() => {
     const loadAdminOrders = async () => {
@@ -81,7 +196,14 @@ export default function AdminOrdersList({
         registered: 'bg-green-100 text-green-800',
         delivered: 'bg-green-100 text-green-800',
         cancelled: 'bg-red-100 text-red-800',
-        refunded: 'bg-gray-100 text-gray-800'
+        refunded: 'bg-gray-100 text-gray-800',
+        en_route_to_customer: 'bg-indigo-100 text-indigo-800',
+        delivered_awaiting_registration: 'bg-yellow-100 text-yellow-800',
+        en_route_to_lab: 'bg-purple-100 text-purple-800',
+        delivered_to_lab: 'bg-purple-100 text-purple-800',
+        test_results_received: 'bg-blue-100 text-blue-800',
+        report_generated: 'bg-green-100 text-green-800',
+        report_delivered: 'bg-green-100 text-green-800'
       },
       payment_status: {
         pending: 'bg-yellow-100 text-yellow-800',
@@ -144,7 +266,7 @@ export default function AdminOrdersList({
         {showTitle && (
           <div className="px-6 py-5 border-b border-gray-200">
             <h3 className="text-lg leading-6 font-medium text-gray-900">
-              All Orders (Admin)
+              All Orders
             </h3>
           </div>
         )}
@@ -168,20 +290,68 @@ export default function AdminOrdersList({
   return (
     <>
       <div className="bg-white shadow rounded-lg overflow-hidden">
-        {showTitle && (
-          <div className="px-6 py-5 border-b border-gray-200">
-            <div className="flex items-center justify-between">
-              <h3 className="text-lg leading-6 font-medium text-gray-900">
-                All Orders (Admin)
-              </h3>
-            </div>
-            {orders.length > 0 && (
-              <p className="mt-1 text-sm text-gray-500">
-                {compact ? `${orders.length} recent orders` : `${orders.length} total orders`} • Production only
-              </p>
+      {showTitle && (
+        <div className="px-6 py-5 border-b border-gray-200">
+          <div className="flex items-center justify-between">
+            <h3 className="text-lg leading-6 font-medium text-gray-900">
+              All Orders
+            </h3>
+            
+            {/* Edit/Save/Cancel buttons */}
+            {!editMode ? (
+              <button
+                onClick={() => setEditMode(true)}
+                className="inline-flex items-center px-4 py-2 border border-gray-300 text-sm font-medium rounded-md text-gray-700 bg-white hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500"
+              >
+                <svg className="mr-2 h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" />
+                </svg>
+                Edit
+              </button>
+            ) : (
+              <div className="flex space-x-2">
+                <button
+                  onClick={handleSaveChanges}
+                  disabled={saving}
+                  className="inline-flex items-center px-4 py-2 border border-transparent text-sm font-medium rounded-md text-white bg-green-600 hover:bg-green-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-green-500 disabled:opacity-50 disabled:cursor-not-allowed"
+                >
+                  {saving ? (
+                    <>
+                      <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-white mr-2"></div>
+                      Saving...
+                    </>
+                  ) : (
+                    <>
+                      <svg className="mr-2 h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M5 13l4 4L19 7" />
+                      </svg>
+                      Save
+                    </>
+                  )}
+                </button>
+                <button
+                  onClick={handleCancelChanges}
+                  disabled={saving}
+                  className="inline-flex items-center px-4 py-2 border border-gray-300 text-sm font-medium rounded-md text-gray-700 bg-white hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500 disabled:opacity-50 disabled:cursor-not-allowed"
+                >
+                  <svg className="mr-2 h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M6 18L18 6M6 6l12 12" />
+                  </svg>
+                  Cancel
+                </button>
+              </div>
             )}
           </div>
-        )}
+          {orders.length > 0 && (
+            <p className="mt-1 text-sm text-gray-500">
+              {compact ? `${orders.length} recent orders` : `${orders.length} total orders`}
+              {editMode && Object.keys(editedStatuses).length > 0 && (
+                <span className="ml-2 text-orange-600">• {Object.keys(editedStatuses).length} change(s) pending</span>
+              )}
+            </p>
+          )}
+        </div>
+      )}
 
         {/* No Orders State */}
         {orders.length === 0 ? (
@@ -244,7 +414,21 @@ export default function AdminOrdersList({
                       </td>
                       <td className="px-6 py-4 whitespace-nowrap">
                         <div className="space-y-1">
-                          {getStatusBadge(order.status, 'status')}
+                          {editMode ? (
+                            <select
+                              value={editedStatuses[order.id] || order.status}
+                              onChange={(e) => handleStatusChange(order.id, e.target.value)}
+                              className="text-xs font-medium rounded-full px-2.5 py-0.5 border border-gray-300 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                            >
+                              {statusOptions.map(option => (
+                                <option key={option.value} value={option.value}>
+                                  {option.label}
+                                </option>
+                              ))}
+                            </select>
+                          ) : (
+                            getStatusBadge(editedStatuses[order.id] || order.status, 'status')
+                          )}
                           {!compact && (
                             <>
                               <br />
@@ -420,6 +604,38 @@ export default function AdminOrdersList({
               </div>
             </div>
           </div>
+
+          {/* Cancel Confirmation Dialog */}
+            {showCancelDialog && (
+              <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center p-4 z-50">
+                <div className="bg-white rounded-lg max-w-md w-full p-6">
+                  <div className="flex items-center mb-4">
+                    <svg className="h-6 w-6 text-orange-500 mr-3" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" />
+                    </svg>
+                    <h3 className="text-lg font-medium text-gray-900">Discard Changes?</h3>
+                  </div>
+                  <p className="text-gray-600 mb-6">
+                    This action will discard all changes made. Would you like to continue?
+                  </p>
+                  <div className="flex justify-end space-x-3">
+                    <button
+                      onClick={() => setShowCancelDialog(false)}
+                      className="px-4 py-2 border border-gray-300 text-sm font-medium rounded-md text-gray-700 bg-white hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500"
+                    >
+                      No
+                    </button>
+                    <button
+                      onClick={confirmCancelChanges}
+                      className="px-4 py-2 border border-transparent text-sm font-medium rounded-md text-white bg-red-600 hover:bg-red-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-red-500"
+                    >
+                      Yes, Discard Changes
+                    </button>
+                  </div>
+                </div>
+              </div>
+            )}
+
         </div>
       )}
     </>
