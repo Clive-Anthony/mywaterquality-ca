@@ -108,6 +108,13 @@ const ShippingStep = React.memo(({ formData, onInputChange, provinces }) => (
         required
       />
       <input
+        type="tel"
+        placeholder="Phone Number"
+        value={formData.shipping.phone}
+        onChange={(e) => onInputChange('shipping', 'phone', e.target.value)}
+        className="w-full px-3 py-2 border border-gray-300 rounded-md sm:col-span-2"
+      />
+      <input
         type="text"
         placeholder="Address *"
         value={formData.shipping.address}

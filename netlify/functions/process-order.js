@@ -129,12 +129,12 @@ async function sendAdminOrderNotificationDirect(orderData, orderItems, shippingA
       'Not provided';
 
     // Format shipping address for display
-    const formattedShippingAddress = shippingAddress ? 
-      `${shippingAddress.firstName} ${shippingAddress.lastName}
+const formattedShippingAddress = shippingAddress ? 
+`${shippingAddress.firstName} ${shippingAddress.lastName}
 ${shippingAddress.address}
 ${shippingAddress.city}, ${shippingAddress.province} ${shippingAddress.postalCode}
 ${shippingAddress.country || 'Canada'}
-Email: ${shippingAddress.email}` : 'Not provided';
+Email: ${shippingAddress.email}${shippingAddress.phone ? `\nPhone: ${shippingAddress.phone}` : ''}` : 'Not provided';
 
     // Format order items for display
     const orderItemsText = orderItems?.map(item => 
