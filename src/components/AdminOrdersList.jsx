@@ -1,7 +1,88 @@
-// src/components/AdminOrdersList.jsx - Admin orders component using vw_admin_orders
-import { useState, useEffect } from 'react';
+// src/components/AdminOrdersList.jsx - Complete responsive admin orders component
+import { useState, useEffect, useRef } from 'react';
 import { useAuth } from '../contexts/AuthContext';
 import { supabase } from '../lib/supabaseClient';
+
+// Custom Status Dropdown Component
+function CustomStatusDropdown({ value, onChange, options }) {
+  const [isOpen, setIsOpen] = useState(false);
+  const [position, setPosition] = useState({ top: 0, left: 0 });
+  const dropdownRef = useRef(null);
+  const buttonRef = useRef(null);
+
+  const selectedOption = options.find(opt => opt.value === value);
+
+  // Calculate position when opening
+  const handleToggle = () => {
+    if (!isOpen && buttonRef.current) {
+      const rect = buttonRef.current.getBoundingClientRect();
+      setPosition({
+        top: rect.bottom + window.scrollY + 4,
+        left: rect.left + window.scrollX
+      });
+    }
+    setIsOpen(!isOpen);
+  };
+
+  useEffect(() => {
+    function handleClickOutside(event) {
+      if (dropdownRef.current && !dropdownRef.current.contains(event.target)) {
+        setIsOpen(false);
+      }
+    }
+
+    document.addEventListener('mousedown', handleClickOutside);
+    return () => document.removeEventListener('mousedown', handleClickOutside);
+  }, []);
+
+  return (
+    <>
+      <button
+        ref={buttonRef}
+        type="button"
+        onClick={handleToggle}
+        className="text-xs font-medium rounded-full px-3 py-2 lg:px-2.5 lg:py-1 xl:px-2.5 xl:py-0.5 border border-gray-300 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 bg-white flex items-center justify-between min-w-[120px] w-full lg:w-auto"
+      >
+        <span className="truncate text-left flex-1">{selectedOption?.label}</span>
+        <svg className="ml-1 h-3 w-3 flex-shrink-0" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M19 9l-7 7-7-7" />
+        </svg>
+      </button>
+
+      {isOpen && (
+        <div
+          ref={dropdownRef}
+          className="fixed z-[60] bg-white border border-gray-300 rounded-md shadow-lg"
+          style={{
+            top: `${position.top}px`,
+            left: `${position.left}px`,
+            width: '280px',
+            maxHeight: '240px',
+            overflowY: 'auto',
+            overflowX: 'hidden'
+          }}
+        >
+          {options.map((option) => (
+            <button
+              key={option.value}
+              type="button"
+              onClick={() => {
+                onChange(option.value);
+                setIsOpen(false);
+              }}
+              className={`w-full text-left px-4 py-3 text-sm hover:bg-gray-100 focus:bg-gray-100 focus:outline-none block ${
+                option.value === value ? 'bg-blue-50 text-blue-600' : ''
+              }`}
+              style={{ whiteSpace: 'normal', lineHeight: '1.4' }}
+            >
+              {option.label}
+            </button>
+          ))}
+        </div>
+      )}
+    </>
+  );
+}
 
 export default function AdminOrdersList({ 
   showTitle = true, 
@@ -16,119 +97,135 @@ export default function AdminOrdersList({
   const [showOrderDetails, setShowOrderDetails] = useState(false);
 
   const [editMode, setEditMode] = useState(false);
-const [editedStatuses, setEditedStatuses] = useState({});
-const [showCancelDialog, setShowCancelDialog] = useState(false);
-const [saving, setSaving] = useState(false);
+  const [editedStatuses, setEditedStatuses] = useState({});
+  const [showCancelDialog, setShowCancelDialog] = useState(false);
+  const [saving, setSaving] = useState(false);
 
-// Status options for the dropdown
-const statusOptions = [
-  { value: 'confirmed', label: 'Confirmed' },
-  { value: 'en_route_to_customer', label: 'En Route to Customer' },
-  { value: 'delivered_awaiting_registration', label: 'Delivered to Customer - Awaiting Registration' },
-  { value: 'registered', label: 'Registered' },
-  { value: 'en_route_to_lab', label: 'En Route to Lab' },
-  { value: 'delivered_to_lab', label: 'Delivered to Lab' },
-  { value: 'test_results_received', label: 'Test Results Received' },
-  { value: 'report_generated', label: 'Report Generated' },
-  { value: 'report_delivered', label: 'Report Delivered' }
-];
+  // Status options for the dropdown
+  const statusOptions = [
+    { value: 'confirmed', label: 'Confirmed' },
+    { value: 'en_route_to_customer', label: 'En Route to Customer' },
+    { value: 'delivered_awaiting_registration', label: 'Delivered to Customer - Awaiting Registration' },
+    { value: 'registered', label: 'Registered' },
+    { value: 'en_route_to_lab', label: 'En Route to Lab' },
+    { value: 'delivered_to_lab', label: 'Delivered to Lab' },
+    { value: 'test_results_received', label: 'Test Results Received' },
+    { value: 'report_generated', label: 'Report Generated' },
+    { value: 'report_delivered', label: 'Report Delivered' }
+  ];
 
-// Helper function to get display label for status
-const getStatusDisplayLabel = (status) => {
-  const option = statusOptions.find(opt => opt.value === status);
-  return option ? option.label : status.replace(/_/g, ' ').replace(/\b\w/g, l => l.toUpperCase());
-};
+  // Helper function to get display label for status
+  const getStatusDisplayLabel = (status) => {
+    const option = statusOptions.find(opt => opt.value === status);
+    return option ? option.label : status.replace(/_/g, ' ').replace(/\b\w/g, l => l.toUpperCase());
+  };
 
-// Handle status change in edit mode
-const handleStatusChange = (orderId, newStatus) => {
-  // Find the original order to compare
-  const originalOrder = orders.find(o => o.id === orderId);
-  
-  setEditedStatuses(prev => {
-    const updated = { ...prev };
+  // Handle status change in edit mode
+  const handleStatusChange = (orderId, newStatus) => {
+    // Find the original order to compare
+    const originalOrder = orders.find(o => o.id === orderId);
     
-    if (originalOrder && newStatus === originalOrder.status) {
-      // If the new status matches the original, remove it from edited statuses
-      delete updated[orderId];
-    } else {
-      // If it's different from original, track the change
-      updated[orderId] = newStatus;
-    }
-    
-    console.log('Updated editedStatuses:', updated);
-    return updated;
-  });
-};
-
-// Save all status changes
-const handleSaveChanges = async () => {
-  setSaving(true);
-  try {
-    const promises = Object.entries(editedStatuses).map(async ([orderId, newStatus]) => {
-      // Find the order to determine if it's legacy or regular
-      const order = orders.find(o => o.id === orderId);
+    setEditedStatuses(prev => {
+      const updated = { ...prev };
       
-      if (order.source === 'legacy') {
-        // Update legacy kit registration status
-        const { error } = await supabase
-          .from('legacy_kit_registrations')
-          .update({ status: newStatus })
-          .eq('id', orderId);
-        
-        if (error) throw error;
+      if (originalOrder && newStatus === originalOrder.status) {
+        // If the new status matches the original, remove it from edited statuses
+        delete updated[orderId];
       } else {
-        // Update regular order status
-        const { error } = await supabase
-          .from('orders')
-          .update({ status: newStatus })
-          .eq('id', orderId);
-        
-        if (error) throw error;
+        // If it's different from original, track the change
+        updated[orderId] = newStatus;
       }
+      
+      return updated;
     });
+  };
 
-    await Promise.all(promises);
-    
-    // Refresh the orders list
-    const { data, error } = await supabase
-      .from('vw_admin_orders')
-      .select('*')
-      .eq('environment', 'prod')
-      .order('created_at', { ascending: false })
-      .limit(compact ? 10 : 100);
+  // Save all status changes
+  const handleSaveChanges = async () => {
+    setSaving(true);
+    try {
+      const promises = Object.entries(editedStatuses).map(async ([orderId, newStatus]) => {
+        // Find the order to determine if it's legacy or regular
+        const order = orders.find(o => o.id === orderId);
+        
+        if (order.source === 'legacy') {
+          // Update legacy kit registration status
+          const { data, error } = await supabase
+            .from('legacy_kit_registrations')
+            .update({ status: newStatus })
+            .eq('id', orderId)
+            .select();
+          
+          if (error) throw error;
+        } else {
+          // Update regular order status
+          const { data, error } = await supabase
+            .from('orders')
+            .update({ status: newStatus })
+            .eq('id', orderId)
+            .select();
+          
+          if (error) throw error;
+        }
+      });
 
-    if (error) throw error;
-    setOrders(data || []);
-    
-    // Exit edit mode and clear changes
+      await Promise.all(promises);
+      
+      // Update local state immediately to reflect changes
+      setOrders(prevOrders => 
+        prevOrders.map(order => ({
+          ...order,
+          status: editedStatuses[order.id] || order.status
+        }))
+      );
+      
+      // Exit edit mode and clear changes first
+      setEditMode(false);
+      setEditedStatuses({});
+      
+      // Refresh from database in background with a small delay
+      setTimeout(async () => {
+        try {
+          const { data, error } = await supabase
+            .from('vw_admin_orders')
+            .select('*')
+            .eq('environment', 'prod')
+            .order('created_at', { ascending: false })
+            .limit(compact ? 10 : 100);
+
+          if (error) {
+            console.error('Error refreshing orders:', error);
+          } else {
+            setOrders(data || []);
+          }
+        } catch (refreshError) {
+          console.error('Error during refresh:', refreshError);
+        }
+      }, 1000);
+      
+    } catch (err) {
+      console.error('Error saving status changes:', err);
+      setError('Failed to save changes: ' + err.message);
+    } finally {
+      setSaving(false);
+    }
+  };
+
+  // Handle cancel with confirmation
+  const handleCancelChanges = () => {
+    if (Object.keys(editedStatuses).length > 0) {
+      setShowCancelDialog(true);
+    } else {
+      setEditMode(false);
+    }
+  };
+
+  // Confirm cancel action
+  const confirmCancelChanges = () => {
     setEditMode(false);
     setEditedStatuses({});
-  } catch (err) {
-    console.error('Error saving status changes:', err);
-    setError('Failed to save changes: ' + err.message);
-  } finally {
-    setSaving(false);
-  }
-};
-
-// Handle cancel with confirmation
-const handleCancelChanges = () => {
-  console.log('Cancel clicked, editedStatuses:', editedStatuses);
-  console.log('Number of changes:', Object.keys(editedStatuses).length);
-
-  if (Object.keys(editedStatuses).length > 0) {
-    setShowCancelDialog(true);
-  } else {
-    setEditMode(false);
-  }
-};
-
-// Confirm cancel action
-const confirmCancelChanges = () => {
-  setEditMode(false);
-  setEditedStatuses({});
-  setShowCancelDialog(false);
-};
+    setShowCancelDialog(false);
+  };
 
   // Load admin orders from vw_admin_orders
   useEffect(() => {
@@ -138,8 +235,6 @@ const confirmCancelChanges = () => {
       try {
         setLoading(true);
         setError(null);
-
-        // console.log('Loading admin orders for user:', user.id);
 
         // Query the admin orders view, filtering for production orders only
         const { data, error } = await supabase
@@ -153,7 +248,6 @@ const confirmCancelChanges = () => {
           throw error;
         }
 
-        // console.log('Admin orders loaded:', data?.length || 0, 'orders');
         setOrders(data || []);
       } catch (err) {
         console.error('Error loading admin orders:', err);
@@ -225,7 +319,7 @@ const confirmCancelChanges = () => {
     
     return (
       <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium ${colorClass}`}>
-        {status.replace(/_/g, ' ').replace(/\b\w/g, l => l.toUpperCase())}
+        {getStatusDisplayLabel(status)}
       </span>
     );
   };
@@ -290,68 +384,68 @@ const confirmCancelChanges = () => {
   return (
     <>
       <div className="bg-white shadow rounded-lg overflow-hidden">
-      {showTitle && (
-        <div className="px-6 py-5 border-b border-gray-200">
-          <div className="flex items-center justify-between">
-            <h3 className="text-lg leading-6 font-medium text-gray-900">
-              All Orders
-            </h3>
-            
-            {/* Edit/Save/Cancel buttons */}
-            {!editMode ? (
-              <button
-                onClick={() => setEditMode(true)}
-                className="inline-flex items-center px-4 py-2 border border-gray-300 text-sm font-medium rounded-md text-gray-700 bg-white hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500"
-              >
-                <svg className="mr-2 h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" />
-                </svg>
-                Edit
-              </button>
-            ) : (
-              <div className="flex space-x-2">
+        {showTitle && (
+          <div className="px-4 sm:px-6 py-5 border-b border-gray-200">
+            <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
+              <h3 className="text-lg leading-6 font-medium text-gray-900">
+                All Orders
+              </h3>
+              
+              {/* Edit/Save/Cancel buttons */}
+              {!editMode ? (
                 <button
-                  onClick={handleSaveChanges}
-                  disabled={saving}
-                  className="inline-flex items-center px-4 py-2 border border-transparent text-sm font-medium rounded-md text-white bg-green-600 hover:bg-green-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-green-500 disabled:opacity-50 disabled:cursor-not-allowed"
-                >
-                  {saving ? (
-                    <>
-                      <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-white mr-2"></div>
-                      Saving...
-                    </>
-                  ) : (
-                    <>
-                      <svg className="mr-2 h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M5 13l4 4L19 7" />
-                      </svg>
-                      Save
-                    </>
-                  )}
-                </button>
-                <button
-                  onClick={handleCancelChanges}
-                  disabled={saving}
-                  className="inline-flex items-center px-4 py-2 border border-gray-300 text-sm font-medium rounded-md text-gray-700 bg-white hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500 disabled:opacity-50 disabled:cursor-not-allowed"
+                  onClick={() => setEditMode(true)}
+                  className="inline-flex items-center px-4 py-2 border border-gray-300 text-sm font-medium rounded-md text-gray-700 bg-white hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500"
                 >
                   <svg className="mr-2 h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M6 18L18 6M6 6l12 12" />
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M11 5H6a2 2 0 00-2 2v11a2 2 0 002 2h11a2 2 0 002-2v-5m-1.414-9.414a2 2 0 112.828 2.828L11.828 15H9v-2.828l8.586-8.586z" />
                   </svg>
-                  Cancel
+                  Edit
                 </button>
-              </div>
+              ) : (
+                <div className="flex flex-col sm:flex-row gap-2">
+                  <button
+                    onClick={handleSaveChanges}
+                    disabled={saving}
+                    className="inline-flex items-center justify-center px-4 py-2 border border-transparent text-sm font-medium rounded-md text-white bg-green-600 hover:bg-green-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-green-500 disabled:opacity-50 disabled:cursor-not-allowed"
+                  >
+                    {saving ? (
+                      <>
+                        <div className="animate-spin rounded-full h-4 w-4 border-b-2 border-white mr-2"></div>
+                        Saving...
+                      </>
+                    ) : (
+                      <>
+                        <svg className="mr-2 h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M5 13l4 4L19 7" />
+                        </svg>
+                        Save
+                      </>
+                    )}
+                  </button>
+                  <button
+                    onClick={handleCancelChanges}
+                    disabled={saving}
+                    className="inline-flex items-center justify-center px-4 py-2 border border-gray-300 text-sm font-medium rounded-md text-gray-700 bg-white hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500 disabled:opacity-50 disabled:cursor-not-allowed"
+                  >
+                    <svg className="mr-2 h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M6 18L18 6M6 6l12 12" />
+                    </svg>
+                    Cancel
+                  </button>
+                </div>
+              )}
+            </div>
+            {orders.length > 0 && (
+              <p className="mt-2 text-sm text-gray-500">
+                {compact ? `${orders.length} recent orders` : `${orders.length} total orders`}
+                {editMode && Object.keys(editedStatuses).length > 0 && (
+                  <span className="ml-2 text-orange-600">• {Object.keys(editedStatuses).length} change(s) pending</span>
+                )}
+              </p>
             )}
           </div>
-          {orders.length > 0 && (
-            <p className="mt-1 text-sm text-gray-500">
-              {compact ? `${orders.length} recent orders` : `${orders.length} total orders`}
-              {editMode && Object.keys(editedStatuses).length > 0 && (
-                <span className="ml-2 text-orange-600">• {Object.keys(editedStatuses).length} change(s) pending</span>
-              )}
-            </p>
-          )}
-        </div>
-      )}
+        )}
 
         {/* No Orders State */}
         {orders.length === 0 ? (
@@ -365,7 +459,8 @@ const confirmCancelChanges = () => {
         ) : (
           /* Orders List */
           <div className={`${maxHeight} overflow-y-auto`}>
-            <div className="overflow-x-auto">
+            {/* Desktop Table View - 1280px+ */}
+            <div className="hidden xl:block overflow-x-auto">
               <table className="min-w-full divide-y divide-gray-200">
                 <thead className="bg-gray-50">
                   <tr>
@@ -415,17 +510,11 @@ const confirmCancelChanges = () => {
                       <td className="px-6 py-4 whitespace-nowrap">
                         <div className="space-y-1">
                           {editMode ? (
-                            <select
+                            <CustomStatusDropdown
                               value={editedStatuses[order.id] || order.status}
-                              onChange={(e) => handleStatusChange(order.id, e.target.value)}
-                              className="text-xs font-medium rounded-full px-2.5 py-0.5 border border-gray-300 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
-                            >
-                              {statusOptions.map(option => (
-                                <option key={option.value} value={option.value}>
-                                  {option.label}
-                                </option>
-                              ))}
-                            </select>
+                              onChange={(newStatus) => handleStatusChange(order.id, newStatus)}
+                              options={statusOptions}
+                            />
                           ) : (
                             getStatusBadge(editedStatuses[order.id] || order.status, 'status')
                           )}
@@ -455,6 +544,135 @@ const confirmCancelChanges = () => {
                   ))}
                 </tbody>
               </table>
+            </div>
+
+            {/* Tablet Condensed Table View - 1024px to 1279px */}
+            <div className="hidden lg:block xl:hidden overflow-x-auto">
+              <table className="min-w-full divide-y divide-gray-200">
+                <thead className="bg-gray-50">
+                  <tr>
+                    <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                      Order & Customer
+                    </th>
+                    <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                      Status
+                    </th>
+                    <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                      Amount & Date
+                    </th>
+                    <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                      Actions
+                    </th>
+                  </tr>
+                </thead>
+                <tbody className="bg-white divide-y divide-gray-200">
+                  {orders.map((order) => (
+                    <tr key={order.id} className="hover:bg-gray-50">
+                      <td className="px-4 py-4">
+                        <div>
+                          <div className="text-sm font-medium text-gray-900">
+                            #{order.order_number}
+                          </div>
+                          <div className="text-sm text-gray-600">
+                            {order.customer_first_name} {order.customer_last_name}
+                          </div>
+                          <div className="text-xs text-gray-500">
+                            {order.items?.length || 0} item{(order.items?.length || 0) !== 1 ? 's' : ''}
+                          </div>
+                        </div>
+                      </td>
+                      <td className="px-4 py-4">
+                        <div className="space-y-1">
+                          {editMode ? (
+                            <CustomStatusDropdown
+                              value={editedStatuses[order.id] || order.status}
+                              onChange={(newStatus) => handleStatusChange(order.id, newStatus)}
+                              options={statusOptions}
+                            />
+                          ) : (
+                            getStatusBadge(editedStatuses[order.id] || order.status, 'status')
+                          )}
+                          <div className="text-xs">
+                            {getStatusBadge(order.payment_status, 'payment_status')}
+                          </div>
+                        </div>
+                      </td>
+                      <td className="px-4 py-4">
+                        <div>
+                          <div className="text-sm font-medium text-gray-900">
+                            {order.source === 'legacy' ? 'Legacy Kit' : formatPrice(order.total_amount)}
+                          </div>
+                          <div className="text-xs text-gray-500">
+                            {formatDate(order.created_at)}
+                          </div>
+                        </div>
+                      </td>
+                      <td className="px-4 py-4 text-right">
+                        <button
+                          onClick={() => showOrderDetailsModal(order)}
+                          className="text-blue-600 hover:text-blue-900 text-sm font-medium"
+                        >
+                          View
+                        </button>
+                      </td>
+                    </tr>
+                  ))}
+                </tbody>
+              </table>
+            </div>
+
+            {/* Enhanced Mobile Cards - Below 1024px */}
+            <div className="lg:hidden space-y-4 p-4">
+              {orders.map((order) => (
+                <div key={order.id} className="bg-white border border-gray-200 rounded-lg p-4 shadow-sm">
+                  <div className="flex justify-between items-start mb-3">
+                    <div className="flex-1">
+                      <h3 className="text-lg font-medium text-gray-900">#{order.order_number}</h3>
+                      <p className="text-sm text-gray-600 mt-1">{order.customer_first_name} {order.customer_last_name}</p>
+                      <p className="text-sm text-gray-500">{order.customer_email}</p>
+                    </div>
+                    <button
+                      onClick={() => showOrderDetailsModal(order)}
+                      className="text-blue-600 hover:text-blue-900 text-sm font-medium ml-4"
+                    >
+                      View
+                    </button>
+                  </div>
+                  
+                  <div className="grid grid-cols-2 gap-4 mb-4">
+                    <div>
+                      <p className="text-xs font-medium text-gray-500 uppercase tracking-wider">Amount</p>
+                      <p className="text-sm font-medium text-gray-900 mt-1">
+                        {order.source === 'legacy' ? 'Legacy Kit' : formatPrice(order.total_amount)}
+                      </p>
+                    </div>
+                    <div>
+                      <p className="text-xs font-medium text-gray-500 uppercase tracking-wider">Date</p>
+                      <p className="text-sm text-gray-900 mt-1">{formatDate(order.created_at)}</p>
+                    </div>
+                  </div>
+
+                  <div className="mb-3">
+                    <p className="text-xs font-medium text-gray-500 uppercase tracking-wider mb-2">Status</p>
+                    {editMode ? (
+                      <CustomStatusDropdown
+                        value={editedStatuses[order.id] || order.status}
+                        onChange={(newStatus) => handleStatusChange(order.id, newStatus)}
+                        options={statusOptions}
+                      />
+                    ) : (
+                      <div className="flex flex-wrap gap-2">
+                        {getStatusBadge(editedStatuses[order.id] || order.status, 'status')}
+                        {getStatusBadge(order.payment_status, 'payment_status')}
+                      </div>
+                    )}
+                  </div>
+
+                  <div className="text-xs text-gray-500 border-t border-gray-100 pt-3">
+                    {order.items?.length || 0} item{(order.items?.length || 0) !== 1 ? 's' : ''}
+                  </div>
+                </div>
+              ))}
             </div>
           </div>
         )}
@@ -604,38 +822,37 @@ const confirmCancelChanges = () => {
               </div>
             </div>
           </div>
+        </div>
+      )}
 
-          {/* Cancel Confirmation Dialog */}
-            {showCancelDialog && (
-              <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center p-4 z-50">
-                <div className="bg-white rounded-lg max-w-md w-full p-6">
-                  <div className="flex items-center mb-4">
-                    <svg className="h-6 w-6 text-orange-500 mr-3" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" />
-                    </svg>
-                    <h3 className="text-lg font-medium text-gray-900">Discard Changes?</h3>
-                  </div>
-                  <p className="text-gray-600 mb-6">
-                    This action will discard all changes made. Would you like to continue?
-                  </p>
-                  <div className="flex justify-end space-x-3">
-                    <button
-                      onClick={() => setShowCancelDialog(false)}
-                      className="px-4 py-2 border border-gray-300 text-sm font-medium rounded-md text-gray-700 bg-white hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500"
-                    >
-                      No
-                    </button>
-                    <button
-                      onClick={confirmCancelChanges}
-                      className="px-4 py-2 border border-transparent text-sm font-medium rounded-md text-white bg-red-600 hover:bg-red-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-red-500"
-                    >
-                      Yes, Discard Changes
-                    </button>
-                  </div>
-                </div>
-              </div>
-            )}
-
+      {/* Cancel Confirmation Dialog */}
+      {showCancelDialog && (
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center p-4 z-50">
+          <div className="bg-white rounded-lg max-w-md w-full p-6">
+            <div className="flex items-center mb-4">
+              <svg className="h-6 w-6 text-orange-500 mr-3" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" />
+              </svg>
+              <h3 className="text-lg font-medium text-gray-900">Discard Changes?</h3>
+            </div>
+            <p className="text-gray-600 mb-6">
+              This action will discard all changes made. Would you like to continue?
+            </p>
+            <div className="flex justify-end space-x-3">
+              <button
+                onClick={() => setShowCancelDialog(false)}
+                className="px-4 py-2 border border-gray-300 text-sm font-medium rounded-md text-gray-700 bg-white hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500"
+              >
+                No
+              </button>
+              <button
+                onClick={confirmCancelChanges}
+                className="px-4 py-2 border border-transparent text-sm font-medium rounded-md text-white bg-red-600 hover:bg-red-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-red-500"
+              >
+                Yes, Discard Changes
+              </button>
+            </div>
+          </div>
         </div>
       )}
     </>

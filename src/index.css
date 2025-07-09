@@ -4,3 +4,33 @@
 @tailwind utilities;
 
 /* Add any custom CSS below this line */
+
+.mobile-friendly-select {
+    font-size: 12px;
+    padding: 2px 10px;
+    border-radius: 9999px;
+  }
+  
+  @media (max-width: 640px) {
+    .mobile-friendly-select {
+      font-size: 16px !important;
+      padding: 12px 16px !important;
+      border-radius: 8px !important;
+      min-height: 48px !important;
+    }
+  }
+
+/* Target the dropdown options specifically */
+.admin-status-select option {
+    font-size: 16px !important;
+    padding: 12px 8px !important;
+    line-height: 1.4 !important;
+    min-height: 44px !important;
+  }
+  
+  @media (max-width: 640px) {
+    .admin-status-select option {
+      font-size: 18px !important;
+      padding: 16px 12px !important;
+    }
+  }
