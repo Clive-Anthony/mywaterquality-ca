@@ -98,7 +98,7 @@ async function sendOrderConfirmationEmailDirect(orderData, orderItems, customerE
 }
 
 // FIXED: Admin order notification with correct template ID and proper data structure
-async function sendAdminOrderNotificationDirect(orderData, orderItems, shippingAddress, requestId) {
+async function sendAdminOrderNotificationDirect(orderData, orderItems, shippingAddress, kitCodes, requestId) {
   try {
     const apiKey = process.env.VITE_LOOPS_API_KEY;
     if (!apiKey) {
@@ -155,6 +155,7 @@ Email: ${shippingAddress.email}${shippingAddress.phone ? `\nPhone: ${shippingAdd
         orderTotal: orderTotal,
         customerEmail: shippingAddress?.email || 'Not provided',
         shippingAddress: formattedShippingAddress,
+        kitCode: kitCodes.length > 0 ? kitCodes.join(', ') : 'Not generated',
         orderItems: orderItemsText,
         totalAmount: orderData.total_amount,
         paymentMethod: orderData.payment_method || 'PayPal',
@@ -507,29 +508,34 @@ exports.handler = async function(event, context) {
     log('info', `✅ Order processing completed successfully in ${processingTime}ms [${requestId}]`);
 
     // Create kit registrations for the order
-    try {
-      log('info', `🧪 Creating kit registrations for order ${orderResult.order.id} [${requestId}]`);
-      
-      const { data: registrationsCreated, error: registrationError } = await supabaseAdmin
-        .rpc('create_kit_registrations_for_order', { order_id_param: orderResult.order.id });
-      
-      if (registrationError) {
-        log('warn', 'Kit registration creation failed but order was successful', {
-          error: registrationError.message,
-          orderId: orderResult.order.id
-        });
-      } else {
-        log('info', `✅ Created ${registrationsCreated} kit registrations for order`, {
-          orderId: orderResult.order.id,
-          registrationCount: registrationsCreated
-        });
-      }
-    } catch (registrationException) {
-      log('warn', 'Exception during kit registration creation but order was successful', {
-        error: registrationException.message,
-        orderId: orderResult.order.id
-      });
-    }
+try {
+  log('info', `🧪 Creating kit registrations for order ${orderResult.order.id} [${requestId}]`);
+  
+  const { data: registrationResult, error: registrationError } = await supabaseAdmin
+    .rpc('create_kit_registrations_for_order', { order_id_param: orderResult.order.id });
+  
+  let kitCodes = [];
+  if (registrationError) {
+    log('warn', 'Kit registration creation failed but order was successful', {
+      error: registrationError.message,
+      orderId: orderResult.order.id
+    });
+  } else if (registrationResult && registrationResult.length > 0) {
+    const result = registrationResult[0];
+    kitCodes = result.kit_codes || [];
+    log('info', `✅ Created ${result.registration_count} kit registrations for order`, {
+      orderId: orderResult.order.id,
+      registrationCount: result.registration_count,
+      kitCodes: kitCodes
+    });
+  }
+  
+} catch (registrationException) {
+  log('warn', 'Exception during kit registration creation but order was successful', {
+    error: registrationException.message,
+    orderId: orderResult.order.id
+  });
+}
 
     // CRITICAL: Clear cart immediately after successful order creation (blocking)
     log('info', `🛒 Clearing cart for user ${user.id} after successful order [${requestId}]`);
@@ -583,6 +589,7 @@ exports.handler = async function(event, context) {
           orderResult.order,
           orderData.items,
           orderData.shipping_address,
+          KitCodes,
           requestId
         );
         
