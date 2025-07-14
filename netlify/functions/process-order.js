@@ -507,14 +507,16 @@ exports.handler = async function(event, context) {
     const processingTime = Date.now() - startTime;
     log('info', `✅ Order processing completed successfully in ${processingTime}ms [${requestId}]`);
 
-    // Create kit registrations for the order
+// Declare kitCodes outside the try block
+let kitCodes = [];
+
+// Create kit registrations for the order
 try {
   log('info', `🧪 Creating kit registrations for order ${orderResult.order.id} [${requestId}]`);
   
   const { data: registrationResult, error: registrationError } = await supabaseAdmin
     .rpc('create_kit_registrations_for_order', { order_id_param: orderResult.order.id });
   
-  let kitCodes = [];
   if (registrationError) {
     log('warn', 'Kit registration creation failed but order was successful', {
       error: registrationError.message,
