@@ -589,7 +589,7 @@ try {
           orderResult.order,
           orderData.items,
           orderData.shipping_address,
-          KitCodes,
+          kitCodes,
           requestId
         );
         
