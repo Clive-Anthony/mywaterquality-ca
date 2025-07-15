@@ -99,6 +99,24 @@ useEffect(() => {
   fetchUserRole();
 }, [user, isReady]); 
 
+// Add this useEffect after the existing useEffects, around line 70-80
+useEffect(() => {
+  const handleShowCartDropdown = () => {
+    // Only check if user is authenticated, not cart items count
+    if (user) {
+      setShowCartDropdown(true);
+    }
+  };
+
+  // Listen for the custom event
+  window.addEventListener('showCartDropdown', handleShowCartDropdown);
+
+  // Cleanup event listener
+  return () => {
+    window.removeEventListener('showCartDropdown', handleShowCartDropdown);
+  };
+}, [user]);
+
   const handleSignOut = async () => {
     setLoading(true);
     setShowMobileMenu(false); // Close mobile menu

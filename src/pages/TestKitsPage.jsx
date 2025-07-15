@@ -81,52 +81,58 @@ export default function TestKitsPage() {
   };
 
   // Handle add to cart button click
-  const handleAddToCart = async (kit) => {
-    // Check if user is authenticated
-    if (!user) {
-      setSelectedKit(kit);
-      setShowLoginPrompt(true);
-      return;
+// Handle add to cart button click
+const handleAddToCart = async (kit) => {
+  // Check if user is authenticated
+  if (!user) {
+    setSelectedKit(kit);
+    setShowLoginPrompt(true);
+    return;
+  }
+
+  // Get the quantity for this kit
+  const quantity = quantities[kit.id] || 1;
+
+  // Check stock
+  if (kit.quantity <= 0) {
+    setError('This item is out of stock');
+    return;
+  }
+
+  if (quantity > kit.quantity) {
+    setError(`Only ${kit.quantity} items available in stock`);
+    return;
+  }
+
+  setAddingToCart(prev => ({ ...prev, [kit.id]: true }));
+  setError(null);
+
+  try {
+    const { success, error: cartError } = await addToCart(kit, quantity);
+    
+    if (!success) {
+      throw cartError;
     }
 
-    // Get the quantity for this kit
-    const quantity = quantities[kit.id] || 1;
+    setSuccessMessage(`${quantity} x ${kit.name} added to cart!`);
+    
+    // Add small delay to ensure cart state updates before showing dropdown
+    setTimeout(() => {
+      window.dispatchEvent(new CustomEvent('showCartDropdown'));
+    }, 100);
+    
+    // Clear success message after 3 seconds
+    setTimeout(() => {
+      setSuccessMessage(null);
+    }, 3000);
 
-    // Check stock
-    if (kit.quantity <= 0) {
-      setError('This item is out of stock');
-      return;
-    }
-
-    if (quantity > kit.quantity) {
-      setError(`Only ${kit.quantity} items available in stock`);
-      return;
-    }
-
-    setAddingToCart(prev => ({ ...prev, [kit.id]: true }));
-    setError(null);
-
-    try {
-      const { success, error: cartError } = await addToCart(kit, quantity);
-      
-      if (!success) {
-        throw cartError;
-      }
-
-      setSuccessMessage(`${quantity} x ${kit.name} added to cart!`);
-      
-      // Clear success message after 3 seconds
-      setTimeout(() => {
-        setSuccessMessage(null);
-      }, 3000);
-
-    } catch (error) {
-      console.error('Error adding to cart:', error);
-      setError(error.message || 'Failed to add item to cart');
-    } finally {
-      setAddingToCart(prev => ({ ...prev, [kit.id]: false }));
-    }
-  };
+  } catch (error) {
+    console.error('Error adding to cart:', error);
+    setError(error.message || 'Failed to add item to cart');
+  } finally {
+    setAddingToCart(prev => ({ ...prev, [kit.id]: false }));
+  }
+};
 
   // Handle login prompt actions
   const handleLoginRedirect = () => {
@@ -386,9 +392,6 @@ export default function TestKitsPage() {
                         {buttonProps.text}
                       </button>
                       
-                      <p className="text-xs text-gray-500 text-center mt-2">
-                        Free shipping on all orders
-                      </p>
                     </div>
                   </div>
                 );
