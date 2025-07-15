@@ -1,5 +1,6 @@
 // netlify/functions/register-kit.js - Complete optimized version
 const { createClient } = require('@supabase/supabase-js');
+const { processChainOfCustody } = require('./utils/chainOfCustodyProcessor');
 
 function log(level, message, data = null) {
   const timestamp = new Date().toISOString();
@@ -412,17 +413,90 @@ async function processKitRegistration(supabase, user, registrationData, kitInfo,
     requestId
   });
 
-  // Send email notifications
-  await sendKitRegistrationEmails(supabase, updatedKit, kitInfo, user, requestId);
+  // Get order info for Chain of Custody processing
+  let orderInfo;
+  if (source === 'legacy') {
+    orderInfo = {
+      product_name: updatedKit.test_kits.name,
+      order_number: `LEGACY-${updatedKit.kit_code}`,
+      customer_email: user.email
+    };
+  } else {
+    // Get order data for regular kit
+    const { data: orderData, error: orderError } = await supabase
+      .from('kit_registrations')
+      .select(`
+        order_items!inner (
+          product_name,
+          orders!inner (order_number)
+        )
+      `)
+      .eq('kit_registration_id', updatedKit.kit_registration_id)
+      .single();
+
+    if (orderError) {
+      log('error', 'Could not fetch order data for Chain of Custody', { 
+        error: orderError.message, requestId 
+      });
+      throw new Error('Failed to get order information for Chain of Custody processing');
+    }
+
+    orderInfo = {
+      product_name: orderData.order_items.product_name,
+      order_number: orderData.order_items.orders.order_number,
+      customer_email: user.email
+    };
+  }
+
+  // Process Chain of Custody
+log('info', 'Processing Chain of Custody', { requestId });
+const cocResult = await processChainOfCustody(supabase, updatedKit, orderInfo, requestId);
+
+if (!cocResult.success) {
+  log('error', 'Chain of Custody processing failed', { 
+    error: cocResult.error, requestId 
+  });
+  // Don't throw error - kit registration was successful, CoC is supplementary
+} else {
+  // UPDATE: Added this entire else block to save CoC URL to database
+  try {
+    const { error: updateCocError } = await supabase
+      .from(tableName)
+      .update({ 
+        chain_of_custody_url: cocResult.fileUrl,
+        updated_at: new Date().toISOString()
+      })
+      .eq(idField, kitId)
+      .eq('user_id', user.id);
+
+    if (updateCocError) {
+      log('warn', 'Failed to update Chain of Custody URL in database', { 
+        error: updateCocError.message, requestId 
+      });
+    } else {
+      log('info', 'Chain of Custody URL saved to database', { 
+        kitId, fileUrl: cocResult.fileUrl, requestId 
+      });
+    }
+  } catch (updateError) {
+    log('warn', 'Exception updating Chain of Custody URL', { 
+      error: updateError.message, requestId 
+    });
+  }
+}
+
+  // Send email notifications with Chain of Custody
+  await sendKitRegistrationEmails(supabase, updatedKit, kitInfo, user, orderInfo, cocResult, requestId);
 
   return {
     kit_registration_id: kitId,
-    display_id: updatedKit.display_id || (source === 'legacy' ? updatedKit.kit_code : null)
+    display_id: updatedKit.display_id || (source === 'legacy' ? updatedKit.kit_code : null),
+    chainOfCustody: cocResult
   };
 }
 
 // Unified email sending function
-async function sendKitRegistrationEmails(supabase, updatedKit, kitInfo, user, requestId) {
+async function sendKitRegistrationEmails(supabase, updatedKit, kitInfo, user, orderInfo, cocResult, requestId) {
   if (!process.env.VITE_LOOPS_API_KEY) {
     log('warn', '⚠️ Loops API key not configured, skipping email notifications');
     return;
@@ -430,16 +504,9 @@ async function sendKitRegistrationEmails(supabase, updatedKit, kitInfo, user, re
 
   try {
     const { source } = kitInfo;
-    let orderInfo, shippingAddress;
+    let shippingAddress;
 
     if (source === 'legacy') {
-      // Create order info for legacy kit
-      orderInfo = {
-        product_name: updatedKit.test_kits.name,
-        order_number: `LEGACY-${updatedKit.kit_code}`,
-        customer_email: user.email
-      };
-      
       // Create shipping address from legacy kit data
       const nameParts = updatedKit.person_taking_sample?.split(' ') || [];
       shippingAddress = {
@@ -452,44 +519,69 @@ async function sendKitRegistrationEmails(supabase, updatedKit, kitInfo, user, re
         .from('kit_registrations')
         .select(`
           order_items!inner (
-            product_name,
-            orders!inner (order_number, shipping_address)
+            orders!inner (shipping_address)
           )
         `)
         .eq('kit_registration_id', updatedKit.kit_registration_id)
         .single();
 
       if (orderError) {
-        log('warn', 'Could not fetch order data for email notification', { 
+        log('warn', 'Could not fetch shipping address for email notification', { 
           error: orderError.message, requestId 
         });
-        return;
+        shippingAddress = {
+          firstName: updatedKit.person_taking_sample?.split(' ')[0] || '',
+          lastName: updatedKit.person_taking_sample?.split(' ').slice(1).join(' ') || ''
+        };
+      } else {
+        shippingAddress = orderData.order_items.orders.shipping_address;
       }
-
-      orderInfo = {
-        product_name: orderData.order_items.product_name,
-        order_number: orderData.order_items.orders.order_number,
-        customer_email: user.email
-      };
-      
-      shippingAddress = orderData.order_items.orders.shipping_address;
     }
 
-    // Send both admin and customer emails
-    const emailPromises = [
-      sendKitRegistrationEmail(updatedKit, orderInfo, shippingAddress, 'admin', source, requestId),
-      sendKitRegistrationEmail(updatedKit, orderInfo, shippingAddress, 'customer', source, requestId)
-    ];
+    // Send customer confirmation email
+    const customerEmailPromise = sendKitRegistrationEmail(
+      updatedKit, 
+      orderInfo, 
+      shippingAddress, 
+      'customer', 
+      source, 
+      null, // No CoC attachment for customer
+      requestId
+    );
 
-    const emailResults = await Promise.allSettled(emailPromises);
+    // Send lab notification email with Chain of Custody attachment (CC'd to admin)
+    const labEmailPromise = sendLabNotificationEmail(
+      supabase,
+      updatedKit, 
+      orderInfo, 
+      shippingAddress, 
+      cocResult, 
+      source, 
+      requestId
+    );
+
+    // Send separate admin notification email with CoC status info
+    const adminEmailPromise = sendKitRegistrationEmail(
+      updatedKit, 
+      orderInfo, 
+      shippingAddress, 
+      'admin', 
+      source, 
+      cocResult, // Include CoC info for admin
+      requestId
+    );
+
+    const emailResults = await Promise.allSettled([customerEmailPromise, labEmailPromise, adminEmailPromise]);
     
     emailResults.forEach((result, index) => {
-      const emailType = index === 0 ? 'admin' : 'customer';
+      const emailType = ['customer', 'lab', 'admin'][index];
       
       if (result.status === 'fulfilled' && result.value.success) {
         log('info', `✅ ${emailType} ${source} kit registration notification sent successfully`);
       } else {
-        log('warn', `⚠️ ${emailType} ${source} kit registration notification failed (non-critical)`);
+        log('warn', `⚠️ ${emailType} ${source} kit registration notification failed`, {
+          error: result.reason || result.value?.error
+        });
       }
     });
 
@@ -500,8 +592,123 @@ async function sendKitRegistrationEmails(supabase, updatedKit, kitInfo, user, re
   }
 }
 
+// Lab notification emails with CoC
+// Complete sendLabNotificationEmail function using existing Supabase client
+async function sendLabNotificationEmail(supabase, kitData, orderInfo, shippingAddress, cocResult, source, requestId) {
+  try {
+    const apiKey = process.env.VITE_LOOPS_API_KEY;
+    if (!apiKey) {
+      throw new Error('Loops API key not configured');
+    }
+
+    // Lab email configuration
+    const labEmail = 'lab.orders@mywaterquality.ca'; // Placeholder lab email
+    const transactionalId = 'cmd3gjdkx24n40o0i7zkv95it';
+
+    // Format sample date and time to match your template expectation
+    const sampleDate = new Date(kitData.sample_date).toLocaleDateString('en-CA', {
+      year: 'numeric', month: 'long', day: 'numeric'
+    });
+
+    const sampleTime = kitData.sample_time ? 
+      new Date(`1970-01-01T${kitData.sample_time}`).toLocaleTimeString('en-CA', {
+        hour: '2-digit', minute: '2-digit', hour12: true
+      }) : 'Not specified';
+
+    // Email data for lab notification - exact format match
+    const emailData = {
+      transactionalId: transactionalId,
+      email: labEmail,
+      dataVariables: {
+        kitDisplayID: kitData.display_id || kitData.kit_code || '',
+        sampler: kitData.person_taking_sample || 'Not specified',
+        sampleDate: sampleDate,
+        sampleTime: sampleTime,
+        sampleDescription: kitData.sample_description || 'No description provided'
+      }
+    };
+
+    // Add attachment if Chain of Custody was generated successfully
+    if (cocResult.success && cocResult.filename) {
+      try {
+        // Use the existing Supabase client
+        const { data: fileData, error: downloadError } = await supabase.storage
+          .from('generated-chain-of-custody')
+          .download(cocResult.filename);
+        
+        if (downloadError) {
+          throw new Error(`Supabase download error: ${downloadError.message}`);
+        }
+        
+        if (!fileData) {
+          throw new Error('No file data received from Supabase');
+        }
+        
+        // Convert file to base64
+        const arrayBuffer = await fileData.arrayBuffer();
+        const base64Data = Buffer.from(arrayBuffer).toString('base64');
+        
+        emailData.attachments = [{
+          filename: cocResult.filename,
+          data: base64Data,
+          contentType: 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'
+        }];
+        
+        console.log(`[${requestId}] Attachment prepared: ${cocResult.filename} (${Math.round(base64Data.length / 1024)}KB)`);
+      } catch (attachmentError) {
+        console.error(`[${requestId}] Failed to prepare attachment:`, attachmentError);
+        // Continue without attachment rather than failing the entire email
+      }
+    }
+
+    // Log the email data for debugging (without attachment data for brevity)
+    const logData = { ...emailData };
+    if (logData.attachments) {
+      logData.attachments = logData.attachments.map(att => ({ 
+        filename: att.filename, 
+        size: `${Math.round(att.data.length / 1024)}KB` 
+      }));
+    }
+    console.log(`[${requestId}] Lab email data:`, JSON.stringify(logData, null, 2));
+
+    // Send email
+    const response = await fetch('https://app.loops.so/api/v1/transactional', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'Authorization': `Bearer ${apiKey}`
+      },
+      body: JSON.stringify(emailData)
+    });
+
+    if (!response.ok) {
+      const errorText = await response.text();
+      console.log(`[${requestId}] Loops API response status:`, response.status);
+      console.log(`[${requestId}] Loops API response text:`, errorText);
+      
+      let errorData;
+      try {
+        errorData = JSON.parse(errorText);
+        console.log(`[${requestId}] Loops API error data:`, errorData);
+      } catch (e) {
+        errorData = { message: errorText || `HTTP ${response.status}` };
+      }
+      throw new Error(`Loops API Error ${response.status}: ${errorData.message || 'Unknown error'}`);
+    }
+
+    const responseData = await response.json();
+    console.log(`[${requestId}] Lab email sent successfully:`, responseData);
+
+    return { success: true, emailType: 'lab', recipient: labEmail };
+
+  } catch (error) {
+    console.error(`[${requestId}] Lab email error:`, error);
+    return { success: false, error: error.message, emailType: 'lab' };
+  }
+}
+
 // Unified email sending function for both kit types
-async function sendKitRegistrationEmail(kitData, orderInfo, shippingAddress, emailType, source, requestId) {
+async function sendKitRegistrationEmail(kitData, orderInfo, shippingAddress, emailType, source, cocResult, requestId) {
   try {
     const apiKey = process.env.VITE_LOOPS_API_KEY;
     if (!apiKey) {
@@ -543,11 +750,11 @@ async function sendKitRegistrationEmail(kitData, orderInfo, shippingAddress, ema
       email: config.email,
       dataVariables: {
         customerName: `${shippingAddress.firstName} ${shippingAddress.lastName}`.trim(),
-        kitDisplayID: kitData.display_id || (source === 'legacy' ? kitData.kit_code : ''),
+        kitDisplayID: kitData.display_id || kitData.kit_code || '',
         testKitName: orderInfo.product_name || 'Test Kit',
         orderNumber: orderInfo.order_number,
-        sampleDate,
-        sampleTime,
+        sampleDate: sampleDate,
+        sampleTime: sampleTime,
         numContainers: (kitData.number_of_containers || 1).toString(),
         sampler: kitData.person_taking_sample,
         SampleDescription: kitData.sample_description || 'No description provided',

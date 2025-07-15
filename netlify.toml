@@ -59,7 +59,7 @@
 [functions]
   directory = "netlify/functions"
   node_bundler = "esbuild"
-  external_node_modules = ["@supabase/supabase-js"]
+  external_node_modules = ["@supabase/supabase-js","exceljs"]
 
 # Configure function-specific environment variables
 [functions.environment]
