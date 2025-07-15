@@ -1,8 +1,9 @@
-// src/pages/AdminPage.jsx - Admin dashboard page
+// src/pages/AdminPage.jsx - Update the renderContent function and reports button
 import { useState } from 'react';
 import { useAuth } from '../contexts/AuthContext';
 import PageLayout from '../components/PageLayout';
 import AdminOrdersList from '../components/AdminOrdersList';
+import AdminReportsUpload from '../components/AdminReportsUpload'; // New component
 
 export default function AdminPage() {
   const { user } = useAuth();
@@ -32,6 +33,7 @@ export default function AdminPage() {
       case 'orders':
         return <AdminOrdersList showTitle={false} maxHeight="max-h-full" />;
       case 'reports':
+        return <AdminReportsUpload />;
       case 'users':
       case 'kit-registrations':
         return <ComingSoonContent tabName={activeTab} />;
@@ -110,11 +112,17 @@ export default function AdminPage() {
                   </li>
                   <li>
                     <button
-                      disabled
-                      className="w-full text-left px-4 sm:px-6 py-3 flex items-center text-gray-400 cursor-not-allowed text-sm sm:text-base"
+                      onClick={() => setActiveTab('reports')}
+                      className={`w-full text-left px-4 sm:px-6 py-3 flex items-center text-sm sm:text-base ${
+                        activeTab === 'reports'
+                          ? 'bg-blue-50 text-blue-600 border-l-4 border-blue-600'
+                          : 'text-gray-600 hover:bg-gray-50'
+                      }`}
                     >
                       <svg
-                        className="mr-2 sm:mr-3 h-4 w-4 sm:h-5 sm:w-5 flex-shrink-0 text-gray-400"
+                        className={`mr-2 sm:mr-3 h-4 w-4 sm:h-5 sm:w-5 flex-shrink-0 ${
+                          activeTab === 'reports' ? 'text-blue-600' : 'text-gray-400'
+                        }`}
                         xmlns="http://www.w3.org/2000/svg"
                         fill="none"
                         viewBox="0 0 24 24"
@@ -128,7 +136,6 @@ export default function AdminPage() {
                         />
                       </svg>
                       <span className="truncate">Reports</span>
-                      <span className="ml-auto bg-gray-100 text-xs px-2 py-1 rounded-full flex-shrink-0">Soon</span>
                     </button>
                   </li>
                   <li>
@@ -194,7 +201,7 @@ export default function AdminPage() {
   );
 }
 
-// Admin dashboard content component
+// Rest of the existing components remain the same...
 function AdminDashboardContent() {
   return (
     <div className="space-y-6 lg:space-y-8">
@@ -234,24 +241,27 @@ function AdminDashboardContent() {
             </div>
           </div>
 
-          {/* Card 2 - System Health */}
+          {/* Card 2 - Reports Management */}
           <div className="bg-white overflow-hidden shadow rounded-lg transition-shadow duration-300 hover:shadow-md">
             <div className="px-4 py-4 sm:p-6">
               <div className="flex items-start sm:items-center">
                 <div className="flex-shrink-0 bg-green-100 rounded-md p-2 sm:p-3">
                   <svg className="h-5 w-5 sm:h-6 sm:w-6 text-green-600" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M9 12l2 2 4-4m6 2a9 9 0 11-18 0 9 9 0 0118 0z" />
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z" />
                   </svg>
                 </div>
                 <div className="ml-3 sm:ml-5 flex-1 min-w-0">
-                  <h3 className="text-base sm:text-lg font-medium text-gray-900">System Status</h3>
+                  <h3 className="text-base sm:text-lg font-medium text-gray-900">Upload Test Results</h3>
                   <p className="mt-1 sm:mt-2 text-sm text-gray-500 leading-relaxed">
-                    Monitor system health and performance metrics.
+                    Upload laboratory test results and generate customer reports.
                   </p>
                   <div className="mt-3 sm:mt-4">
-                    <span className="inline-flex items-center px-3 py-1.5 sm:px-4 sm:py-2 border border-gray-300 text-xs sm:text-sm font-medium rounded-md text-gray-500 bg-gray-100 cursor-not-allowed">
-                      Coming Soon
-                    </span>
+                    <button
+                      onClick={() => setActiveTab('reports')}
+                      className="inline-flex items-center px-3 py-1.5 sm:px-4 sm:py-2 border border-transparent text-xs sm:text-sm font-medium rounded-md text-green-700 bg-green-100 hover:bg-green-200 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-green-500 transition-colors duration-200"
+                    >
+                      Upload Reports
+                    </button>
                   </div>
                 </div>
               </div>
@@ -298,8 +308,8 @@ function AdminDashboardContent() {
               <ul className="list-disc pl-4 sm:pl-5 text-xs sm:text-sm text-gray-600 space-y-1">
                 <li>Order management and tracking</li>
                 <li>Customer order history</li>
-                <li>Basic dashboard analytics</li>
-                <li>Admin order filtering</li>
+                <li>Test result upload and processing</li>
+                <li>Automated report generation</li>
               </ul>
             </div>
             <div className="bg-white p-3 sm:p-4 rounded shadow-sm">
@@ -322,8 +332,6 @@ function AdminDashboardContent() {
 function ComingSoonContent({ tabName }) {
   const getTabDisplayName = (tab) => {
     switch (tab) {
-      case 'reports':
-        return 'Reports';
       case 'users':
         return 'User Management';
       case 'kit-registrations':
