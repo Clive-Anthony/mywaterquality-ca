@@ -433,7 +433,7 @@ try {
 }
 
     // Store CSV in Supabase storage
-    const csvFileName = `${reportId}-${sampleNumber}.csv`;
+    const csvFileName = `WO${workOrderNumber}-${sampleNumber}.csv`;
     const { data: csvUpload, error: csvUploadError } = await supabase.storage
       .from('test-results-csv')
       .upload(csvFileName, csvContent, {
