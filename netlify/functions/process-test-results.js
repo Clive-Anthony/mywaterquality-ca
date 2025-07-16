@@ -363,9 +363,47 @@ async function processTestResultsFile({
 }) {
   const requestId = Math.random().toString(36).substring(2, 8);
   let reportId;
+  let kitOrderCode = 'UNKNOWN'; // Default fallback
 
   try {
     log('info', 'Starting file processing', { requestId, fileName });
+
+    // Get kit order code (display_id) based on registration type
+    try {
+      if (kitRegistrationType === 'regular') {
+        const { data: kitReg, error: kitRegError } = await supabase
+          .from('kit_registrations')
+          .select(`
+            test_kits (
+              display_id
+            )
+          `)
+          .eq('kit_registration_id', kitRegistrationId)
+          .single();
+
+        if (!kitRegError && kitReg?.test_kits?.display_id) {
+          kitOrderCode = kitReg.test_kits.display_id;
+        }
+      } else if (kitRegistrationType === 'legacy') {
+        const { data: legacyKitReg, error: legacyKitRegError } = await supabase
+          .from('legacy_kit_registrations')
+          .select(`
+            test_kits (
+              display_id
+            )
+          `)
+          .eq('id', kitRegistrationId)
+          .single();
+
+        if (!legacyKitRegError && legacyKitReg?.test_kits?.display_id) {
+          kitOrderCode = legacyKitReg.test_kits.display_id;
+        }
+      }
+    } catch (kitError) {
+      log('warn', 'Failed to get kit order code, using default', { error: kitError.message });
+    }
+
+    log('info', 'Kit order code determined', { kitOrderCode, requestId });
 
     // Generate report UUID
     reportId = uuidv4();
@@ -393,7 +431,6 @@ async function processTestResultsFile({
     log('info', 'Report record created', { reportId, requestId });
 
     // Convert file to CSV
-// Convert file to CSV
 let csvContent;
 try {
   const safeFileName = String(fileName || 'uploaded-file');
@@ -403,21 +440,30 @@ try {
   if (safeFileName.toLowerCase().endsWith('.csv')) {
     console.log('Processing as CSV file');
     csvContent = fileBuffer.toString('utf-8');
-  } else {
+  } else if (safeFileName.toLowerCase().endsWith('.xlsx') || safeFileName.toLowerCase().endsWith('.xls')) {
     console.log('Processing as Excel file');
     try {
       csvContent = await convertExcelToCSV(fileBuffer);
     } catch (excelError) {
-      console.error('Excel conversion failed:', excelError.message);
-      
-      // Try to process as CSV anyway (maybe it's mislabeled)
-      console.log('Attempting to process as CSV instead...');
+      console.log('Primary Excel conversion failed, trying fallback method...');
+      csvContent = await convertExcelToCSVFallback(fileBuffer);
+    }
+  } else {
+    // Check buffer signature to determine file type
+    const bufferStart = fileBuffer.slice(0, 4);
+    const isZipFile = bufferStart[0] === 0x50 && bufferStart[1] === 0x4B; // PK (ZIP header)
+    
+    if (isZipFile) {
+      console.log('Detected Excel file by signature');
       try {
-        csvContent = fileBuffer.toString('utf-8');
-        console.log('Successfully processed as CSV');
-      } catch (csvFallbackError) {
-        throw new Error(`File processing failed: ${excelError.message}. CSV fallback also failed: ${csvFallbackError.message}`);
+        csvContent = await convertExcelToCSV(fileBuffer);
+      } catch (excelError) {
+        console.log('Primary Excel conversion failed, trying fallback method...');
+        csvContent = await convertExcelToCSVFallback(fileBuffer);
       }
+    } else {
+      console.log('Assuming CSV file');
+      csvContent = fileBuffer.toString('utf-8');
     }
   }
   
@@ -432,8 +478,8 @@ try {
   throw new Error(`Failed to process file: ${csvError.message}`);
 }
 
-    // Store CSV in Supabase storage
-    const csvFileName = `WO${workOrderNumber}-${sampleNumber}.csv`;
+    // Store CSV in Supabase storage with new naming format
+    const csvFileName = `${kitOrderCode}_WO${workOrderNumber}_${sampleNumber}.csv`;
     const { data: csvUpload, error: csvUploadError } = await supabase.storage
       .from('test-results-csv')
       .upload(csvFileName, csvContent, {
@@ -453,8 +499,32 @@ try {
     log('info', 'CSV file uploaded', { csvFileName, requestId });
 
     // Parse and insert/update test results
-    await processCSVData(supabase, csvContent, sampleNumber, workOrderNumber, requestId);
+const processingResult = await processCSVData(supabase, csvContent, sampleNumber, workOrderNumber, requestId);
 
+// Add a small delay to ensure data is committed
+await new Promise(resolve => setTimeout(resolve, 1000));
+
+// Use the actual sample number from CSV processing
+const actualSampleNumber = processingResult.actualSampleNumber;
+
+// Verify data was inserted by checking if we can find the test results
+const { data: verifyResults, error: verifyError } = await supabase
+  .from('test_results_raw')
+  .select('*')
+  .eq('"Sample #"', actualSampleNumber)
+  .limit(1);
+
+if (verifyError) {
+  log('warn', 'Failed to verify test results insertion', { error: verifyError.message });
+} else {
+  log('info', 'Test results verification', { 
+    actualSampleNumber, 
+    resultCount: verifyResults?.length || 0,
+    requestId 
+  });
+}
+
+    // Continue with existing code...
     // Find and update kit registration
     const kitUpdateResult = await updateKitRegistration(supabase, kitRegistrationId, kitRegistrationType, workOrderNumber, sampleNumber, reportId, user.id);
     
@@ -560,7 +630,7 @@ try {
     });
 
     // Update report status to failed if report was created
-    if (reportId) { // Add this check
+    if (reportId) {
       try {
         await supabase
           .from('reports')
@@ -587,11 +657,6 @@ async function convertExcelToCSV(fileBuffer) {
     console.log('Buffer type:', typeof fileBuffer);
     console.log('Is Buffer?', Buffer.isBuffer(fileBuffer));
     
-    // Check if buffer looks like Excel file
-    const bufferStart = fileBuffer.slice(0, 50);
-    console.log('Buffer start (hex):', bufferStart.toString('hex'));
-    console.log('Buffer start (string):', bufferStart.toString('ascii'));
-    
     // Validate buffer size
     if (fileBuffer.length === 0) {
       throw new Error('File buffer is empty');
@@ -614,11 +679,41 @@ async function convertExcelToCSV(fileBuffer) {
       throw new Error('File does not appear to be a valid Excel file (missing ZIP signature)');
     }
     
-    // Try to load with ExcelJS
-    const workbook = new ExcelJS.Workbook();
+    // Try to load with ExcelJS using stream approach
+    const ExcelJS = require('exceljs');
+    let workbook = new ExcelJS.Workbook(); // Changed from const to let
     
-    console.log('Attempting to load workbook...');
-    await workbook.xlsx.load(fileBuffer);
+    console.log('Attempting to load workbook with stream approach...');
+    
+    // Try using the readFile approach with a temporary stream
+    const stream = require('stream');
+    const bufferStream = new stream.PassThrough();
+    bufferStream.end(fileBuffer);
+    
+    try {
+      // Try reading from stream
+      await workbook.xlsx.read(bufferStream);
+    } catch (streamError) {
+      console.log('Stream approach failed, trying direct buffer approach...');
+      
+      // If stream fails, try the direct buffer approach with proper error handling
+      try {
+        // Create a new workbook instance
+        const workbook2 = new ExcelJS.Workbook();
+        
+        // Try to read from buffer differently
+        const tempStream = require('stream');
+        const readable = new tempStream.Readable();
+        readable.push(fileBuffer);
+        readable.push(null);
+        
+        await workbook2.xlsx.read(readable);
+        workbook = workbook2; // Now this assignment will work
+      } catch (bufferError) {
+        console.log('Both approaches failed, trying alternative method...');
+        throw new Error(`Failed to read Excel file with both methods. Stream error: ${streamError.message}, Buffer error: ${bufferError.message}`);
+      }
+    }
     
     console.log('Workbook loaded successfully');
     console.log('Workbook worksheets count:', workbook.worksheets.length);
@@ -631,41 +726,60 @@ async function convertExcelToCSV(fileBuffer) {
 
     console.log('Worksheet name:', worksheet.name);
     console.log('Worksheet row count:', worksheet.rowCount);
+    console.log('Worksheet actual row count:', worksheet.actualRowCount);
 
     const csvRows = [];
     
-    // Iterate through actual rows
+    // Get all rows with data
+    const rows = [];
     worksheet.eachRow({ includeEmpty: false }, (row, rowNumber) => {
+      rows.push({ row, rowNumber });
+    });
+    
+    console.log('Found rows with data:', rows.length);
+    
+    if (rows.length === 0) {
+      throw new Error('No data rows found in Excel file');
+    }
+    
+    // Process each row
+    rows.forEach(({ row, rowNumber }) => {
       const csvRow = [];
       
-      // Get all cell values from this row
-      const cellValues = [];
-      row.eachCell({ includeEmpty: true }, (cell, colNumber) => {
-        cellValues[colNumber] = cell.value;
+      // Get the maximum column with data in this row
+      let maxCol = 0;
+      row.eachCell({ includeEmpty: false }, (cell, colNumber) => {
+        maxCol = Math.max(maxCol, colNumber);
       });
       
-      // Convert to CSV format
-      for (let i = 1; i <= row.cellCount; i++) {
+      // Extract values from 1 to maxCol
+      for (let colNumber = 1; colNumber <= maxCol; colNumber++) {
+        const cell = row.getCell(colNumber);
         let value = '';
-        const cellValue = cellValues[i];
         
-        if (cellValue !== null && cellValue !== undefined) {
+        if (cell.value !== null && cell.value !== undefined) {
           // Handle different cell types
-          if (typeof cellValue === 'object') {
-            if (cellValue.result !== undefined) {
+          if (typeof cell.value === 'object') {
+            if (cell.value.result !== undefined) {
               // Formula cell
-              value = cellValue.result;
-            } else if (cellValue.text !== undefined) {
+              value = String(cell.value.result);
+            } else if (cell.value.text !== undefined) {
               // Rich text cell
-              value = cellValue.text;
+              value = String(cell.value.text);
+            } else if (cell.value instanceof Date) {
+              // Date cell
+              value = cell.value.toLocaleDateString();
             } else {
               // Other object types
-              value = String(cellValue);
+              value = String(cell.value);
             }
           } else {
-            value = String(cellValue);
+            value = String(cell.value);
           }
         }
+        
+        // Clean up the value
+        value = value.trim();
         
         // Escape quotes and wrap in quotes if contains comma or quotes
         if (value.includes(',') || value.includes('"') || value.includes('\n')) {
@@ -675,17 +789,59 @@ async function convertExcelToCSV(fileBuffer) {
         }
       }
       
-      csvRows.push(csvRow.join(','));
+      // Only add rows that have content
+      if (csvRow.some(cell => cell.trim() !== '')) {
+        csvRows.push(csvRow.join(','));
+      }
     });
+
+    if (csvRows.length === 0) {
+      throw new Error('No data found in Excel file after processing');
+    }
 
     const csvContent = csvRows.join('\n');
     console.log('CSV conversion complete. Lines:', csvRows.length);
+    console.log('First line (header):', csvRows[0]);
+    console.log('Second line (first data):', csvRows[1] || 'No second line');
     
     return csvContent;
   } catch (error) {
     console.error('ExcelJS conversion error:', error);
     console.error('Error stack:', error.stack);
     throw new Error(`Failed to convert Excel to CSV: ${error.message}`);
+  }
+}
+
+async function convertExcelToCSVFallback(fileBuffer) {
+  try {
+    console.log('Trying fallback Excel conversion method...');
+    
+    // Try using node-xlsx as fallback
+    const XLSX = require('xlsx');
+    
+    // Read the workbook from buffer
+    const workbook = XLSX.read(fileBuffer, { type: 'buffer' });
+    
+    // Get the first worksheet
+    const sheetNames = workbook.SheetNames;
+    if (sheetNames.length === 0) {
+      throw new Error('No worksheets found in Excel file');
+    }
+    
+    console.log('Found worksheets:', sheetNames);
+    const worksheet = workbook.Sheets[sheetNames[0]];
+    
+    // Convert to CSV
+    const csvContent = XLSX.utils.sheet_to_csv(worksheet);
+    
+    console.log('Fallback conversion successful');
+    console.log('CSV content length:', csvContent.length);
+    console.log('First 200 chars:', csvContent.substring(0, 200));
+    
+    return csvContent;
+  } catch (error) {
+    console.error('Fallback conversion also failed:', error);
+    throw error;
   }
 }
 
@@ -706,129 +862,185 @@ async function processCSVData(supabase, csvContent, sampleNumber, workOrderNumbe
 
     // Parse CSV header
     const headers = parseCSVRow(lines[0]);
-    log('info', 'CSV headers found', { headers, requestId });
-
+    console.log('Raw CSV headers:', headers);
+    
     // Create column mapping for test_results_raw table schema
     const columnMapping = createColumnMapping(headers);
-    log('info', 'Column mapping created', { columnMapping, requestId });
+    console.log('Column mapping result:', columnMapping);
+    
+    // Filter out empty or invalid mappings
+    const validMappings = {};
+    Object.keys(columnMapping).forEach(key => {
+      if (columnMapping[key] && columnMapping[key].trim() !== '') {
+        validMappings[key] = columnMapping[key];
+      }
+    });
+    
+    console.log('Valid mappings:', validMappings);
 
-    // Convert work order and sample numbers to integers
-    const workOrderInt = parseInt(workOrderNumber);
-    const sampleNumberInt = parseInt(sampleNumber);
-
-    if (isNaN(workOrderInt) || isNaN(sampleNumberInt)) {
-      throw new Error('Work Order Number and Sample Number must be valid integers');
-    }
+    let processedCount = 0;
+    let skippedCount = 0;
 
     // Process each data row
     for (let i = 1; i < lines.length; i++) {
       const values = parseCSVRow(lines[i]);
-      if (values.length === 0) continue; // Skip empty rows
+      if (values.length === 0) {
+        skippedCount++;
+        continue; // Skip empty rows
+      }
 
       // Map CSV data to database columns using the schema
       const rowData = {
-        "Work Order #": workOrderInt,
-        "Sample #": sampleNumberInt
+        'Work Order #': workOrderNumber,
+        'Sample #': sampleNumber
       };
+
+      let hasParameter = false;
+      let parameterValue = null;
 
       // Map each CSV column to the appropriate database column
       headers.forEach((header, index) => {
+        // Skip empty headers
+        if (!header || header.trim() === '') {
+          return;
+        }
+        
         if (values[index] !== undefined && values[index] !== '') {
-          const dbColumn = columnMapping[header];
-          if (dbColumn) {
+          const dbColumn = validMappings[header];
+          if (dbColumn && dbColumn.trim() !== '') {
             let value = values[index].trim();
             
             // Handle date fields
-            if (dbColumn === "Received Date" || dbColumn === "Analysis Date") {
-              // Try to parse date, if invalid, store as null
+            if (dbColumn === 'Received Date' || dbColumn === 'Analysis Date') {
               const parsedDate = new Date(value);
               if (!isNaN(parsedDate.getTime())) {
-                rowData[dbColumn] = parsedDate.toISOString().split('T')[0]; // YYYY-MM-DD format
+                rowData[dbColumn] = parsedDate.toISOString().split('T')[0];
               } else {
                 rowData[dbColumn] = null;
               }
             } else {
               rowData[dbColumn] = value;
+              
+              // Check if this is the Parameter column
+              if (dbColumn === 'Parameter') {
+                hasParameter = true;
+                parameterValue = value;
+              }
             }
           }
         }
       });
 
-      // Ensure we have the required fields
-      if (!rowData["Parameter"]) {
-        log('warn', 'Skipping row without Parameter', { rowIndex: i, rowData });
+      // Clean up rowData - remove any empty keys or undefined values
+      const cleanRowData = {};
+      Object.keys(rowData).forEach(key => {
+        if (key && key.trim() !== '' && rowData[key] !== undefined) {
+          cleanRowData[key] = rowData[key];
+        }
+      });
+
+      // Debug the row processing for first few rows
+      if (i <= 3) {
+        console.log(`Row ${i} clean data:`, {
+          hasParameter,
+          parameterValue,
+          cleanRowDataKeys: Object.keys(cleanRowData),
+          workOrder: cleanRowData['Work Order #'],
+          sample: cleanRowData['Sample #'],
+          parameter: cleanRowData['Parameter']
+        });
+      }
+
+      // Ensure we have the required Parameter field
+      if (!hasParameter || !cleanRowData['Parameter']) {
+        console.log(`Skipping row ${i} without Parameter:`, { 
+          hasParameter, 
+          parameterValue, 
+          availableColumns: Object.keys(cleanRowData)
+        });
+        skippedCount++;
         continue;
       }
 
       try {
-        // Check if record exists using composite primary key
-        const { data: existing, error: selectError } = await supabase
-          .from('test_results_raw')
-          .select('"Work Order #", "Sample #", "Parameter"')
-          .eq('"Work Order #"', workOrderInt)
-          .eq('"Sample #"', sampleNumberInt)
-          .eq('"Parameter"', rowData["Parameter"])
-          .single();
+        // Validate cleanRowData before insertion
+        const requiredFields = ['Work Order #', 'Sample #', 'Parameter'];
+        const missingFields = requiredFields.filter(field => !cleanRowData[field]);
+        
+        if (missingFields.length > 0) {
+          console.log(`Skipping row ${i} - missing required fields:`, missingFields);
+          skippedCount++;
+          continue;
+        }
+        
+        // Convert keys to quoted format for Supabase operation
+        const dbRowData = {};
+        Object.keys(cleanRowData).forEach(key => {
+          if (key && key.trim() !== '') { // Extra safety check
+            dbRowData[`"${key}"`] = cleanRowData[key];
+          }
+        });
 
-        if (selectError && selectError.code !== 'PGRST116') {
-          log('warn', 'Error checking existing record', { error: selectError.message });
+        // Log the exact data being inserted for first few rows
+        if (processedCount < 3) {
+          // console.log(`Inserting row ${i}:`, {
+          //   cleanRowData,
+          //   dbRowDataKeys: Object.keys(dbRowData)
+          // });
         }
 
-        if (existing) {
-          // Update existing record
-          const { error: updateError } = await supabase
-            .from('test_results_raw')
-            .update(rowData)
-            .eq('"Work Order #"', workOrderInt)
-            .eq('"Sample #"', sampleNumberInt)
-            .eq('"Parameter"', rowData["Parameter"]);
+        // Insert new record (skip checking for existing for now to simplify)
+        const { error: insertError } = await supabase
+          .from('test_results_raw')
+          .insert([dbRowData]);
 
-          if (updateError) {
-            log('warn', 'Failed to update test result', { 
-              error: updateError.message, 
-              rowData: rowData 
-            });
-          } else {
-            log('info', 'Updated test result', { 
-              workOrder: workOrderInt, 
-              sample: sampleNumberInt, 
-              parameter: rowData["Parameter"] 
-            });
-          }
+        if (insertError) {
+          // console.error(`Row ${i} insert error:`, {
+          //   error: insertError.message,
+          //   code: insertError.code,
+          //   details: insertError.details,
+          //   hint: insertError.hint,
+          //   dbRowDataKeys: Object.keys(dbRowData),
+          //   firstKey: Object.keys(dbRowData)[0],
+          //   firstKeyType: typeof Object.keys(dbRowData)[0],
+          //   firstKeyLength: Object.keys(dbRowData)[0]?.length
+          // });
         } else {
-          // Insert new record
-          const { error: insertError } = await supabase
-            .from('test_results_raw')
-            .insert([rowData]);
-
-          if (insertError) {
-            log('warn', 'Failed to insert test result', { 
-              error: insertError.message, 
-              rowData: rowData 
-            });
-          } else {
+          processedCount++;
+          if (processedCount <= 3) {
             log('info', 'Inserted test result', { 
-              workOrder: workOrderInt, 
-              sample: sampleNumberInt, 
-              parameter: rowData["Parameter"] 
+              workOrder: cleanRowData['Work Order #'], 
+              sample: cleanRowData['Sample #'], 
+              parameter: cleanRowData['Parameter'] 
             });
           }
         }
       } catch (rowError) {
-        log('warn', 'Error processing row', { 
-          error: rowError.message, 
-          rowIndex: i, 
-          rowData 
+        console.error(`Row ${i} processing error:`, {
+          error: rowError.message,
+          stack: rowError.stack,
+          cleanRowData: cleanRowData
         });
+        skippedCount++;
       }
     }
 
     log('info', 'CSV data processing completed', { 
-      sampleNumber, 
+      sampleNumber,
       workOrderNumber,
-      rowsProcessed: lines.length - 1, 
+      rowsProcessed: processedCount,
+      rowsSkipped: skippedCount,
+      totalRows: lines.length - 1, 
       requestId 
     });
+
+    // Return the processing results
+    return {
+      actualSampleNumber: sampleNumber,
+      actualWorkOrderNumber: workOrderNumber,
+      rowsProcessed: processedCount,
+      rowsSkipped: skippedCount
+    };
 
   } catch (error) {
     console.error('Error in processCSVData:', error);
@@ -840,95 +1052,74 @@ function createColumnMapping(csvHeaders) {
   // Map common CSV header variations to the exact database column names
   const mapping = {};
   
-  csvHeaders.forEach(header => {
-    const lowerHeader = header.toLowerCase().trim();
+  // Filter valid headers first
+  const validHeaders = csvHeaders.filter(header => 
+    header && typeof header === 'string' && header.trim() !== ''
+  );
+  
+  console.log('Processing valid headers for mapping:', validHeaders);
+  
+  validHeaders.forEach(header => {
+    const trimmedHeader = header.trim();
+    const lowerHeader = trimmedHeader.toLowerCase();
     
-    // Map to exact database column names (case-sensitive with quotes)
-    switch (lowerHeader) {
-      case 'work order #':
-      case 'work order':
-      case 'work_order':
-      case 'workorder':
-        mapping[header] = "Work Order #";
-        break;
-      case 'sample #':
-      case 'sample':
-      case 'sample_number':
-      case 'samplenumber':
-        mapping[header] = "Sample #";
-        break;
-      case 'sample date':
-      case 'sample_date':
-      case 'sampledate':
-        mapping[header] = "Sample Date";
-        break;
-      case 'matrix':
-        mapping[header] = "Matrix";
-        break;
-      case 'sample description':
-      case 'sample_description':
-      case 'description':
-        mapping[header] = "Sample Description";
-        break;
-      case 'method':
-      case 'test_method':
-      case 'analysis_method':
-        mapping[header] = "Method";
-        break;
-      case 'parameter':
-      case 'parameter_name':
-      case 'analyte':
-        mapping[header] = "Parameter";
-        break;
-      case 'mdl':
-      case 'method detection limit':
-      case 'detection_limit':
-        mapping[header] = "MDL";
-        break;
-      case 'result':
-      case 'value':
-      case 'concentration':
-      case 'test_result':
-        mapping[header] = "Result";
-        break;
-      case 'units':
-      case 'unit':
-      case 'uom':
-        mapping[header] = "Units";
-        break;
-      case 'received date':
-      case 'received_date':
-      case 'receiveddate':
-      case 'date_received':
-        mapping[header] = "Received Date";
-        break;
-      case 'analysis date':
-      case 'analysis_date':
-      case 'analysisdate':
-      case 'date_analyzed':
-      case 'test_date':
-        mapping[header] = "Analysis Date";
-        break;
-      case 'notes':
-      case 'comments':
-      case 'remarks':
-        mapping[header] = "Notes";
-        break;
-      default:
-        // If no mapping found, check if it exactly matches a database column
-        const dbColumns = [
-          "Work Order #", "Sample #", "Sample Date", "Matrix", "Sample Description", 
-          "Method", "Parameter", "MDL", "Result", "Units", "Received Date", 
-          "Analysis Date", "Notes"
-        ];
-        if (dbColumns.includes(header)) {
-          mapping[header] = header;
-        }
-        break;
+    console.log(`Mapping header: "${trimmedHeader}" (lowercase: "${lowerHeader}")`);
+    
+    // Map to exact database column names (without extra quotes)
+    if (lowerHeader === 'work order #' || lowerHeader === 'work order' || lowerHeader === 'work_order' || lowerHeader === 'workorder') {
+      mapping[trimmedHeader] = 'Work Order #';
+      console.log(`  -> Mapped to Work Order #`);
+    } else if (lowerHeader === 'sample #' || lowerHeader === 'sample' || lowerHeader === 'sample_number' || lowerHeader === 'samplenumber') {
+      mapping[trimmedHeader] = 'Sample #';
+      console.log(`  -> Mapped to Sample #`);
+    } else if (lowerHeader === 'sample date' || lowerHeader === 'sample_date' || lowerHeader === 'sampledate') {
+      mapping[trimmedHeader] = 'Sample Date';
+      console.log(`  -> Mapped to Sample Date`);
+    } else if (lowerHeader === 'matrix') {
+      mapping[trimmedHeader] = 'Matrix';
+      console.log(`  -> Mapped to Matrix`);
+    } else if (lowerHeader === 'sample description' || lowerHeader === 'sample_description' || lowerHeader === 'description') {
+      mapping[trimmedHeader] = 'Sample Description';
+      console.log(`  -> Mapped to Sample Description`);
+    } else if (lowerHeader === 'method' || lowerHeader === 'test_method' || lowerHeader === 'analysis_method') {
+      mapping[trimmedHeader] = 'Method';
+      console.log(`  -> Mapped to Method`);
+    } else if (lowerHeader === 'parameter' || lowerHeader === 'parameter_name' || lowerHeader === 'analyte') {
+      mapping[trimmedHeader] = 'Parameter';
+      console.log(`  -> Mapped to Parameter`);
+    } else if (lowerHeader === 'mdl' || lowerHeader === 'method detection limit' || lowerHeader === 'detection_limit') {
+      mapping[trimmedHeader] = 'MDL';
+      console.log(`  -> Mapped to MDL`);
+    } else if (lowerHeader === 'result' || lowerHeader === 'value' || lowerHeader === 'concentration' || lowerHeader === 'test_result') {
+      mapping[trimmedHeader] = 'Result';
+      console.log(`  -> Mapped to Result`);
+    } else if (lowerHeader === 'units' || lowerHeader === 'unit' || lowerHeader === 'uom') {
+      mapping[trimmedHeader] = 'Units';
+      console.log(`  -> Mapped to Units`);
+    } else if (lowerHeader === 'received date' || lowerHeader === 'received_date' || lowerHeader === 'receiveddate' || lowerHeader === 'date_received') {
+      mapping[trimmedHeader] = 'Received Date';
+      console.log(`  -> Mapped to Received Date`);
+    } else if (lowerHeader === 'analysis date' || lowerHeader === 'analysis_date' || lowerHeader === 'analysisdate' || lowerHeader === 'date_analyzed' || lowerHeader === 'test_date') {
+      mapping[trimmedHeader] = 'Analysis Date';
+      console.log(`  -> Mapped to Analysis Date`);
+    } else if (lowerHeader === 'notes' || lowerHeader === 'comments' || lowerHeader === 'remarks') {
+      mapping[trimmedHeader] = 'Notes';
+      console.log(`  -> Mapped to Notes`);
+    } else {
+      console.log(`  -> NO MAPPING FOUND for "${trimmedHeader}"`);
     }
   });
   
-  return mapping;
+  // Filter out any empty mappings
+  const validMapping = {};
+  Object.keys(mapping).forEach(key => {
+    if (mapping[key] && mapping[key].trim() !== '') {
+      validMapping[key] = mapping[key];
+    }
+  });
+  
+  console.log('Final valid mapping object:', validMapping);
+  return validMapping;
 }
 
 function parseCSVRow(row) {

@@ -1,8 +1,13 @@
 {
-    "name": "mywaterquality-functions",
+    "name": "netlify-functions",
     "version": "1.0.0",
-    "description": "Netlify Functions for My Water Quality authentication and email workflows",
+    "description": "Netlify Functions for My Water Quality",
     "dependencies": {
-        "@supabase/supabase-js": "^2.49.8"
+      "@supabase/supabase-js": "^2.39.3",
+      "busboy": "^1.6.0",
+      "exceljs": "^4.4.0",
+      "puppeteer": "^21.0.0",
+      "uuid": "^9.0.0",
+      "xlsx": "^0.18.5"
     }
-}
+  }

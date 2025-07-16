@@ -237,13 +237,14 @@ useEffect(() => {
         throw new Error('Authentication required');
       }
 
-      // Create form data for file upload
+    // Create form data for file upload
     const uploadFormData = new FormData();
     uploadFormData.append('file', selectedFile);
     uploadFormData.append('kitRegistrationId', formData.kitRegistrationId);
     uploadFormData.append('kitRegistrationType', formData.kitRegistrationType);
-    uploadFormData.append('workOrderNumber', formData.workOrderNumber);
-    uploadFormData.append('sampleNumber', formData.sampleNumber);
+    // SWAP THESE - the form labels are correct but the values are being sent backwards
+    uploadFormData.append('workOrderNumber', formData.sampleNumber);  // Send sample number as work order
+    uploadFormData.append('sampleNumber', formData.workOrderNumber);  // Send work order as sample number
 
       // Call Netlify function to process the upload
       const response = await fetch('/.netlify/functions/process-test-results', {
@@ -277,7 +278,8 @@ useEffect(() => {
       if (fileInput) fileInput.value = '';
       
       // Reload kit registrations to show updated data
-      loadKitRegistrations();
+      loadRegisteredKits();
+      loadAllKitRegistrations();
       
     } catch (err) {
       console.error('Error uploading test results:', err);
