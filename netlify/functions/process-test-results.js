@@ -2,8 +2,8 @@
 const { createClient } = require('@supabase/supabase-js');
 const ExcelJS = require('exceljs');
 const { v4: uuidv4 } = require('uuid');
-const multipart = require('parse-multipart');
 const { processReportGeneration } = require('./utils/reportGenerator');
+const Busboy = require('busboy');
 
 function log(level, message, data = null) {
   const timestamp = new Date().toISOString();
@@ -75,9 +75,12 @@ exports.handler = async function(event, context) {
 
     const user = userData.user;
 
-    // Check if user is admin
-    const { data: isAdminData, error: adminError } = await supabase.rpc('is_admin');
-    if (adminError || !isAdminData) {
+    // Check if user is admin using the existing get_user_role function
+    const { data: userRole, error: adminError } = await supabase.rpc('get_user_role', {
+      user_uuid: user.id
+    });
+
+    if (adminError || !userRole || (userRole !== 'admin' && userRole !== 'super_admin')) {
       return {
         statusCode: 403,
         headers,
@@ -85,83 +88,114 @@ exports.handler = async function(event, context) {
       };
     }
 
-    // Parse multipart form data
-    const boundary = event.headers['content-type']?.split('boundary=')[1];
-    if (!boundary) {
-      return {
-        statusCode: 400,
-        headers,
-        body: JSON.stringify({ error: 'Invalid content type' })
-      };
-    }
+    // Parse multipart form data using busboy
+console.log('Headers:', JSON.stringify(event.headers, null, 2));
+console.log('Content-Type:', event.headers['content-type']);
 
-    const parts = multipart.Parse(Buffer.from(event.body, 'base64'), boundary);
+const contentType = event.headers['content-type'] || event.headers['Content-Type'];
+console.log('Found content-type:', contentType);
+
+if (!contentType || !contentType.includes('multipart/form-data')) {
+  return {
+    statusCode: 400,
+    headers,
+    body: JSON.stringify({ error: 'Invalid content-type. Expected multipart/form-data' })
+  };
+}
+
+console.log('Event body type:', typeof event.body);
+console.log('Event body length:', event.body ? event.body.length : 'undefined');
+console.log('Event isBase64Encoded:', event.isBase64Encoded);
+
+if (!event.body) {
+  return {
+    statusCode: 400,
+    headers,
+    body: JSON.stringify({ error: 'No request body received' })
+  };
+}
+
+// Parse multipart data with busboy
+try {
+  const result = await parseMultipartWithBusboy(event.body, contentType, event.isBase64Encoded);
+  
+  const {
+    fileBuffer,
+    fileName,
+    kitRegistrationId,
+    kitRegistrationType,
+    workOrderNumber,
+    sampleNumber
+  } = result;
+
+  // Validate required fields
+  if (!fileBuffer || !kitRegistrationId || !workOrderNumber || !sampleNumber) {
+    console.log('Missing required fields:', {
+      hasFile: !!fileBuffer,
+      hasKitRegistrationId: !!kitRegistrationId,
+      hasWorkOrderNumber: !!workOrderNumber,
+      hasSampleNumber: !!sampleNumber
+    });
     
-    // Extract form data
-    let fileBuffer = null;
-    let fileName = '';
-    let testKitId = '';
-    let workOrderNumber = '';
-    let sampleNumber = '';
-
-    for (const part of parts) {
-      if (part.name === 'file') {
-        fileBuffer = part.data;
-        fileName = part.filename || 'uploaded-file';
-      } else if (part.name === 'testKitId') {
-        testKitId = part.data.toString();
-      } else if (part.name === 'workOrderNumber') {
-        workOrderNumber = part.data.toString();
-      } else if (part.name === 'sampleNumber') {
-        sampleNumber = part.data.toString();
-      }
-    }
-
-    // Validate required fields
-    if (!fileBuffer || !testKitId || !workOrderNumber || !sampleNumber) {
-      return {
-        statusCode: 400,
-        headers,
-        body: JSON.stringify({ error: 'Missing required fields' })
-      };
-    }
-
-    log('info', 'Processing test results upload', {
-      testKitId,
-      workOrderNumber,
-      sampleNumber,
-      fileName,
-      fileSize: fileBuffer.length
-    });
-
-    // Process the file and generate report
-    const result = await processTestResultsFile({
-      supabase,
-      user,
-      fileBuffer,
-      fileName,
-      testKitId,
-      workOrderNumber,
-      sampleNumber
-    });
-
-    if (!result.success) {
-      return {
-        statusCode: 400,
-        headers,
-        body: JSON.stringify({ error: result.error })
-      };
-    }
-
     return {
-      statusCode: 200,
+      statusCode: 400,
       headers,
-      body: JSON.stringify({
-        success: true,
-        reportId: result.reportId,
-        message: 'Test results processed successfully'
-      })
+      body: JSON.stringify({ error: 'Missing required fields' })
     };
+  }
+
+  log('info', 'Processing test results upload', {
+    kitRegistrationId,
+    kitRegistrationType,
+    workOrderNumber,
+    sampleNumber,
+    fileName,
+    fileSize: fileBuffer.length
+  });
+
+  // Process the file and generate report
+  const processResult = await processTestResultsFile({
+    supabase,
+    user,
+    fileBuffer,
+    fileName,
+    kitRegistrationId,
+    kitRegistrationType,
+    workOrderNumber,
+    sampleNumber
+  });
+
+  if (!processResult.success) {
+    return {
+      statusCode: 400,
+      headers,
+      body: JSON.stringify({ error: processResult.error })
+    };
+  }
+
+  return {
+    statusCode: 200,
+    headers,
+    body: JSON.stringify({
+      success: true,
+      reportId: processResult.reportId,
+      message: 'Test results processed successfully'
+    })
+  };
+
+} catch (parseError) {
+  console.error('Error parsing multipart data:', parseError);
+  console.error('Parse error stack:', parseError.stack);
+  
+  return {
+    statusCode: 400,
+    headers,
+    body: JSON.stringify({ 
+      error: 'Failed to parse multipart data: ' + parseError.message,
+      details: parseError.stack
+    })
+  };
+}
 
   } catch (error) {
     log('error', 'Unexpected function error', { error: error.message });
@@ -177,22 +211,164 @@ exports.handler = async function(event, context) {
   }
 };
 
+function parseMultipartWithBusboy(body, contentType, isBase64Encoded) {
+  return new Promise((resolve, reject) => {
+    try {
+      // Convert body to buffer
+      let bodyBuffer;
+      if (isBase64Encoded) {
+        bodyBuffer = Buffer.from(body, 'base64');
+      } else if (typeof body === 'string') {
+        bodyBuffer = Buffer.from(body, 'utf8');
+      } else {
+        bodyBuffer = body;
+      }
+
+      console.log('Busboy parsing - Buffer length:', bodyBuffer.length);
+      console.log('Busboy parsing - Content-Type:', contentType);
+
+      // Initialize busboy
+      const busboy = Busboy({ 
+        headers: { 'content-type': contentType },
+        limits: {
+          fileSize: 10 * 1024 * 1024, // 10MB limit
+          files: 1, // Only allow 1 file
+          fields: 10 // Allow up to 10 form fields
+        }
+      });
+
+      const fields = {};
+      const files = {};
+      let fileCount = 0;
+
+      // Handle form fields
+      busboy.on('field', (fieldname, value) => {
+        console.log('Field received:', fieldname, '=', value);
+        fields[fieldname] = value;
+      });
+
+      // Handle file uploads
+// Handle file uploads
+busboy.on('file', (fieldname, file, filename, encoding, mimetype) => {
+  console.log('File received:', fieldname, 'filename:', filename, 'mimetype:', mimetype);
+  console.log('Filename type:', typeof filename);
+  console.log('Encoding:', encoding);
+  
+  fileCount++;
+  
+  if (fileCount > 1) {
+    reject(new Error('Only one file upload allowed'));
+    return;
+  }
+
+  const chunks = [];
+  let totalSize = 0;
+  
+  file.on('data', (data) => {
+    chunks.push(data);
+    totalSize += data.length;
+    console.log('Received chunk, size:', data.length, 'total so far:', totalSize);
+  });
+  
+  file.on('end', () => {
+    const fileBuffer = Buffer.concat(chunks);
+    console.log('File processing complete. Final size:', fileBuffer.length);
+    console.log('Is valid Buffer?', Buffer.isBuffer(fileBuffer));
+    
+    // Extract filename properly
+    let actualFilename;
+    if (typeof filename === 'object' && filename !== null) {
+      actualFilename = filename.filename || filename.name || 'uploaded-file';
+    } else {
+      actualFilename = filename || 'uploaded-file';
+    }
+    
+    console.log('Extracted filename:', actualFilename);
+    
+    files[fieldname] = {
+      data: fileBuffer,
+      filename: String(actualFilename),
+      mimetype: mimetype,
+      size: fileBuffer.length
+    };
+  });
+
+  file.on('error', (err) => {
+    console.error('File processing error:', err);
+    reject(err);
+  });
+});
+
+      // Handle completion
+      busboy.on('finish', () => {
+        console.log('Busboy parsing finished');
+        console.log('Fields received:', Object.keys(fields));
+        console.log('Files received:', Object.keys(files));
+
+        // Extract the data
+        const fileData = files.file;
+        
+        if (!fileData) {
+          reject(new Error('No file data received'));
+          return;
+        }
+
+        const result = {
+          fileBuffer: fileData.data,
+          fileName: String(fileData.filename || 'uploaded-file'),
+          kitRegistrationId: String(fields.kitRegistrationId || ''),
+          kitRegistrationType: String(fields.kitRegistrationType || ''),
+          workOrderNumber: String(fields.workOrderNumber || ''),
+          sampleNumber: String(fields.sampleNumber || '')
+        };
+
+        console.log('Parse result:', {
+          fileName: result.fileName,
+          fileSize: result.fileBuffer.length,
+          kitRegistrationId: result.kitRegistrationId,
+          kitRegistrationType: result.kitRegistrationType,
+          workOrderNumber: result.workOrderNumber,
+          sampleNumber: result.sampleNumber
+        });
+
+        resolve(result);
+      });
+
+      // Handle errors
+      busboy.on('error', (err) => {
+        console.error('Busboy error:', err);
+        reject(err);
+      });
+
+      // Start parsing
+      busboy.write(bodyBuffer);
+      busboy.end();
+
+    } catch (error) {
+      console.error('Error setting up busboy:', error);
+      reject(error);
+    }
+  });
+}
+
 async function processTestResultsFile({
   supabase,
   user,
   fileBuffer,
   fileName,
-  testKitId,
+  kitRegistrationId,
+  kitRegistrationType,
   workOrderNumber,
   sampleNumber
 }) {
   const requestId = Math.random().toString(36).substring(2, 8);
-  
+  let reportId;
+
   try {
     log('info', 'Starting file processing', { requestId, fileName });
 
     // Generate report UUID
-    const reportId = uuidv4();
+    reportId = uuidv4();
 
     // Create report record
     const { data: report, error: reportError } = await supabase
@@ -201,7 +377,8 @@ async function processTestResultsFile({
         report_id: reportId,
         sample_number: sampleNumber,
         work_order_number: workOrderNumber,
-        test_kit_id: testKitId,
+        kit_registration_id: kitRegistrationType === 'regular' ? kitRegistrationId : null,
+        legacy_kit_registration_id: kitRegistrationType === 'legacy' ? kitRegistrationId : null,
         user_id: null, // Will be set later when we find the kit registration
         original_file_name: fileName,
         processing_status: 'processing'
@@ -216,12 +393,44 @@ async function processTestResultsFile({
     log('info', 'Report record created', { reportId, requestId });
 
     // Convert file to CSV
-    let csvContent;
-    if (fileName.toLowerCase().endsWith('.csv')) {
-      csvContent = fileBuffer.toString('utf-8');
-    } else {
+// Convert file to CSV
+let csvContent;
+try {
+  const safeFileName = String(fileName || 'uploaded-file');
+  console.log('Processing file:', safeFileName);
+  console.log('File buffer size:', fileBuffer.length);
+  
+  if (safeFileName.toLowerCase().endsWith('.csv')) {
+    console.log('Processing as CSV file');
+    csvContent = fileBuffer.toString('utf-8');
+  } else {
+    console.log('Processing as Excel file');
+    try {
       csvContent = await convertExcelToCSV(fileBuffer);
+    } catch (excelError) {
+      console.error('Excel conversion failed:', excelError.message);
+      
+      // Try to process as CSV anyway (maybe it's mislabeled)
+      console.log('Attempting to process as CSV instead...');
+      try {
+        csvContent = fileBuffer.toString('utf-8');
+        console.log('Successfully processed as CSV');
+      } catch (csvFallbackError) {
+        throw new Error(`File processing failed: ${excelError.message}. CSV fallback also failed: ${csvFallbackError.message}`);
+      }
     }
+  }
+  
+  console.log('CSV content length:', csvContent ? csvContent.length : 'undefined');
+  console.log('CSV content first 200 chars:', csvContent ? csvContent.substring(0, 200) : 'undefined');
+  
+  if (!csvContent) {
+    throw new Error('CSV content is empty or undefined');
+  }
+} catch (csvError) {
+  console.error('Error converting file to CSV:', csvError);
+  throw new Error(`Failed to process file: ${csvError.message}`);
+}
 
     // Store CSV in Supabase storage
     const csvFileName = `${reportId}-${sampleNumber}.csv`;
@@ -247,7 +456,7 @@ async function processTestResultsFile({
     await processCSVData(supabase, csvContent, sampleNumber, workOrderNumber, requestId);
 
     // Find and update kit registration
-    const kitUpdateResult = await updateKitRegistration(supabase, testKitId, workOrderNumber, sampleNumber, reportId, user.id);
+    const kitUpdateResult = await updateKitRegistration(supabase, kitRegistrationId, kitRegistrationType, workOrderNumber, sampleNumber, reportId, user.id);
     
     if (kitUpdateResult.success) {
       log('info', 'Kit registration updated successfully', {
@@ -351,16 +560,18 @@ async function processTestResultsFile({
     });
 
     // Update report status to failed if report was created
-    try {
-      await supabase
-        .from('reports')
-        .update({ 
-          processing_status: 'failed',
-          error_message: error.message
-        })
-        .eq('report_id', reportId);
-    } catch (updateError) {
-      log('error', 'Failed to update report status', { updateError: updateError.message });
+    if (reportId) { // Add this check
+      try {
+        await supabase
+          .from('reports')
+          .update({ 
+            processing_status: 'failed',
+            error_message: error.message
+          })
+          .eq('report_id', reportId);
+      } catch (updateError) {
+        log('error', 'Failed to update report status', { updateError: updateError.message });
+      }
     }
 
     return {
@@ -372,44 +583,108 @@ async function processTestResultsFile({
 
 async function convertExcelToCSV(fileBuffer) {
   try {
+    console.log('Converting Excel to CSV, buffer size:', fileBuffer.length);
+    console.log('Buffer type:', typeof fileBuffer);
+    console.log('Is Buffer?', Buffer.isBuffer(fileBuffer));
+    
+    // Check if buffer looks like Excel file
+    const bufferStart = fileBuffer.slice(0, 50);
+    console.log('Buffer start (hex):', bufferStart.toString('hex'));
+    console.log('Buffer start (string):', bufferStart.toString('ascii'));
+    
+    // Validate buffer size
+    if (fileBuffer.length === 0) {
+      throw new Error('File buffer is empty');
+    }
+    
+    if (fileBuffer.length < 100) {
+      throw new Error('File buffer is too small to be a valid Excel file');
+    }
+    
+    // Check for Excel file signatures
+    const xlsxSignature = fileBuffer.slice(0, 4);
+    const isZipFile = xlsxSignature[0] === 0x50 && xlsxSignature[1] === 0x4B; // PK (ZIP header)
+    
+    console.log('Excel signature check:', {
+      firstBytes: Array.from(xlsxSignature),
+      isZipFile: isZipFile
+    });
+    
+    if (!isZipFile) {
+      throw new Error('File does not appear to be a valid Excel file (missing ZIP signature)');
+    }
+    
+    // Try to load with ExcelJS
     const workbook = new ExcelJS.Workbook();
+    
+    console.log('Attempting to load workbook...');
     await workbook.xlsx.load(fileBuffer);
     
+    console.log('Workbook loaded successfully');
+    console.log('Workbook worksheets count:', workbook.worksheets.length);
+    
     // Get the first worksheet
-    const worksheet = workbook.getWorksheet(1);
+    const worksheet = workbook.worksheets[0];
     if (!worksheet) {
       throw new Error('No worksheet found in Excel file');
     }
 
+    console.log('Worksheet name:', worksheet.name);
+    console.log('Worksheet row count:', worksheet.rowCount);
+
     const csvRows = [];
     
-    worksheet.eachRow((row, rowNumber) => {
+    // Iterate through actual rows
+    worksheet.eachRow({ includeEmpty: false }, (row, rowNumber) => {
       const csvRow = [];
+      
+      // Get all cell values from this row
+      const cellValues = [];
       row.eachCell({ includeEmpty: true }, (cell, colNumber) => {
+        cellValues[colNumber] = cell.value;
+      });
+      
+      // Convert to CSV format
+      for (let i = 1; i <= row.cellCount; i++) {
         let value = '';
-        if (cell.value !== null && cell.value !== undefined) {
+        const cellValue = cellValues[i];
+        
+        if (cellValue !== null && cellValue !== undefined) {
           // Handle different cell types
-          if (typeof cell.value === 'object' && cell.value.result !== undefined) {
-            // Formula cell
-            value = cell.value.result;
+          if (typeof cellValue === 'object') {
+            if (cellValue.result !== undefined) {
+              // Formula cell
+              value = cellValue.result;
+            } else if (cellValue.text !== undefined) {
+              // Rich text cell
+              value = cellValue.text;
+            } else {
+              // Other object types
+              value = String(cellValue);
+            }
           } else {
-            value = cell.value;
+            value = String(cellValue);
           }
         }
         
         // Escape quotes and wrap in quotes if contains comma or quotes
-        const stringValue = String(value);
-        if (stringValue.includes(',') || stringValue.includes('"') || stringValue.includes('\n')) {
-          csvRow.push(`"${stringValue.replace(/"/g, '""')}"`);
+        if (value.includes(',') || value.includes('"') || value.includes('\n')) {
+          csvRow.push(`"${value.replace(/"/g, '""')}"`);
         } else {
-          csvRow.push(stringValue);
+          csvRow.push(value);
         }
-      });
+      }
+      
       csvRows.push(csvRow.join(','));
     });
 
-    return csvRows.join('\n');
+    const csvContent = csvRows.join('\n');
+    console.log('CSV conversion complete. Lines:', csvRows.length);
+    
+    return csvContent;
   } catch (error) {
+    console.error('ExcelJS conversion error:', error);
+    console.error('Error stack:', error.stack);
     throw new Error(`Failed to convert Excel to CSV: ${error.message}`);
   }
 }
@@ -418,7 +693,13 @@ async function processCSVData(supabase, csvContent, sampleNumber, workOrderNumbe
   try {
     log('info', 'Processing CSV data', { sampleNumber, workOrderNumber, requestId });
 
+    if (!csvContent) {
+      throw new Error('CSV content is undefined or empty');
+    }
+
     const lines = csvContent.split('\n').filter(line => line.trim());
+    console.log('CSV lines count:', lines.length);
+    
     if (lines.length < 2) {
       throw new Error('CSV file must contain at least a header row and one data row');
     }
@@ -550,6 +831,7 @@ async function processCSVData(supabase, csvContent, sampleNumber, workOrderNumbe
     });
 
   } catch (error) {
+    console.error('Error in processCSVData:', error);
     throw new Error(`Failed to process CSV data: ${error.message}`);
   }
 }
@@ -676,42 +958,12 @@ function parseCSVRow(row) {
   return result;
 }
 
-async function updateKitRegistration(supabase, testKitId, workOrderNumber, sampleNumber, reportId, adminUserId) {
+async function updateKitRegistration(supabase, kitRegistrationId, kitRegistrationType, workOrderNumber, sampleNumber, reportId, adminUserId) {
   try {
-    log('info', 'Updating kit registration', { testKitId, workOrderNumber, sampleNumber, reportId });
+    log('info', 'Updating kit registration', { kitRegistrationId, kitRegistrationType, workOrderNumber, sampleNumber, reportId });
 
-    // Strategy: Look for kit registrations that don't have work_order_number and sample_number set yet
-    // We'll prioritize by test kit type and registration status
-    
-    // First try to find a regular kit registration that matches criteria
-    const { data: regularKits, error: regularError } = await supabase
-      .from('kit_registrations')
-      .select(`
-        kit_registration_id, 
-        user_id, 
-        work_order_number, 
-        sample_number, 
-        report_id,
-        registration_status,
-        order_items!inner (
-          test_kit_id,
-          orders!inner (
-            order_number
-          )
-        )
-      `)
-      .eq('order_items.test_kit_id', testKitId)
-      .eq('registration_status', 'registered')
-      .is('work_order_number', null)
-      .is('sample_number', null)
-      .is('report_id', null)
-      .order('created_at', { ascending: true })
-      .limit(5);
-
-    if (!regularError && regularKits && regularKits.length > 0) {
-      // Use the oldest registered kit that matches our criteria
-      const kitToUpdate = regularKits[0];
-      
+    if (kitRegistrationType === 'regular') {
+      // Update regular kit registration
       const { error: updateError } = await supabase
         .from('kit_registrations')
         .update({
@@ -720,48 +972,17 @@ async function updateKitRegistration(supabase, testKitId, workOrderNumber, sampl
           report_id: reportId,
           updated_at: new Date().toISOString()
         })
-        .eq('kit_registration_id', kitToUpdate.kit_registration_id);
+        .eq('kit_registration_id', kitRegistrationId);
 
       if (updateError) {
         log('warn', 'Failed to update regular kit registration', { error: updateError.message });
+        return { success: false, error: updateError.message };
       } else {
-        log('info', 'Regular kit registration updated', { 
-          kitRegistrationId: kitToUpdate.kit_registration_id,
-          orderNumber: kitToUpdate.order_items.orders.order_number,
-          userId: kitToUpdate.user_id
-        });
-        return { success: true, type: 'regular', kitRegistrationId: kitToUpdate.kit_registration_id };
+        log('info', 'Regular kit registration updated', { kitRegistrationId });
+        return { success: true, type: 'regular', kitRegistrationId };
       }
-    }
-
-    // If no regular kit found, try legacy kit registrations
-    const { data: legacyKits, error: legacyError } = await supabase
-      .from('legacy_kit_registrations')
-      .select(`
-        id, 
-        user_id, 
-        kit_code,
-        registration_status,
-        work_order_number, 
-        sample_number, 
-        report_id,
-        test_kits!inner (
-          id,
-          name
-        )
-      `)
-      .eq('test_kits.id', testKitId)
-      .eq('registration_status', 'registered')
-      .is('work_order_number', null)
-      .is('sample_number', null)
-      .is('report_id', null)
-      .order('created_at', { ascending: true })
-      .limit(5);
-
-    if (!legacyError && legacyKits && legacyKits.length > 0) {
-      // Use the oldest registered legacy kit that matches our criteria
-      const kitToUpdate = legacyKits[0];
-      
+    } else if (kitRegistrationType === 'legacy') {
+      // Update legacy kit registration
       const { error: updateError } = await supabase
         .from('legacy_kit_registrations')
         .update({
@@ -770,72 +991,19 @@ async function updateKitRegistration(supabase, testKitId, workOrderNumber, sampl
           report_id: reportId,
           updated_at: new Date().toISOString()
         })
-        .eq('id', kitToUpdate.id);
+        .eq('id', kitRegistrationId);
 
       if (updateError) {
         log('warn', 'Failed to update legacy kit registration', { error: updateError.message });
+        return { success: false, error: updateError.message };
       } else {
-        log('info', 'Legacy kit registration updated', { 
-          legacyKitId: kitToUpdate.id,
-          kitCode: kitToUpdate.kit_code,
-          userId: kitToUpdate.user_id
-        });
-        return { success: true, type: 'legacy', kitRegistrationId: kitToUpdate.id };
+        log('info', 'Legacy kit registration updated', { kitRegistrationId });
+        return { success: true, type: 'legacy', kitRegistrationId };
       }
+    } else {
+      log('warn', 'Invalid kit registration type', { kitRegistrationType });
+      return { success: false, error: 'Invalid kit registration type' };
     }
-
-    // If still no match, try any registered kit without these fields set (fallback)
-    const { data: anyRegularKit, error: anyRegularError } = await supabase
-      .from('kit_registrations')
-      .select(`
-        kit_registration_id, 
-        user_id,
-        order_items!inner (
-          orders!inner (
-            order_number
-          )
-        )
-      `)
-      .eq('registration_status', 'registered')
-      .is('work_order_number', null)
-      .is('sample_number', null)
-      .is('report_id', null)
-      .order('created_at', { ascending: true })
-      .limit(1)
-      .single();
-
-    if (!anyRegularError && anyRegularKit) {
-      const { error: updateError } = await supabase
-        .from('kit_registrations')
-        .update({
-          work_order_number: workOrderNumber,
-          sample_number: sampleNumber,
-          report_id: reportId,
-          updated_at: new Date().toISOString()
-        })
-        .eq('kit_registration_id', anyRegularKit.kit_registration_id);
-
-      if (updateError) {
-        log('warn', 'Failed to update fallback kit registration', { error: updateError.message });
-      } else {
-        log('info', 'Fallback kit registration updated', { 
-          kitRegistrationId: anyRegularKit.kit_registration_id,
-          orderNumber: anyRegularKit.order_items.orders.order_number,
-          userId: anyRegularKit.user_id
-        });
-        return { success: true, type: 'regular', kitRegistrationId: anyRegularKit.kit_registration_id };
-      }
-    }
-
-    log('warn', 'No suitable kit registration found to update', { 
-      testKitId, 
-      workOrderNumber, 
-      sampleNumber,
-      adminUserId,
-      message: 'No registered kits found without existing work order and sample numbers'
-    });
-
-    return { success: false, error: 'No suitable kit registration found' };
 
   } catch (error) {
     log('error', 'Error updating kit registration', { error: error.message });

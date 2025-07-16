@@ -6,61 +6,163 @@ import { supabase } from '../lib/supabaseClient';
 export default function AdminReportsUpload() {
   const { user } = useAuth();
   const [formData, setFormData] = useState({
-    testKitId: '',
+    kitRegistrationId: '',
+    kitRegistrationType: '', // 'regular' or 'legacy'
     workOrderNumber: '',
     sampleNumber: ''
   });
   const [selectedFile, setSelectedFile] = useState(null);
-  const [testKits, setTestKits] = useState([]);
+  const [registeredKits, setRegisteredKits] = useState([]);
   const [loading, setLoading] = useState(false);
   const [processing, setProcessing] = useState(false);
   const [error, setError] = useState(null);
   const [success, setSuccess] = useState(null);
-  const [kitRegistrations, setKitRegistrations] = useState([]);
+  const [allKitRegistrations, setAllKitRegistrations] = useState([]);
   const [searchQuery, setSearchQuery] = useState('');
 
-  // Load test kits on component mount
-  useEffect(() => {
-    loadTestKits();
-    loadKitRegistrations();
+// Load registered kits on component mount
+useEffect(() => {
+    loadRegisteredKits();
+    loadAllKitRegistrations();
   }, []);
 
-  const loadTestKits = async () => {
+  const loadRegisteredKits = async () => {
     try {
-      const { data, error } = await supabase
-        .from('test_kits')
-        .select('id, name, description')
-        .order('name');
-
-      if (error) throw error;
-      setTestKits(data || []);
+      setLoading(true);
+      
+      // Load regular kit registrations without results
+      const { data: regularKits, error: regularError } = await supabase
+        .from('kit_registrations')
+        .select(`
+          kit_registration_id,
+          display_id,
+          registration_status,
+          work_order_number,
+          sample_number,
+          report_id,
+          created_at,
+          order_items!inner (
+            product_name,
+            orders!inner (
+              order_number,
+              shipping_address
+            )
+          )
+        `)
+        .eq('registration_status', 'registered')
+        .is('work_order_number', null)
+        .is('sample_number', null)
+        .is('report_id', null)
+        .order('created_at', { ascending: false });
+  
+      // Load legacy kit registrations without results
+      const { data: legacyKits, error: legacyError } = await supabase
+        .from('legacy_kit_registrations')
+        .select(`
+          id,
+          display_id,
+          kit_code,
+          registration_status,
+          work_order_number,
+          sample_number,
+          report_id,
+          created_at,
+          test_kits!inner (
+            name
+          )
+        `)
+        .eq('registration_status', 'registered')
+        .is('work_order_number', null)
+        .is('sample_number', null)
+        .is('report_id', null)
+        .order('created_at', { ascending: false });
+  
+      const formattedKits = [];
+  
+      // Format regular kits
+      if (!regularError && regularKits) {
+        regularKits.forEach(kit => {
+          const shipping = kit.order_items.orders.shipping_address;
+          formattedKits.push({
+            id: kit.kit_registration_id,
+            type: 'regular',
+            displayId: kit.display_id,
+            productName: kit.order_items.product_name,
+            orderNumber: kit.order_items.orders.order_number,
+            customerName: `${shipping?.firstName || ''} ${shipping?.lastName || ''}`.trim(),
+            customerEmail: shipping?.email || '',
+            createdAt: kit.created_at
+          });
+        });
+      }
+  
+      // Format legacy kits
+      if (!legacyError && legacyKits) {
+        legacyKits.forEach(kit => {
+          formattedKits.push({
+            id: kit.id,
+            type: 'legacy',
+            displayId: kit.display_id || kit.kit_code,
+            productName: kit.test_kits.name,
+            orderNumber: `LEGACY-${kit.kit_code}`,
+            customerName: '', // Legacy kits might not have this info easily accessible
+            customerEmail: '',
+            createdAt: kit.created_at
+          });
+        });
+      }
+  
+      // Sort by creation date (newest first)
+      formattedKits.sort((a, b) => new Date(b.createdAt) - new Date(a.createdAt));
+      
+      setRegisteredKits(formattedKits);
+  
+      if (regularError) {
+        console.error('Error loading regular kits:', regularError);
+      }
+      if (legacyError) {
+        console.error('Error loading legacy kits:', legacyError);
+      }
+  
     } catch (err) {
-      console.error('Error loading test kits:', err);
-      setError('Failed to load test kits');
+      console.error('Error loading registered kits:', err);
+      setError('Failed to load registered kits');
+    } finally {
+      setLoading(false);
     }
   };
-
-  const loadKitRegistrations = async () => {
+  
+  const loadAllKitRegistrations = async () => {
     try {
       const { data, error } = await supabase
-        .from('vw_admin_orders')
+        .from('vw_test_admin_orders')
         .select('*')
-        .eq('environment', 'prod')
         .order('created_at', { ascending: false });
-
+  
       if (error) throw error;
-      setKitRegistrations(data || []);
+      setAllKitRegistrations(data || []);
     } catch (err) {
-      console.error('Error loading kit registrations:', err);
+      console.error('Error loading all kit registrations:', err);
     }
   };
 
   const handleInputChange = (e) => {
     const { name, value } = e.target;
-    setFormData(prev => ({
-      ...prev,
-      [name]: value
-    }));
+    
+    if (name === 'kitRegistrationId') {
+      // When kit is selected, also set the type
+      const selectedKit = registeredKits.find(kit => kit.id === value);
+      setFormData(prev => ({
+        ...prev,
+        [name]: value,
+        kitRegistrationType: selectedKit ? selectedKit.type : ''
+      }));
+    } else {
+      setFormData(prev => ({
+        ...prev,
+        [name]: value
+      }));
+    }
     
     // Clear any existing error when user starts typing
     if (error) setError(null);
@@ -95,8 +197,8 @@ export default function AdminReportsUpload() {
   };
 
   const validateForm = () => {
-    if (!formData.testKitId) {
-      setError('Please select a test kit');
+    if (!formData.kitRegistrationId) {
+      setError('Please select a registered kit');
       return false;
     }
     
@@ -136,11 +238,12 @@ export default function AdminReportsUpload() {
       }
 
       // Create form data for file upload
-      const uploadFormData = new FormData();
-      uploadFormData.append('file', selectedFile);
-      uploadFormData.append('testKitId', formData.testKitId);
-      uploadFormData.append('workOrderNumber', formData.workOrderNumber);
-      uploadFormData.append('sampleNumber', formData.sampleNumber);
+    const uploadFormData = new FormData();
+    uploadFormData.append('file', selectedFile);
+    uploadFormData.append('kitRegistrationId', formData.kitRegistrationId);
+    uploadFormData.append('kitRegistrationType', formData.kitRegistrationType);
+    uploadFormData.append('workOrderNumber', formData.workOrderNumber);
+    uploadFormData.append('sampleNumber', formData.sampleNumber);
 
       // Call Netlify function to process the upload
       const response = await fetch('/.netlify/functions/process-test-results', {
@@ -161,11 +264,12 @@ export default function AdminReportsUpload() {
       setSuccess(`Test results uploaded successfully! Report ID: ${result.reportId}`);
       
       // Reset form
-      setFormData({
-        testKitId: '',
-        workOrderNumber: '',
-        sampleNumber: ''
-      });
+        setFormData({
+            kitRegistrationId: '',
+            kitRegistrationType: '',
+            workOrderNumber: '',
+            sampleNumber: ''
+        });
       setSelectedFile(null);
       
       // Reset file input
@@ -184,7 +288,7 @@ export default function AdminReportsUpload() {
     }
   };
 
-  const filteredKitRegistrations = kitRegistrations.filter(kit => {
+  const filteredKitRegistrations = allKitRegistrations.filter(kit => {
     if (!searchQuery) return true;
     const query = searchQuery.toLowerCase();
     return (
@@ -210,27 +314,67 @@ export default function AdminReportsUpload() {
 
         {/* Upload Form */}
         <form onSubmit={handleSubmit} className="p-4 sm:p-6 space-y-6">
-          {/* Test Kit Selection */}
-          <div>
-            <label htmlFor="testKitId" className="block text-sm font-medium text-gray-700 mb-2">
-              Test Kit <span className="text-red-500">*</span>
+          {/* Registered Kit Selection */}
+            <div>
+            <label htmlFor="kitRegistrationId" className="block text-sm font-medium text-gray-700 mb-2">
+                Registered Kit <span className="text-red-500">*</span>
             </label>
             <select
-              id="testKitId"
-              name="testKitId"
-              value={formData.testKitId}
-              onChange={handleInputChange}
-              className="w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 sm:text-sm"
-              required
+                id="kitRegistrationId"
+                name="kitRegistrationId"
+                value={formData.kitRegistrationId}
+                onChange={handleInputChange}
+                className="w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 sm:text-sm"
+                required
             >
-              <option value="">Select a test kit...</option>
-              {testKits.map((kit) => (
-                <option key={kit.id} value={kit.id}>
-                  {kit.name}
+                <option value="">Select a registered kit awaiting results...</option>
+                {registeredKits.map((kit) => (
+                <option key={`${kit.type}-${kit.id}`} value={kit.id}>
+                    {kit.displayId} - {kit.productName} - Order #{kit.orderNumber}
+                    {kit.customerName && ` - ${kit.customerName}`}
                 </option>
-              ))}
+                ))}
             </select>
-          </div>
+            {registeredKits.length === 0 && !loading && (
+                <p className="mt-2 text-sm text-gray-500">
+                No registered kits available for results upload. Kits must be registered by customers before results can be uploaded.
+                </p>
+            )}
+            </div>
+        
+        {/* Selected Kit Info Display */}
+        {(() => {
+        const selectedKitInfo = registeredKits.find(kit => kit.id === formData.kitRegistrationId);
+        return selectedKitInfo ? (
+            <div className="bg-blue-50 border border-blue-200 rounded-md p-4">
+            <h4 className="text-sm font-medium text-blue-900 mb-2">Selected Kit Information</h4>
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 text-sm">
+                <div>
+                <span className="font-medium text-blue-800">Kit ID:</span>
+                <span className="ml-2 text-blue-700">{selectedKitInfo.displayId}</span>
+                </div>
+                <div>
+                <span className="font-medium text-blue-800">Product:</span>
+                <span className="ml-2 text-blue-700">{selectedKitInfo.productName}</span>
+                </div>
+                <div>
+                <span className="font-medium text-blue-800">Order:</span>
+                <span className="ml-2 text-blue-700">#{selectedKitInfo.orderNumber}</span>
+                </div>
+                {selectedKitInfo.customerName && (
+                <div>
+                    <span className="font-medium text-blue-800">Customer:</span>
+                    <span className="ml-2 text-blue-700">{selectedKitInfo.customerName}</span>
+                </div>
+                )}
+                <div>
+                <span className="font-medium text-blue-800">Type:</span>
+                <span className="ml-2 text-blue-700 capitalize">{selectedKitInfo.type}</span>
+                </div>
+            </div>
+            </div>
+        ) : null;
+        })()}
 
           {/* Work Order Number and Sample Number - Side by side on larger screens */}
           <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 sm:gap-6">
@@ -426,7 +570,7 @@ export default function AdminReportsUpload() {
         <div className="px-4 sm:px-6 py-4 sm:py-5 border-b border-gray-200">
           <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between">
             <h3 className="text-lg leading-6 font-medium text-gray-900 mb-2 sm:mb-0">
-              Kit Registrations
+              All Kit Registrations
             </h3>
             <div className="w-full sm:w-64">
               <input
