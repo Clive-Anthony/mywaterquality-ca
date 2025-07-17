@@ -1,4 +1,4 @@
-// netlify/functions/claim-legacy-kit.js - UPDATED for is_claimed/claimed_at
+// netlify/functions/claim-legacy-kit.js - UPDATED for status field
 const { createClient } = require('@supabase/supabase-js');
 
 function log(level, message, data = null) {
@@ -101,7 +101,7 @@ exports.handler = async function(event, context) {
       userEmail: user.email
     });
 
-    // Check if kit exists - UPDATED to use is_claimed 
+    // Check if kit exists - UPDATED to use status instead of registration_status
     const { data: existingKit, error: findError } = await supabase
       .from('legacy_kit_registrations')
       .select(`
@@ -110,7 +110,7 @@ exports.handler = async function(event, context) {
         user_id,
         is_claimed,
         claimed_at,
-        registration_status,
+        status,
         test_kits (
           name,
           description
@@ -176,7 +176,7 @@ exports.handler = async function(event, context) {
         user_id,
         is_claimed,
         claimed_at,
-        registration_status,
+        status,
         test_kits (
           name,
           description
@@ -248,7 +248,7 @@ exports.handler = async function(event, context) {
           kit_code: claimedKit.kit_code,
           display_id: claimedKit.display_id || claimedKit.kit_code,
           product_name: claimedKit.test_kits.name,
-          registration_status: claimedKit.registration_status,
+          status: claimedKit.status,
           is_claimed: claimedKit.is_claimed,
           claimed_at: claimedKit.claimed_at,
           already_owned: false

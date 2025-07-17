@@ -30,13 +30,13 @@ useEffect(() => {
     try {
       setLoading(true);
       
-      // Load regular kit registrations without results
+      // Load regular kit registrations without results - UPDATED to use status field
       const { data: regularKits, error: regularError } = await supabase
         .from('kit_registrations')
         .select(`
           kit_registration_id,
           display_id,
-          registration_status,
+          status,
           work_order_number,
           sample_number,
           report_id,
@@ -49,20 +49,20 @@ useEffect(() => {
             )
           )
         `)
-        .eq('registration_status', 'registered')
+        .not('status', 'in', '(confirmed,en_route_to_customer,delivered_awaiting_registration)')
         .is('work_order_number', null)
         .is('sample_number', null)
         .is('report_id', null)
         .order('created_at', { ascending: false });
   
-      // Load legacy kit registrations without results
+      // Load legacy kit registrations without results - UPDATED to use status field
       const { data: legacyKits, error: legacyError } = await supabase
         .from('legacy_kit_registrations')
         .select(`
           id,
           display_id,
           kit_code,
-          registration_status,
+          status,
           work_order_number,
           sample_number,
           report_id,
@@ -71,7 +71,7 @@ useEffect(() => {
             name
           )
         `)
-        .eq('registration_status', 'registered')
+        .not('status', 'in', '(confirmed,en_route_to_customer,delivered_awaiting_registration)')
         .is('work_order_number', null)
         .is('sample_number', null)
         .is('report_id', null)

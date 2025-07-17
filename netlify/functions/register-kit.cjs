@@ -1,4 +1,4 @@
-// netlify/functions/register-kit.js - Complete optimized version
+// netlify/functions/register-kit.js - Complete optimized version with status field
 const { createClient } = require('@supabase/supabase-js');
 const { processChainOfCustody } = require('./utils/chainOfCustodyProcessor');
 
@@ -108,7 +108,7 @@ async function getAvailableKitRegistrations(supabase, user, headers) {
           sample_date,
           sample_description,
           person_taking_sample,
-          registration_status,
+          status,
           order_items!inner (
             order_item_id,
             product_name,
@@ -130,7 +130,7 @@ async function getAvailableKitRegistrations(supabase, user, headers) {
           id,
           display_id,
           kit_code,
-          registration_status,
+          status,
           sample_date,
           sample_description,
           person_taking_sample,
@@ -193,8 +193,8 @@ function formatKit(kit, source) {
   const baseFormat = {
     kit_registration_id: source === 'legacy' ? kit.id : kit.kit_registration_id,
     display_id: source === 'legacy' ? (kit.display_id || kit.kit_code) : kit.display_id,
-    is_registered: kit.registration_status === 'registered',
-    registration_status: kit.registration_status,
+    is_registered: !['confirmed', 'en_route_to_customer', 'delivered_awaiting_registration'].includes(kit.status),
+    status: kit.status,
     source
   };
 
@@ -266,7 +266,7 @@ async function registerKit(supabase, user, event, headers) {
         kit_registration: {
           kit_registration_id: result.kit_registration_id,
           display_id: result.display_id,
-          registration_status: 'registered',
+          status: 'registered',
           source: kitInfo.source
         },
         message: `${kitInfo.source === 'legacy' ? 'Legacy kit' : 'Kit'} registered successfully`,
@@ -316,7 +316,7 @@ async function determineKitType(supabase, kitRegistrationId, userId) {
   const { data: legacyKit, error: legacyError } = await supabase
   .from('legacy_kit_registrations')
   .select(`
-    id, kit_code, display_id, registration_status, sample_date, 
+    id, kit_code, display_id, status, sample_date, 
     person_taking_sample, is_claimed, claimed_at,
     test_kits (name, description)
   `)
@@ -333,7 +333,7 @@ async function determineKitType(supabase, kitRegistrationId, userId) {
   const { data: regularKit, error: regularError } = await supabase
     .from('kit_registrations')
     .select(`
-      kit_registration_id, display_id, registration_status, sample_date, 
+      kit_registration_id, display_id, status, sample_date, 
       person_taking_sample, order_items!inner (
         product_name, orders!inner (order_number, shipping_address)
       )
@@ -353,7 +353,7 @@ async function determineKitType(supabase, kitRegistrationId, userId) {
 function checkIfAlreadyRegistered(kitInfo) {
   const { kit } = kitInfo;
   
-  if (kit.registration_status === 'registered' || 
+  if (!['confirmed', 'en_route_to_customer', 'delivered_awaiting_registration'].includes(kit.status) || 
       (kit.sample_date && kit.person_taking_sample)) {
     return { 
       error: `This ${kitInfo.source === 'legacy' ? 'legacy kit' : 'kit'} has already been registered` 
@@ -380,7 +380,7 @@ async function processKitRegistration(supabase, user, registrationData, kitInfo,
     province: registrationData.province || null,
     postal_code: registrationData.postal_code || null,
     country: registrationData.country || 'Canada',
-    registration_status: 'registered',
+    status: 'registered',
     updated_at: new Date().toISOString()
   };
 
@@ -409,7 +409,7 @@ async function processKitRegistration(supabase, user, registrationData, kitInfo,
   log('info', `${source} kit registered successfully`, { 
     kitId: kitId,
     displayId: updatedKit.display_id || (source === 'legacy' ? updatedKit.kit_code : null),
-    registrationStatus: updatedKit.registration_status,
+    status: updatedKit.status,
     requestId
   });
 
