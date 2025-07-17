@@ -6,9 +6,9 @@ const { pdf } = require('@react-pdf/renderer');
 // Note: This approach requires server-side rendering setup for React PDF
 // For a simpler approach, you might want to use a different PDF generation library
 
-async function processReportGeneration(supabase, reportId, sampleNumber, requestId) {
+async function processReportGeneration(supabase, reportId, sampleNumber, requestId, kitOrderCode = 'UNKNOWN') {
     try {
-      console.log(`[${requestId}] Starting PDF report generation for sample ${sampleNumber}`);
+      // console.log(`[${requestId}] Starting PDF report generation for sample ${sampleNumber}`);
   
       // First, let's check what sample numbers are actually in the database for this report
       const { data: reportInfo, error: reportError } = await supabase
@@ -18,9 +18,9 @@ async function processReportGeneration(supabase, reportId, sampleNumber, request
         .single();
   
       if (reportError) {
-        console.log(`[${requestId}] Could not get report info:`, reportError.message);
+        // console.log(`[${requestId}] Could not get report info:`, reportError.message);
       } else {
-        console.log(`[${requestId}] Report info:`, reportInfo);
+        // console.log(`[${requestId}] Report info:`, reportInfo);
       }
   
       // Try to find what sample numbers exist in the raw table
@@ -30,13 +30,13 @@ async function processReportGeneration(supabase, reportId, sampleNumber, request
         .limit(5);
   
       if (!samplesError && availableSamples) {
-        console.log(`[${requestId}] Available samples in DB:`, availableSamples.map(s => ({ 
-          sample: s['Sample #'],      // Access without quotes
-          workOrder: s['Work Order #'], // Access without quotes
-          parameter: s['Parameter']
-        })));
+        // console.log(`[${requestId}] Available samples in DB:`, availableSamples.map(s => ({ 
+        //   sample: s['Sample #'],      // Access without quotes
+        //   workOrder: s['Work Order #'], // Access without quotes
+        //   parameter: s['Parameter']
+        // })));
       } else {
-        console.log(`[${requestId}] Error fetching available samples:`, samplesError?.message);
+        // console.log(`[${requestId}] Error fetching available samples:`, samplesError?.message);
       }
   
       // Try the view query with the sample number
@@ -47,10 +47,10 @@ async function processReportGeneration(supabase, reportId, sampleNumber, request
         .order('parameter_name');
   
       if (dataError) {
-        console.log(`[${requestId}] View query error:`, dataError.message);
+        // console.log(`[${requestId}] View query error:`, dataError.message);
       }
   
-      console.log(`[${requestId}] View query returned ${testResults?.length || 0} results for sample ${sampleNumber}`);
+      // console.log(`[${requestId}] View query returned ${testResults?.length || 0} results for sample ${sampleNumber}`);
   
       if (!testResults || testResults.length === 0) {
         // Try with work order number
@@ -62,15 +62,15 @@ async function processReportGeneration(supabase, reportId, sampleNumber, request
             .order('parameter_name');
   
           if (results2 && results2.length > 0) {
-            console.log(`[${requestId}] Found ${results2.length} results using work order ${reportInfo.work_order_number}`);
-            return await continueProcessing(supabase, reportId, reportInfo.work_order_number, requestId, results2);
+            // console.log(`[${requestId}] Found ${results2.length} results using work order ${reportInfo.work_order_number}`);
+            return await continueProcessing(supabase, reportId, reportInfo.work_order_number, requestId, results2, kitOrderCode);
           }
         }
   
         throw new Error(`No test results found. Tried sample: ${sampleNumber}, work order: ${reportInfo?.work_order_number}. Available samples: ${availableSamples?.map(s => s['Sample #']).join(', ') || 'none'}`);
       }
   
-      return await continueProcessing(supabase, reportId, sampleNumber, requestId, testResults);
+      return await continueProcessing(supabase, reportId, sampleNumber, requestId, testResults, kitOrderCode);
   
     } catch (error) {
       console.error(`[${requestId}] Error generating PDF report:`, error);
@@ -80,6 +80,59 @@ async function processReportGeneration(supabase, reportId, sampleNumber, request
       };
     }
   }
+
+async function continueProcessing(supabase, reportId, sampleNumber, requestId, testResults, kitOrderCode = 'UNKNOWN') {
+  try {
+    // console.log(`[${requestId}] Processing ${testResults.length} test results for report generation`);
+    
+    // Process the data into the format needed for the report
+    const reportData = processReportData(testResults);
+    
+    if (!reportData) {
+      throw new Error('Failed to process test results data');
+    }
+    
+    // Generate PDF using the processed data
+    const pdfBuffer = await generateSimplePDF(reportData, sampleNumber);
+    
+    if (!pdfBuffer) {
+      throw new Error('Failed to generate PDF buffer');
+    }
+    
+    // Upload PDF to Supabase storage
+    const pdfFileName = `My-Water-Quality-Report-${kitOrderCode}.pdf`;
+    const { data: pdfUpload, error: pdfUploadError } = await supabase.storage
+      .from('generated-reports')
+      .upload(pdfFileName, pdfBuffer, {
+        contentType: 'application/pdf',
+        upsert: true
+      });
+    
+    if (pdfUploadError) {
+      throw new Error(`Failed to upload PDF: ${pdfUploadError.message}`);
+    }
+    
+    // Get public URL for the PDF
+    const { data: pdfUrl } = supabase.storage
+      .from('generated-reports')
+      .getPublicUrl(pdfFileName);
+    
+    // console.log(`[${requestId}] PDF report generated successfully: ${pdfFileName}`);
+    
+    return {
+      success: true,
+      pdfUrl: pdfUrl.publicUrl,
+      fileName: pdfFileName
+    };
+    
+  } catch (error) {
+    console.error(`[${requestId}] Error in continueProcessing:`, error);
+    return {
+      success: false,
+      error: error.message
+    };
+  }
+}
 
 function processReportData(rawData) {
   if (!rawData || rawData.length === 0) return null;
@@ -690,5 +743,6 @@ function generateHTMLReport(reportData, sampleNumber) {
 }
 
 module.exports = {
-  processReportGeneration
+  processReportGeneration,
+  continueProcessing
 };

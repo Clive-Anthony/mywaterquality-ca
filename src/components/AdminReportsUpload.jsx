@@ -202,15 +202,15 @@ useEffect(() => {
       return false;
     }
     
-    if (!formData.workOrderNumber.trim()) {
-      setError('Please enter a work order number');
-      return false;
-    }
+    // if (!formData.workOrderNumber.trim()) {
+    //   setError('Please enter a work order number');
+    //   return false;
+    // }
     
-    if (!formData.sampleNumber.trim()) {
-      setError('Please enter a sample number');
-      return false;
-    }
+    // if (!formData.sampleNumber.trim()) {
+    //   setError('Please enter a sample number');
+    //   return false;
+    // }
     
     if (!selectedFile) {
       setError('Please select a file to upload');
@@ -379,7 +379,7 @@ useEffect(() => {
         })()}
 
           {/* Work Order Number and Sample Number - Side by side on larger screens */}
-          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 sm:gap-6">
+          {/* <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 sm:gap-6">
             <div>
               <label htmlFor="workOrderNumber" className="block text-sm font-medium text-gray-700 mb-2">
                 Work Order Number <span className="text-red-500">*</span>
@@ -411,7 +411,7 @@ useEffect(() => {
                 required
               />
             </div>
-          </div>
+          </div> */}
 
           {/* File Upload */}
           <div>
