@@ -1,9 +1,10 @@
-// src/pages/AdminPage.jsx - Update the renderContent function and reports button
+// src/pages/AdminPage.jsx - Updated with Inventory Management
 import { useState } from 'react';
 import { useAuth } from '../contexts/AuthContext';
 import PageLayout from '../components/PageLayout';
 import AdminOrdersList from '../components/AdminOrdersList';
-import AdminReportsUpload from '../components/AdminReportsUpload'; // New component
+import AdminReportsUpload from '../components/AdminReportsUpload';
+import AdminInventoryManagement from '../components/AdminInventoryManagement'; 
 
 export default function AdminPage() {
   const { user } = useAuth();
@@ -29,16 +30,17 @@ export default function AdminPage() {
   const renderContent = () => {
     switch (activeTab) {
       case 'dashboard':
-        return <AdminDashboardContent />;
+        return <AdminDashboardContent setActiveTab={setActiveTab} />;
       case 'orders':
         return <AdminOrdersList showTitle={false} maxHeight="max-h-full" />;
       case 'reports':
         return <AdminReportsUpload />;
-      case 'users':
+      case 'inventory':
+        return <AdminInventoryManagement />;
       case 'kit-registrations':
         return <ComingSoonContent tabName={activeTab} />;
       default:
-        return <AdminDashboardContent />;
+        return <AdminDashboardContent setActiveTab={setActiveTab} />;
     }
   };
   
@@ -140,11 +142,17 @@ export default function AdminPage() {
                   </li>
                   <li>
                     <button
-                      disabled
-                      className="w-full text-left px-4 sm:px-6 py-3 flex items-center text-gray-400 cursor-not-allowed text-sm sm:text-base"
+                      onClick={() => setActiveTab('inventory')}
+                      className={`w-full text-left px-4 sm:px-6 py-3 flex items-center text-sm sm:text-base ${
+                        activeTab === 'inventory'
+                          ? 'bg-blue-50 text-blue-600 border-l-4 border-blue-600'
+                          : 'text-gray-600 hover:bg-gray-50'
+                      }`}
                     >
                       <svg
-                        className="mr-2 sm:mr-3 h-4 w-4 sm:h-5 sm:w-5 flex-shrink-0 text-gray-400"
+                        className={`mr-2 sm:mr-3 h-4 w-4 sm:h-5 sm:w-5 flex-shrink-0 ${
+                          activeTab === 'inventory' ? 'text-blue-600' : 'text-gray-400'
+                        }`}
                         xmlns="http://www.w3.org/2000/svg"
                         fill="none"
                         viewBox="0 0 24 24"
@@ -154,11 +162,10 @@ export default function AdminPage() {
                           strokeLinecap="round"
                           strokeLinejoin="round"
                           strokeWidth="2"
-                          d="M12 4.354a4 4 0 110 5.292M15 21H3v-1a6 6 0 0112 0v1zm0 0h6v-1a6 6 0 00-9-5.197m13.5-9a2.5 2.5 0 11-5 0 2.5 2.5 0 015 0z"
+                          d="M20 7l-8-4-8 4m16 0l-8 4m8-4v10l-8 4m0-10L4 7m8 4v10M4 7v10l8 4"
                         />
                       </svg>
-                      <span className="truncate">Users</span>
-                      <span className="ml-auto bg-gray-100 text-xs px-2 py-1 rounded-full flex-shrink-0">Soon</span>
+                      <span className="truncate">Inventory</span>
                     </button>
                   </li>
                   <li>
@@ -201,8 +208,7 @@ export default function AdminPage() {
   );
 }
 
-// Rest of the existing components remain the same...
-function AdminDashboardContent() {
+function AdminDashboardContent({ setActiveTab }) {
   return (
     <div className="space-y-6 lg:space-y-8">
       {/* Recent Orders Preview */}
@@ -230,7 +236,7 @@ function AdminDashboardContent() {
                   </p>
                   <div className="mt-3 sm:mt-4">
                     <button
-                      onClick={() => document.querySelector('[data-tab="orders"]')?.click()}
+                      onClick={() => setActiveTab('orders')}
                       className="inline-flex items-center px-3 py-1.5 sm:px-4 sm:py-2 border border-transparent text-xs sm:text-sm font-medium rounded-md text-purple-700 bg-purple-100 hover:bg-purple-200 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-purple-500 transition-colors duration-200"
                     >
                       View All Orders
@@ -268,24 +274,27 @@ function AdminDashboardContent() {
             </div>
           </div>
 
-          {/* Card 3 - User Management */}
+          {/* Card 3 - Inventory Management */}
           <div className="bg-white overflow-hidden shadow rounded-lg transition-shadow duration-300 hover:shadow-md lg:col-span-2 xl:col-span-1">
             <div className="px-4 py-4 sm:p-6">
               <div className="flex items-start sm:items-center">
                 <div className="flex-shrink-0 bg-blue-100 rounded-md p-2 sm:p-3">
                   <svg className="h-5 w-5 sm:h-6 sm:w-6 text-blue-600" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M12 4.354a4 4 0 110 5.292M15 21H3v-1a6 6 0 0112 0v1zm0 0h6v-1a6 6 0 00-9-5.197m13.5-9a2.5 2.5 0 11-5 0 2.5 2.5 0 015 0z" />
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M20 7l-8-4-8 4m16 0l-8 4m8-4v10l-8 4m0-10L4 7m8 4v10M4 7v10l8 4" />
                   </svg>
                 </div>
                 <div className="ml-3 sm:ml-5 flex-1 min-w-0">
-                  <h3 className="text-base sm:text-lg font-medium text-gray-900">User Management</h3>
+                  <h3 className="text-base sm:text-lg font-medium text-gray-900">Inventory Management</h3>
                   <p className="mt-1 sm:mt-2 text-sm text-gray-500 leading-relaxed">
-                    Manage user accounts, roles, and permissions.
+                    Manage test kit inventory levels and stock quantities.
                   </p>
                   <div className="mt-3 sm:mt-4">
-                    <span className="inline-flex items-center px-3 py-1.5 sm:px-4 sm:py-2 border border-gray-300 text-xs sm:text-sm font-medium rounded-md text-gray-500 bg-gray-100 cursor-not-allowed">
-                      Coming Soon
-                    </span>
+                    <button
+                      onClick={() => setActiveTab('inventory')}
+                      className="inline-flex items-center px-3 py-1.5 sm:px-4 sm:py-2 border border-transparent text-xs sm:text-sm font-medium rounded-md text-blue-700 bg-blue-100 hover:bg-blue-200 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500 transition-colors duration-200"
+                    >
+                      Manage Inventory
+                    </button>
                   </div>
                 </div>
               </div>
@@ -310,6 +319,7 @@ function AdminDashboardContent() {
                 <li>Customer order history</li>
                 <li>Test result upload and processing</li>
                 <li>Automated report generation</li>
+                <li>Inventory management and stock control</li>
               </ul>
             </div>
             <div className="bg-white p-3 sm:p-4 rounded shadow-sm">
@@ -332,8 +342,6 @@ function AdminDashboardContent() {
 function ComingSoonContent({ tabName }) {
   const getTabDisplayName = (tab) => {
     switch (tab) {
-      case 'users':
-        return 'User Management';
       case 'kit-registrations':
         return 'Kit Registrations';
       default:
