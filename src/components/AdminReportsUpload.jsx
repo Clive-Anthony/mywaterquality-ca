@@ -17,113 +17,98 @@ export default function AdminReportsUpload() {
   const [processing, setProcessing] = useState(false);
   const [error, setError] = useState(null);
   const [success, setSuccess] = useState(null);
-  const [allKitRegistrations, setAllKitRegistrations] = useState([]);
+  const [allTestKits, setAllTestKits] = useState([]);
   const [searchQuery, setSearchQuery] = useState('');
+
+  // Helper function for kit display info
+  const getKitDisplayInfo = (kit) => {
+    const statusBadge = kit.kitStatus ? ` (${kit.kitStatus})` : '';
+    const typeBadge = kit.type === 'legacy' ? ' [Legacy]' : '';
+    
+    return {
+      label: `${kit.displayId} - ${kit.productName} - ${kit.orderNumber}${typeBadge}${statusBadge}`,
+      subtitle: kit.customerName || 'No customer info',
+      type: kit.type
+    };
+  };
+
+  // Add the report download handler function
+  const handleDownloadReport = async (reportId, kitCode) => {
+    try {
+      // Get the report details to find the PDF URL
+      const { data: report, error } = await supabase
+        .from('reports')
+        .select('pdf_file_url')
+        .eq('report_id', reportId)
+        .single();
+
+      if (error) {
+        console.error('Error fetching report:', error);
+        setError('Failed to fetch report details');
+        return;
+      }
+
+      if (report?.pdf_file_url) {
+        // Open the PDF in a new tab for download
+        window.open(report.pdf_file_url, '_blank');
+      } else {
+        setError('Report PDF not available');
+      }
+    } catch (err) {
+      console.error('Error downloading report:', err);
+      setError('Failed to download report');
+    }
+  };
 
 // Load registered kits on component mount
 useEffect(() => {
     loadRegisteredKits();
-    loadAllKitRegistrations();
+    loadAllTestKits();
   }, []);
 
   const loadRegisteredKits = async () => {
     try {
       setLoading(true);
       
-      // Load regular kit registrations without results - UPDATED to use status field
-      const { data: regularKits, error: regularError } = await supabase
-        .from('kit_registrations')
-        .select(`
-          kit_registration_id,
-          display_id,
-          status,
-          work_order_number,
-          sample_number,
-          report_id,
-          created_at,
-          order_items!inner (
-            product_name,
-            orders!inner (
-              order_number,
-              shipping_address
-            )
-          )
-        `)
-        .not('status', 'in', '(confirmed,en_route_to_customer,delivered_awaiting_registration)')
+      // Load kits from the admin view that don't have results yet
+      const { data: kitsData, error: kitsError } = await supabase
+        .from('vw_test_kits_admin')
+        .select('*')
         .is('work_order_number', null)
         .is('sample_number', null)
         .is('report_id', null)
-        .order('created_at', { ascending: false });
-  
-      // Load legacy kit registrations without results - UPDATED to use status field
-      const { data: legacyKits, error: legacyError } = await supabase
-        .from('legacy_kit_registrations')
-        .select(`
-          id,
-          display_id,
-          kit_code,
-          status,
-          work_order_number,
-          sample_number,
-          report_id,
-          created_at,
-          test_kits!inner (
-            name
-          )
-        `)
-        .not('status', 'in', '(confirmed,en_route_to_customer,delivered_awaiting_registration)')
-        .is('work_order_number', null)
-        .is('sample_number', null)
-        .is('report_id', null)
-        .order('created_at', { ascending: false });
-  
-      const formattedKits = [];
-  
-      // Format regular kits
-      if (!regularError && regularKits) {
-        regularKits.forEach(kit => {
-          const shipping = kit.order_items.orders.shipping_address;
-          formattedKits.push({
-            id: kit.kit_registration_id,
-            type: 'regular',
-            displayId: kit.display_id,
-            productName: kit.order_items.product_name,
-            orderNumber: kit.order_items.orders.order_number,
-            customerName: `${shipping?.firstName || ''} ${shipping?.lastName || ''}`.trim(),
-            customerEmail: shipping?.email || '',
-            createdAt: kit.created_at
-          });
-        });
+        .order('kit_created_at', { ascending: false });
+
+      if (kitsError) {
+        throw kitsError;
       }
-  
-      // Format legacy kits
-      if (!legacyError && legacyKits) {
-        legacyKits.forEach(kit => {
-          formattedKits.push({
-            id: kit.id,
-            type: 'legacy',
-            displayId: kit.display_id || kit.kit_code,
-            productName: kit.test_kits.name,
-            orderNumber: `LEGACY-${kit.kit_code}`,
-            customerName: '', // Legacy kits might not have this info easily accessible
-            customerEmail: '',
-            createdAt: kit.created_at
-          });
-        });
-      }
-  
-      // Sort by creation date (newest first)
-      formattedKits.sort((a, b) => new Date(b.createdAt) - new Date(a.createdAt));
-      
-      setRegisteredKits(formattedKits);
-  
-      if (regularError) {
-        console.error('Error loading regular kits:', regularError);
-      }
-      if (legacyError) {
-        console.error('Error loading legacy kits:', legacyError);
-      }
-  
+
+      // Format the kits for the dropdown
+      const formattedKits = (kitsData || []).map(kit => ({
+        id: kit.kit_id,
+        type: kit.kit_type,
+        displayId: kit.kit_code,
+        productName: kit.test_kit_name,
+        orderNumber: kit.order_number,
+        customerName: `${kit.customer_first_name || ''} ${kit.customer_last_name || ''}`.trim(),
+        customerEmail: kit.customer_email || '',
+        createdAt: kit.kit_created_at,
+        // Additional fields for display
+        kitStatus: kit.kit_status,
+        isRegistered: kit.is_registered
+      }));
+
+      // Filter to only show registered kits (for regular kits) or all legacy kits
+      const availableKits = formattedKits.filter(kit => {
+        if (kit.type === 'legacy') {
+          return true; // Legacy kits are always considered "registered"
+        } else {
+          return kit.isRegistered; // Regular kits must be registered by customer
+        }
+      });
+
+      setRegisteredKits(availableKits);
+
     } catch (err) {
       console.error('Error loading registered kits:', err);
       setError('Failed to load registered kits');
@@ -132,17 +117,17 @@ useEffect(() => {
     }
   };
   
-  const loadAllKitRegistrations = async () => {
+  const loadAllTestKits = async () => {
     try {
       const { data, error } = await supabase
-        .from('vw_test_admin_orders')
+        .from('vw_test_kits_admin')
         .select('*')
-        .order('created_at', { ascending: false });
+        .order('kit_created_at', { ascending: false });
   
       if (error) throw error;
-      setAllKitRegistrations(data || []);
+      setAllTestKits(data || []);
     } catch (err) {
-      console.error('Error loading all kit registrations:', err);
+      console.error('Error loading all test kits:', err);
     }
   };
 
@@ -279,7 +264,7 @@ useEffect(() => {
       
       // Reload kit registrations to show updated data
       loadRegisteredKits();
-      loadAllKitRegistrations();
+      loadAllTestKits();
       
     } catch (err) {
       console.error('Error uploading test results:', err);
@@ -290,14 +275,15 @@ useEffect(() => {
     }
   };
 
-  const filteredKitRegistrations = allKitRegistrations.filter(kit => {
+  const filteredTestKits = allTestKits.filter(kit => {
     if (!searchQuery) return true;
     const query = searchQuery.toLowerCase();
     return (
       kit.order_number?.toLowerCase().includes(query) ||
       kit.customer_first_name?.toLowerCase().includes(query) ||
       kit.customer_last_name?.toLowerCase().includes(query) ||
-      kit.customer_email?.toLowerCase().includes(query)
+      kit.customer_email?.toLowerCase().includes(query) ||
+      kit.kit_code?.toLowerCase().includes(query)
     );
   });
 
@@ -322,60 +308,69 @@ useEffect(() => {
                 Registered Kit <span className="text-red-500">*</span>
             </label>
             <select
-                id="kitRegistrationId"
-                name="kitRegistrationId"
-                value={formData.kitRegistrationId}
-                onChange={handleInputChange}
-                className="w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 sm:text-sm"
-                required
+              id="kitRegistrationId"
+              name="kitRegistrationId"
+              value={formData.kitRegistrationId}
+              onChange={handleInputChange}
+              className="w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 sm:text-sm"
+              required
             >
-                <option value="">Select a registered kit awaiting results...</option>
-                {registeredKits.map((kit) => (
-                <option key={`${kit.type}-${kit.id}`} value={kit.id}>
-                    {kit.displayId} - {kit.productName} - Order #{kit.orderNumber}
-                    {kit.customerName && ` - ${kit.customerName}`}
+              <option value="">Select a registered kit awaiting results...</option>
+              {registeredKits.map((kit) => (
+                <option key={kit.id} value={kit.id}>
+                  {kit.displayId} - {kit.productName} - {kit.orderNumber}
+                  {kit.customerName && ` - ${kit.customerName}`}
+                  {kit.type === 'legacy' ? ' (Legacy)' : ''}
                 </option>
-                ))}
+              ))}
             </select>
             {registeredKits.length === 0 && !loading && (
-                <p className="mt-2 text-sm text-gray-500">
+              <p className="mt-2 text-sm text-gray-500">
                 No registered kits available for results upload. Kits must be registered by customers before results can be uploaded.
-                </p>
+                {loading && " Loading available kits..."}
+              </p>
             )}
             </div>
         
         {/* Selected Kit Info Display */}
         {(() => {
-        const selectedKitInfo = registeredKits.find(kit => kit.id === formData.kitRegistrationId);
-        return selectedKitInfo ? (
+          const selectedKitInfo = registeredKits.find(kit => kit.id === formData.kitRegistrationId);
+          return selectedKitInfo ? (
             <div className="bg-blue-50 border border-blue-200 rounded-md p-4">
-            <h4 className="text-sm font-medium text-blue-900 mb-2">Selected Kit Information</h4>
-            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 text-sm">
+              <h4 className="text-sm font-medium text-blue-900 mb-2">Selected Kit Information</h4>
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 text-sm">
                 <div>
-                <span className="font-medium text-blue-800">Kit ID:</span>
-                <span className="ml-2 text-blue-700">{selectedKitInfo.displayId}</span>
+                  <span className="font-medium text-blue-800">Kit Code:</span>
+                  <span className="ml-2 text-blue-700">{selectedKitInfo.displayId}</span>
                 </div>
                 <div>
-                <span className="font-medium text-blue-800">Product:</span>
-                <span className="ml-2 text-blue-700">{selectedKitInfo.productName}</span>
+                  <span className="font-medium text-blue-800">Product:</span>
+                  <span className="ml-2 text-blue-700">{selectedKitInfo.productName}</span>
                 </div>
                 <div>
-                <span className="font-medium text-blue-800">Order:</span>
-                <span className="ml-2 text-blue-700">#{selectedKitInfo.orderNumber}</span>
+                  <span className="font-medium text-blue-800">Order:</span>
+                  <span className="ml-2 text-blue-700">{selectedKitInfo.orderNumber}</span>
                 </div>
                 {selectedKitInfo.customerName && (
-                <div>
+                  <div>
                     <span className="font-medium text-blue-800">Customer:</span>
                     <span className="ml-2 text-blue-700">{selectedKitInfo.customerName}</span>
-                </div>
+                  </div>
                 )}
                 <div>
-                <span className="font-medium text-blue-800">Type:</span>
-                <span className="ml-2 text-blue-700 capitalize">{selectedKitInfo.type}</span>
+                  <span className="font-medium text-blue-800">Type:</span>
+                  <span className="ml-2 text-blue-700 capitalize">
+                    {selectedKitInfo.type}
+                    {selectedKitInfo.type === 'legacy' && ' Kit'}
+                  </span>
                 </div>
+                <div>
+                  <span className="font-medium text-blue-800">Status:</span>
+                  <span className="ml-2 text-blue-700">{selectedKitInfo.kitStatus}</span>
+                </div>
+              </div>
             </div>
-            </div>
-        ) : null;
+          ) : null;
         })()}
 
           {/* Work Order Number and Sample Number - Side by side on larger screens */}
@@ -567,23 +562,28 @@ useEffect(() => {
         </form>
       </div>
 
-      {/* Kit Registrations List */}
+      {/* All Test Kits List */}
       <div className="bg-white shadow rounded-lg overflow-hidden">
         <div className="px-4 sm:px-6 py-4 sm:py-5 border-b border-gray-200">
           <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between">
             <h3 className="text-lg leading-6 font-medium text-gray-900 mb-2 sm:mb-0">
-              All Kit Registrations
+              All Test Kits
             </h3>
             <div className="w-full sm:w-64">
               <input
                 type="text"
-                placeholder="Search orders..."
+                placeholder="Search test kits..."
                 value={searchQuery}
                 onChange={(e) => setSearchQuery(e.target.value)}
                 className="w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 sm:text-sm"
               />
             </div>
           </div>
+          {allTestKits.length > 0 && (
+            <p className="mt-2 text-sm text-gray-500">
+              {allTestKits.length} total test kits
+            </p>
+          )}
         </div>
 
         <div className="overflow-x-auto">
@@ -591,63 +591,94 @@ useEffect(() => {
             <thead className="bg-gray-50">
               <tr>
                 <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                  Order
+                  Details
                 </th>
                 <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                  Customer
+                  Customer Name
                 </th>
-                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                  Status
+                <th className="px-6 py-3 text-center text-xs font-medium text-gray-500 uppercase tracking-wider">
+                  Chain of Custody
                 </th>
-                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                  Work Order
-                </th>
-                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                  Sample Number
+                <th className="px-6 py-3 text-center text-xs font-medium text-gray-500 uppercase tracking-wider">
+                  Report
                 </th>
               </tr>
             </thead>
             <tbody className="bg-white divide-y divide-gray-200">
-              {filteredKitRegistrations.map((kit) => (
-                <tr key={kit.id} className="hover:bg-gray-50">
+              {filteredTestKits.map((kit) => (
+                <tr key={kit.kit_id} className="hover:bg-gray-50">
+                  {/* Details Column */}
                   <td className="px-6 py-4 whitespace-nowrap">
-                    <div className="text-sm font-medium text-gray-900">#{kit.order_number}</div>
-                    <div className="text-sm text-gray-500">{kit.items?.length || 0} item(s)</div>
-                  </td>
-                  <td className="px-6 py-4 whitespace-nowrap">
-                    <div className="text-sm font-medium text-gray-900">
-                      {kit.customer_first_name} {kit.customer_last_name}
+                    <div>
+                      <div className="text-sm font-medium text-gray-900">{kit.kit_code || 'N/A'}</div>
+                      <div className="text-sm text-gray-500">#{kit.order_number || 'N/A'}</div>
                     </div>
-                    <div className="text-sm text-gray-500">{kit.customer_email}</div>
                   </td>
+                  
+                  {/* Customer Name Column - Handle missing customer info gracefully */}
                   <td className="px-6 py-4 whitespace-nowrap">
-                    <span className={`inline-flex px-2 py-1 text-xs font-semibold rounded-full ${
-                      kit.status === 'registered' ? 'bg-green-100 text-green-800' :
-                      kit.status === 'delivered' ? 'bg-blue-100 text-blue-800' :
-                      'bg-yellow-100 text-yellow-800'
-                    }`}>
-                      {kit.status}
-                    </span>
+                    <div>
+                      <div className="text-sm font-medium text-gray-900">
+                        {kit.kit_type === 'legacy' ? (
+                          // For legacy kits, show customer name from profiles if available
+                          `${kit.customer_first_name || ''} ${kit.customer_last_name || ''}`.trim() || 'Legacy Customer'
+                        ) : (
+                          // For regular kits, show full name or fallback
+                          `${kit.customer_first_name || ''} ${kit.customer_last_name || ''}`.trim() || 'Unknown Customer'
+                        )}
+                      </div>
+                      <div className="text-sm text-gray-500">
+                        {kit.customer_email || 'No email available'}
+                      </div>
+                    </div>
                   </td>
-                  <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
-                    {kit.work_order_number || '-'}
+                  
+                  {/* Chain of Custody Column */}
+                  <td className="px-6 py-4 whitespace-nowrap text-center">
+                    {kit.chain_of_custody_url ? (
+                      <button
+                        onClick={() => window.open(kit.chain_of_custody_url, '_blank')}
+                        className="inline-flex items-center px-3 py-1.5 border border-transparent text-xs font-medium rounded-md text-blue-700 bg-blue-100 hover:bg-blue-200 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500 transition-colors duration-200"
+                      >
+                        <svg className="mr-1 h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M12 10v6m0 0l-3-3m3 3l3-3m2 8H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
+                        </svg>
+                        Download
+                      </button>
+                    ) : (
+                      <span className="text-gray-400 text-sm">-</span>
+                    )}
                   </td>
-                  <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
-                    {kit.sample_number || '-'}
+                  
+                  {/* Report Column */}
+                  <td className="px-6 py-4 whitespace-nowrap text-center">
+                    {kit.has_report && kit.report_id ? (
+                      <button
+                        onClick={() => handleDownloadReport(kit.report_id, kit.kit_code)}
+                        className="inline-flex items-center px-3 py-1.5 border border-transparent text-xs font-medium rounded-md text-green-700 bg-green-100 hover:bg-green-200 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-green-500 transition-colors duration-200"
+                      >
+                        <svg className="mr-1 h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
+                        </svg>
+                        Download
+                      </button>
+                    ) : (
+                      <span className="text-gray-400 text-sm">-</span>
+                    )}
                   </td>
                 </tr>
               ))}
             </tbody>
           </table>
           
-          {filteredKitRegistrations.length === 0 && (
+          {filteredTestKits.length === 0 && (
             <div className="text-center py-12">
               <svg className="h-12 w-12 text-gray-300 mx-auto mb-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="1" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="1" d="M20 7l-8-4-8 4m16 0l-8 4m8-4v10l-8 4m0-10L4 7m8 4v10M4 7v10l8 4" />
               </svg>
-              <h3 className="text-lg font-medium text-gray-900 mb-2">No kit registrations found</h3>
+              <h3 className="text-lg font-medium text-gray-900 mb-2">No test kits found</h3>
               <p className="text-gray-500">
-                {searchQuery ? 'Try adjusting your search criteria.' : 'No kit registrations available.'}
+                {searchQuery ? 'Try adjusting your search criteria.' : 'No test kits available.'}
               </p>
             </div>
           )}

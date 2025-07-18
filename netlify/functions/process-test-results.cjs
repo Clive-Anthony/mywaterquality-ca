@@ -388,35 +388,31 @@ async function processTestResultsFile({
     log('info', 'Starting file processing', { requestId, fileName });
 
     // Get kit order code (display_id) based on registration type
-    try {
-      if (kitRegistrationType === 'regular') {
-        const { data: kitReg, error: kitRegError } = await supabase
-          .from('kit_registrations')
-          .select(`
-            test_kits (
-              display_id
-            )
-          `)
-          .eq('kit_registration_id', kitRegistrationId)
-          .single();
+try {
+  if (kitRegistrationType === 'regular') {
+    const { data: kitReg, error: kitRegError } = await supabase
+      .from('kit_registrations')
+      .select('display_id')
+      .eq('kit_registration_id', kitRegistrationId)
+      .single();
 
-        if (!kitRegError && kitReg?.test_kits?.display_id) {
-          kitOrderCode = kitReg.test_kits.display_id;
-        }
-      } else if (kitRegistrationType === 'legacy') {
-        const { data: legacyKitReg, error: legacyKitRegError } = await supabase
-          .from('legacy_kit_registrations')
-          .select('kit_code')
-          .eq('id', kitRegistrationId)
-          .single();
-
-        if (!legacyKitRegError && legacyKitReg?.kit_code) {
-          kitOrderCode = legacyKitReg.kit_code;
-        }
-      }
-    } catch (kitError) {
-      log('warn', 'Failed to get kit order code, using default', { error: kitError.message });
+    if (!kitRegError && kitReg?.display_id) {
+      kitOrderCode = kitReg.display_id;
     }
+  } else if (kitRegistrationType === 'legacy') {
+    const { data: legacyKitReg, error: legacyKitRegError } = await supabase
+      .from('legacy_kit_registrations')
+      .select('kit_code')
+      .eq('id', kitRegistrationId)
+      .single();
+
+    if (!legacyKitRegError && legacyKitReg?.kit_code) {
+      kitOrderCode = legacyKitReg.kit_code;
+    }
+  }
+} catch (kitError) {
+  log('warn', 'Failed to get kit order code, using default', { error: kitError.message });
+}
 
     log('info', 'Kit order code determined', { kitOrderCode, requestId });
 
@@ -598,8 +594,96 @@ async function processTestResultsFile({
         .eq('report_id', reportId);
     }
 
-    // Generate PDF report
-    const pdfResult = await processReportGeneration(supabase, reportId, sampleNumber, requestId, kitOrderCode);
+    // Get kit information for the report
+    let kitInfo = {
+      displayId: kitOrderCode,
+      kitCode: kitOrderCode,
+      testKitName: 'Water Test Kit',
+      testKitId: null,
+      customerFirstName: 'Valued Customer',
+      customerName: 'Customer'
+    };
+
+    // Get report details to determine kit type
+    const { data: reportDetails, error: reportDetailsError } = await supabase
+      .from('reports')
+      .select('kit_registration_id, legacy_kit_registration_id')
+      .eq('report_id', reportId)
+      .single();
+
+    if (!reportDetailsError && reportDetails) {
+      if (reportDetails.kit_registration_id) {
+        // Regular kit registration
+        const { data: kitData, error: kitError } = await supabase
+          .from('kit_registrations')
+          .select(`
+            display_id,
+            user_id,
+            order_items (
+              test_kits (
+                test_kit_id,
+                name
+              )
+            )
+          `)
+          .eq('kit_registration_id', reportDetails.kit_registration_id)
+          .single();
+
+        if (!kitError && kitData) {
+          // Get customer name
+          const { data: userData, error: userError } = await supabase
+            .from('users')
+            .select('first_name, last_name')
+            .eq('user_id', kitData.user_id)
+            .single();
+
+          kitInfo = {
+            displayId: kitData.display_id,
+            kitCode: kitData.display_id, // Use display_id for regular kits
+            testKitName: kitData.order_items?.test_kits?.name || 'Water Test Kit',
+            testKitId: kitData.order_items?.test_kits?.test_kit_id,
+            customerFirstName: userData?.first_name || 'Valued Customer',
+            customerName: `${userData?.first_name || ''} ${userData?.last_name || ''}`.trim() || 'Customer'
+          };
+        }
+      } else if (reportDetails.legacy_kit_registration_id) {
+        // Legacy kit registration
+        const { data: legacyKitData, error: legacyKitError } = await supabase
+          .from('legacy_kit_registrations')
+          .select(`
+            kit_code,
+            display_id,
+            user_id,
+            test_kits (
+              test_kit_id,
+              name
+            )
+          `)
+          .eq('id', reportDetails.legacy_kit_registration_id)
+          .single();
+
+        if (!legacyKitError && legacyKitData) {
+          // Get customer name
+          const { data: userData, error: userError } = await supabase
+            .from('users')
+            .select('first_name, last_name')
+            .eq('user_id', legacyKitData.user_id)
+            .single();
+
+          kitInfo = {
+            displayId: legacyKitData.display_id || legacyKitData.kit_code,
+            kitCode: legacyKitData.kit_code, // Use kit_code for legacy kits
+            testKitName: legacyKitData.test_kits?.name || 'Water Test Kit',
+            testKitId: legacyKitData.test_kits?.test_kit_id,
+            customerFirstName: userData?.first_name || 'Valued Customer',
+            customerName: `${userData?.first_name || ''} ${userData?.last_name || ''}`.trim() || 'Customer'
+          };
+        }
+      }
+    }
+
+    // Generate PDF report with kit information
+    const pdfResult = await processReportGeneration(supabase, reportId, sampleNumber, requestId, kitOrderCode, kitInfo);
     
     if (pdfResult.success) {
       // Update report with PDF URL and completion status
@@ -610,6 +694,21 @@ async function processTestResultsFile({
           processing_status: 'completed'
         })
         .eq('report_id', reportId);
+      
+      // Update kit registration status to 'report_generated'
+      if (kitUpdateResult.success) {
+        if (kitUpdateResult.type === 'regular') {
+          await supabase
+            .from('kit_registrations')
+            .update({ status: 'report_generated' })
+            .eq('kit_registration_id', kitUpdateResult.kitRegistrationId);
+        } else if (kitUpdateResult.type === 'legacy') {
+          await supabase
+            .from('legacy_kit_registrations')
+            .update({ status: 'report_generated' })
+            .eq('id', kitUpdateResult.kitRegistrationId);
+        }
+      }
     } else {
       // Update with error status
       await supabase
