@@ -156,13 +156,41 @@ const formatLabResult = (param) => {
     return '#DC2626';
   };
   
+  /**
+   * Get CWQI rating category based on score
+   */
   const getCWQIRating = (score) => {
-    if (score >= 95) return 'Excellent';
-    if (score >= 89) return 'Very Good';
-    if (score >= 80) return 'Good';
-    if (score >= 65) return 'Fair';
-    if (score >= 45) return 'Marginal';
-    return 'Poor';
+    if (score >= 95) {
+      return { 
+        name: 'Excellent', 
+        color: 'text-green-600'
+      };
+    } else if (score >= 89) {
+      return { 
+        name: 'Very Good', 
+        color: 'text-teal-600'
+      };  
+    } else if (score >= 80) {
+      return { 
+        name: 'Good', 
+        color: 'text-blue-600'
+      };
+    } else if (score >= 65) {
+      return { 
+        name: 'Fair', 
+        color: 'text-yellow-600'
+      };
+    } else if (score >= 45) {
+      return { 
+        name: 'Marginal', 
+        color: 'text-orange-600'
+      };
+    } else {
+      return { 
+        name: 'Poor', 
+        color: 'text-red-600'
+      };
+    }
   };
   
   const formatDate = (dateString) => {
@@ -300,39 +328,65 @@ function generateHTMLReport(reportData, sampleNumber, kitInfo = {}) {
           <!-- Sample Information -->
         <div class="sample-info-container">
         <div class="sample-info-table-left">
-            <div class="table-row-sample">
-            <div class="table-cell-sample-label">Name</div>
-            <div class="table-cell-sample-value">${customer_name}</div>
-            </div>
-            <div class="table-row-sample">
-            <div class="table-cell-sample-label">Location</div>
-            <div class="table-cell-sample-value">${sampleInfo?.location || 'Not specified'}</div>
-            </div>
-            <div class="table-row-sample">
-            <div class="table-cell-sample-label">Description</div>
-            <div class="table-cell-sample-value">${sample_description}</div>
-            </div>
+        <div class="table-row-sample">
+            <div class="table-cell-sample-label-wide">Name</div>
+            <div class="table-cell-sample-value-narrow">${customer_name}</div>
+        </div>
+        <div class="table-row-sample">
+            <div class="table-cell-sample-label-wide">Collection Date</div>
+            <div class="table-cell-sample-value-narrow">${formatDate(sampleInfo?.collectionDate)}</div>
+        </div>
+        <div class="table-row-sample">
+            <div class="table-cell-sample-label-wide">Received Date</div>
+            <div class="table-cell-sample-value-narrow">${formatDate(sampleInfo?.receivedDate)}</div>
+        </div>
         </div>
         <div class="sample-info-table-right">
-            <div class="table-row-sample">
+        <div class="table-row-sample">
             <div class="table-cell-sample-label">Test Kit</div>
             <div class="table-cell-sample-value">${test_kit_display}</div>
-            </div>
-            <div class="table-row-sample">
-            <div class="table-cell-sample-label">Collection Date</div>
-            <div class="table-cell-sample-value">${formatDate(sampleInfo?.collectionDate)}</div>
-            </div>
-            <div class="table-row-sample">
-            <div class="table-cell-sample-label">Received Date</div>
-            <div class="table-cell-sample-value">${formatDate(sampleInfo?.receivedDate)}</div>
-            </div>
+        </div>
+        <div class="table-row-sample">
+            <div class="table-cell-sample-label">Location</div>
+            <div class="table-cell-sample-value">${sampleInfo?.location || 'Not specified'}</div>
+        </div>
+        <div class="table-row-sample">
+            <div class="table-cell-sample-label">Description</div>
+            <div class="table-cell-sample-value">${sample_description}</div>
         </div>
         </div>
+    </div>
           
           <!-- Summary of Results -->
-          <div class="section-title">Summary of Results</div>
+          <div class="section-title">SNAPSHOTS OF RESULTS</div>
           
           ${generateSummaryCards(bacteriological, healthConcerns, aoConcerns, showBacteriologicalResults)}
+
+          <!-- Results Explanation Box - Show when there are concerns but no coliform contamination -->
+            ${(healthConcerns.length > 0 || aoConcerns.length > 0) && !hasColiformContamination ? `
+            <div class="results-explanation-box">
+            <div class="results-explanation-title">
+                Results Explanation
+            </div>
+            <div class="results-explanation-text-bold">
+                There are ${healthConcerns.length > 0 && aoConcerns.length > 0 ? 'health-related and aesthetic' : 
+                        healthConcerns.length > 0 ? 'health-related' : 'aesthetic'} concerns.
+            </div>
+            ${healthConcerns.length > 0 ? `
+                <div class="results-explanation-text">
+                We strongly recommend consulting with a water treatment professional and retesting after any treatment is installed.
+                </div>
+            ` : ''}
+            ${aoConcerns.length > 0 ? `
+                <div class="results-explanation-text">
+                While not necessarily health concerns, these may affect taste, odor, or water system performance. Consider treatment options to improve water quality.
+                </div>
+            ` : ''}
+            <div class="results-explanation-text">
+                Please refer to the Recommendations tables in the report for actions you can take to improve water quality.
+            </div>
+            </div>
+            ` : ''}
           
           <!-- Perfect Water Message -->
           ${healthCWQI?.score === 100 && aoCWQI?.score === 100 ? `
@@ -368,44 +422,114 @@ function generateHTMLReport(reportData, sampleNumber, kitInfo = {}) {
           </div>
           ` : ''}
           
+        <!-- PAGE BREAK before Health Parameters -->
+        <div class="page-break"></div>
+
+
           <!-- Health Parameters -->
+
+        <div class="section-title">YOUR DRINKING WATER QUALITY HEALTH SCORE</div>
+
           ${healthCWQI ? `
           <div class="subsection-title">Health Related Parameters</div>
           ${generateParametersSection(healthCWQI, healthConcerns, 'health', 'Health Related Parameters')}
           ` : ''}
+
+          <!-- Dynamic spacing based on coliform presence -->
+            ${hasColiformContamination ? `
+            <div class="cwqi-spacing-with-coliform"></div>
+            ` : `
+            <div class="cwqi-spacing-normal"></div>
+            `}
+
           
           <!-- AO Parameters -->
+
+
           ${aoCWQI ? `
           <div class="subsection-title">Aesthetic and Operational Parameters</div>
           ${generateParametersSection(aoCWQI, aoConcerns, 'ao', 'Aesthetic and Operational Parameters')}
           ` : ''}
-          
-          <!-- General Recommendations -->
-          <div class="section-title">General Recommendations</div>
-          <div class="recommendations">
-            <div class="recommendations-title">General Recommendations</div>
-            <div class="recommendations-content">
-              <ol style="margin-left: 15px;">
-                <li>The water quality results should be carefully reviewed by a water treatment expert if treatment is necessary.</li>
-                <li>Test your water annually or when you notice changes in taste, odor, or appearance.</li>
-                <li>Maintain your well and water system according to manufacturer guidelines.</li>
-                <li>If you have questions on your drinking water quality results, consult with a professional hydrogeologist.</li>
-              </ol>
+
+        <!-- DRINKING WATER QUALITY CONCERNS - Only show if there are concerns -->
+            ${(healthConcerns.length > 0 || aoConcerns.length > 0) ? `
+            <!-- PAGE BREAK before Concerns -->
+            <div class="page-break"></div>
+
+            <!-- Drinking Water Quality Concerns Section -->
+            <div class="section-title">DRINKING WATER QUALITY CONCERNS</div>
+
+            ${healthConcerns.length > 0 ? `
+            <div class="concerns-table-title">Health-Related Parameter Concerns</div>
+
+            <!-- Add column headers -->
+                <div class="concerns-table-header">
+                <div class="concerns-header-left">Parameter</div>
+                <div class="concerns-header-right">Parameter Details and Health Considerations</div>
+                </div>
+
+            <div class="concerns-table-container">
+            ${healthConcerns.map(param => `
+                <div class="concerns-table-row">
+                <div class="concerns-left-column">
+                    <div class="concerns-parameter-name">${param.parameter_name}</div>
+                    <div class="concerns-objective">Objective: ${param.mac_display_value || param.mac_display || 'No Standard'}</div>
+                    <div class="concerns-result">Your Result: ${formatLabResult(param)}</div>
+                </div>
+                <div class="concerns-right-column">
+                    <div class="concerns-details">
+                    ${param.health_effects || 'Elevated levels may pose health risks. Consult with a water treatment professional for specific health implications and recommended actions.'}
+                    </div>
+                </div>
+                </div>
+            `).join('')}
             </div>
-          </div>
+            ` : ''}
+
+            ${aoConcerns.length > 0 ? `
+            <div class="concerns-table-title">Aesthetic and Operational Parameter Concerns</div>
+
+            <!-- Add column headers -->
+            <div class="concerns-table-header">
+            <div class="concerns-header-left">Parameter</div>
+            <div class="concerns-header-right">Parameter Details and Health Considerations</div>
+            </div>
+
+            <div class="concerns-table-container">
+            ${aoConcerns.map(param => `
+                <div class="concerns-table-row">
+                <div class="concerns-left-column">
+                    <div class="concerns-parameter-name">${param.parameter_name}</div>
+                    <div class="concerns-objective">Objective: ${param.ao_display_value || param.ao_display || 'No Standard'}</div>
+                    <div class="concerns-result">Your Result: ${formatLabResult(param)}</div>
+                </div>
+                <div class="concerns-right-column">
+                    <div class="concerns-details">
+                    ${param.aesthetic_considerations || param.description || param.parameter_description || 'A water quality parameter that affects the aesthetic or operational characteristics of your water system.'}
+                    </div>
+                </div>
+                </div>
+            `).join('')}
+            </div>
+            ` : ''}
+
+            ` : ''}
+
+         <!-- PAGE BREAK before Full Results -->
+            <div class="page-break"></div>
           
-          <!-- Full Results Tables -->
-          <div class="page-break"></div>
-          <div class="section-title">Full Results</div>
+          <!-- Health-Related Results Tables -->
+
+          <div class="section-title">DRINKING WATER QUALITY: HEALTH-RELATED RESULTS</div>
+
           
           ${healthParameters.length > 0 ? `
-          <div class="subsection-title">Health-Related Parameter Results</div>
           <table>
             <thead>
               <tr>
                 <th style="width: 35%;">Parameter</th>
                 <th style="width: 10%;">Unit</th>
-                <th style="width: 25%;">Recommended Maximum</th>
+                <th style="width: 25%;">Objective</th>
                 <th style="width: 15%;">Result</th>
                 <th style="width: 15%;">Status</th>
               </tr>
@@ -428,15 +552,19 @@ function generateHTMLReport(reportData, sampleNumber, kitInfo = {}) {
             </tbody>
           </table>
           ` : ''}
+
+          <!-- PAGE BREAK between health and AO parameters -->
+            <div class="page-break"></div>
+
+            <div class="section-title">DRINKING WATER QUALITY: AESTHETIC/OPERATIONAL-RELATED RESULTS</div>
           
           ${aoParameters.length > 0 ? `
-          <div class="subsection-title">Aesthetic & Operational Parameter Results</div>
           <table>
             <thead>
               <tr>
                 <th style="width: 35%;">Parameter</th>
                 <th style="width: 10%;">Unit</th>
-                <th style="width: 25%;">Recommended Maximum</th>
+                <th style="width: 25%;">Objective</th>
                 <th style="width: 15%;">Result</th>
                 <th style="width: 15%;">Status</th>
               </tr>
@@ -460,9 +588,13 @@ function generateHTMLReport(reportData, sampleNumber, kitInfo = {}) {
             </tbody>
           </table>
           ` : ''}
+
+          <!-- PAGE BREAK between AO and general parameters -->
+            <div class="page-break"></div>
+
+            <div class="section-title">DRINKING WATER QUALITY: GENERAL RESULTS</div>
           
           ${generalParameters.length > 0 ? `
-          <div class="subsection-title">General Parameter Results</div>
           <table style="max-width: 600px; margin: 0 auto;">
             <thead>
               <tr>
@@ -482,6 +614,47 @@ function generateHTMLReport(reportData, sampleNumber, kitInfo = {}) {
             </tbody>
           </table>
           ` : ''}
+
+          <!-- PAGE BREAK before Next Steps -->
+        <div class="page-break"></div>
+
+        <!-- Next Steps Section -->
+        <div class="section-title">NEXT STEPS</div>
+
+        <div class="next-steps-content">
+        <div class="next-steps-item">
+            <span class="checkmark">✓</span>
+            <span class="next-steps-text">The laboratory results presented in this Drinking Water Quality Report Card should be carefully reviewed by a water treatment expert if treatment is necessary to improve the potability of the drinking water supply. A qualified professional can assess the results, recommend appropriate treatment solutions, and ensure that the water meets established drinking water objectives for safety and quality.</span>
+        </div>
+
+        <div class="next-steps-item">
+            <span class="checkmark">✓</span>
+            <div class="next-steps-text">
+            <div>It is recommended that you test your drinking water quality on an annual basis. Annual testing is important because:</div>
+            <ul class="next-steps-list">
+                <li>Water quality can change over time due to weather, nearby construction, agricultural activity, or road salt use.</li>
+                <li>Private wells are not monitored by government agencies, so owners are responsible for ensuring safety.</li>
+                <li>Health risks may be invisible, including bacteria, nitrates, lead, and other contaminants that don't affect taste or clarity.</li>
+                <li>Testing annually provides peace of mind and ensures that any problems are detected early—before they become serious health risks.</li>
+            </ul>
+            </div>
+        </div>
+
+        <div class="next-steps-item">
+            <span class="checkmark">✓</span>
+            <span class="next-steps-text">If your water test results indicate the presence of Total Coliform or E. coli bacteria, your water may be unsafe to drink. Immediate action is strongly recommended. For your convenience, the steps for addressing bacterial contamination are accessible by clicking the <strong>Water Well Disinfection Process</strong> Button.</span>
+        </div>
+
+        <div class="next-steps-item">
+            <span class="checkmark">✓</span>
+            <span class="next-steps-text">If your water test results suggest contamination from road salt, there are important steps you should follow to assess and address the issue. For your convenience, the steps for addressing road salt contamination are accessible by clicking the <strong>Addressing Road Salt Impacts</strong> Button.</span>
+        </div>
+
+        <div class="next-steps-item">
+            <span class="checkmark">✓</span>
+            <span class="next-steps-text">If you have any questions on your drinking water results, please reach out by clicking <strong>Contact My Water Quality</strong>. We will respond to your inquiry within 24-hours.</span>
+        </div>
+        </div>
           
           <!-- Footer -->
           <div class="footer">
@@ -522,18 +695,67 @@ const getReportCSS = () => {
         .logo { font-size: 14px; font-weight: bold; color: #2563eb; }
         
         /* Sample Info */
-        .sample-info-container { display: flex; margin-bottom: 15px; gap: 15px; }
-        .sample-info-table-left { width: 50%;}
-        .sample-info-table-right { width: 30%;}
+        .sample-info-container { display: flex; margin-bottom: 15px; gap: 15px; margin-top: 20px; }
+
+        .sample-info-table-left {
+        width: 50%;
+        }
+
+        .sample-info-table-right {
+        width: 50%;
+        }
         .table-row-sample { display: flex; padding: 8px 0; }
         .table-row-sample:last-child { border-bottom: none; }
-        .table-cell-sample-label { width: 45%; font-size: 12px; font-weight: bold; color: #374151; padding-right: 8px; text-align: left; vertical-align:top;}
-        .table-cell-sample-value { width: 55%; font-size: 12px; color: #1F2937; text-align: left; vertical-align:top; }
+        .table-cell-sample-label-wide {
+            width: 55%; /* Increased width for left side labels */
+            font-size: 11px;
+            font-weight: bold;
+            color: #374151;
+            padding-right: 8px;
+            text-align: left;
+            vertical-align: top;
+            }
+
+            .table-cell-sample-value-narrow {
+            width: 45%; /* Decreased width for left side values */
+            font-size: 12px;
+            color: #1F2937;
+            text-align: left;
+            vertical-align: top;
+            }
+
+            .table-cell-sample-label {
+            width: 45%; /* Keep original width for right side */
+            font-size: 11px;
+            font-weight: bold;
+            color: #374151;
+            padding-right: 8px;
+            text-align: left;
+            vertical-align: top;
+            }
+
+            .table-cell-sample-value {
+            width: 55%; /* Keep original width for right side */
+            font-size: 12px;
+            color: #1F2937;
+            text-align: left;
+            vertical-align: top;
+            }
         
         /* Sections */
         .section-title {
-          font-size: 16px; font-weight: bold; margin-top: 15px; margin-bottom: 8px;
-          background-color: #2563EB; color: white; padding: 10px; margin-left: -10px; margin-right: -10px;
+        font-size: 18px; 
+        font-weight: bold; 
+        margin-top: 15px; 
+        margin-bottom: 8px;
+        background-color: #FFFFFF; /* Changed from #2563EB to white */
+        color: #F97316; /* Changed from white to orange */
+        padding: 10px; 
+        margin-left: -10px; 
+        margin-right: -10px;
+        text-align: center; /* Added for centered text */
+        border-top: 1px solid #F97316; /* Added orange top border */
+        border-bottom: 1px solid #F97316; /* Added orange bottom border */
         }
         .subsection-title { font-size: 16px; font-weight: bold; margin-top: 15px; margin-bottom: 15px; color: #374151; }
         
@@ -551,8 +773,8 @@ const getReportCSS = () => {
         .summary-card-number { font-size: 32px; font-weight: bold; text-align: center; }
         .summary-card-number-green { color: #059669; }
         .summary-card-number-red { color: #DC2626; }
-        .summary-card-status-green { color: #059669; font-size: 12px; font-weight: bold; }
-        .summary-card-status-red { color: #DC2626; font-size: 12px; font-weight: bold; }
+        .summary-card-status-green { color: #059669; font-size: 14px; font-weight: bold; }
+        .summary-card-status-red { color: #DC2626; font-size: 14px; font-weight: bold; }
         .summary-card-text { font-size: 12px; text-align: center; color: #6B7280; }
         
         /* CWQI */
@@ -613,7 +835,7 @@ const getReportCSS = () => {
         .alert-icon { font-size: 16px; color: #DC2626; font-weight: bold; }
         .alert-content-container { flex: 1; }
         .alert-text-contamination { font-size: 12px; color: #1F2937; line-height: 1.4; }
-        .alert-text-bold { font-size: 11px; color: #1F2937; line-height: 1.4; font-weight: bold; }
+        .alert-text-bold { font-size: 14px; color: #1F2937; line-height: 1.4; font-weight: bold; }
         
         /* Perfect Water */
         .perfect-water-box {
@@ -623,12 +845,31 @@ const getReportCSS = () => {
         .perfect-water-title { font-size: 14px; font-weight: bold; color: #000000; margin-bottom: 10px; text-align: center; }
         .perfect-water-text { font-size: 12px; color: #374151; line-height: 1.4; text-align: center; }
         
-        /* Tables */
-        table { width: 100%; border-collapse: collapse; margin: 15px 0; font-size: 12px; }
-        th, td { border: 1px solid #e5e7eb; padding: 8px 6px; text-align: left; vertical-align: top; }
-        th { background-color: #f9fafb; font-weight: bold; color: #374151; font-size: 8px; text-transform: uppercase; }
+       /* Full Results Tables */
+        table { 
+        width: 100%; 
+        border-collapse: collapse; 
+        margin: 15px 0; 
+        font-size: 12px; /* Increased from 9px */
+        }
+
+        th, td { 
+        border-top: 1px solid #e5e7eb;
+        border-bottom: 1px solid #e5e7eb;
+        /* Removed border-left and border-right for no vertical lines */
+        padding: 8px 6px; 
+        text-align: center; /* Changed from left to center */
+        vertical-align: middle; /* Changed from top to middle */
+        }
+
+        th { 
+        background-color: #FFFFFF; /* Changed from #f9fafb to white */
+        font-weight: bold; 
+        color: #000000; /* Changed from #374151 to black */
+        font-size: 12px; /* Increased from 8px and removed text-transform: uppercase */
+        }
         .exceeded-row { background-color: #fef2f2; }
-        .parameter-name { font-weight: bold; font-size: 12px; }
+        .parameter-name { font-size: 12px; }
         .status-pass { color: #059669; font-weight: bold; }
         .status-fail { color: #dc2626; font-weight: bold; }
         
@@ -639,6 +880,237 @@ const getReportCSS = () => {
         .page-break { page-break-before: always; }
         .footer { margin-top: 40px; padding-top: 20px; border-top: 1px solid #e5e7eb; text-align: center; color: #6b7280; font-size: 9px; }
         
+        // Page Break
+        .page-break { 
+            page-break-before: always; 
+            }
+        
+        // Results Explanations
+        .results-explanation-box {
+            background-color: #FFFFFF;
+            border: 1px solid #D1D5DB;
+            border-radius: 8px;
+            padding: 15px;
+            margin-bottom: 20px;
+            margin-top: 10px;
+            }
+
+            .results-explanation-title {
+            font-size: 14px;
+            font-weight: bold;
+            color: #1F2937;
+            margin-bottom: 12px;
+            }
+
+            .results-explanation-text-bold {
+            font-size: 12px;
+            color: #1F2937;
+            line-height: 1.4;
+            margin-bottom: 8px;
+            font-weight: bold;
+            }
+
+            .results-explanation-text {
+            font-size: 12px;
+            color: #374151;
+            line-height: 1.4;
+            margin-bottom: 8px;
+            }
+        
+        // Next Steps Section
+
+        .next-steps-content {
+            margin-top: 20px;
+            }
+
+            .next-steps-item {
+            display: flex;
+            align-items: flex-start;
+            margin-bottom: 20px;
+            padding: 0;
+            }
+
+            .checkmark {
+            color: #059669;
+            font-weight: bold;
+            font-size: 14px;
+            margin-right: 12px;
+            margin-top: 2px;
+            flex-shrink: 0;
+            }
+
+            .next-steps-text {
+            font-size: 12px;
+            color: #374151;
+            line-height: 1.5;
+            text-align: justify;
+            }
+
+            .next-steps-list {
+            margin-top: 8px;
+            margin-left: 20px;
+            margin-bottom: 0;
+            }
+
+            .next-steps-list li {
+            margin-bottom: 6px;
+            font-size: 12px;
+            color: #374151;
+            line-height: 1.5;
+            }
+        
+        /* Drinking Water Quality Concerns Styling */
+
+            .concerns-table-header {
+            display: flex;
+            border-top: 2px solid #1F2937;
+            border-bottom: 2px solid #1F2937;
+            background-color: #FFFFFF;
+            font-weight: bold;
+            }
+
+            .concerns-header-left {
+            width: 35%;
+            padding: 12px 15px;
+            border-right: 1px solid #E5E7EB;
+            font-size: 12px;
+            color: #1F2937;
+            text-align: center;
+            }
+
+            .concerns-header-right {
+            width: 65%;
+            padding: 12px 15px;
+            font-size: 12px;
+            color: #1F2937;
+            text-align: center;
+            }
+            .concerns-table-title {
+            font-size: 16px;
+            font-weight: bold;
+            color: #1F2937;
+            margin-top: 20px;
+            margin-bottom: 15px;
+            text-align: left;
+            }
+
+            .concerns-table-container {
+            margin-bottom: 30px;
+            }
+
+            .concerns-table-row {
+            display: flex;
+            border-top: 1px solid #E5E7EB;
+            border-bottom: 1px solid #E5E7EB;
+            min-height: 120px;
+            page-break-inside: avoid;
+            }
+
+            .concerns-left-column {
+            width: 35%;
+            padding: 15px;
+            border-right: 1px solid #E5E7EB;
+            display: flex;
+            flex-direction: column;
+            justify-content: flex-start;
+            background-color: #FFFFFF;
+            }
+
+            .concerns-right-column {
+            width: 65%;
+            padding: 15px;
+            display: flex;
+            align-items: flex-start;
+            }
+
+            .concerns-parameter-name {
+            font-size: 14px;
+            font-weight: bold;
+            color: #1F2937;
+            margin-bottom: 8px;
+            line-height: 1.3;
+            }
+
+            .concerns-objective {
+            font-size: 12px;
+            color: #374151;
+            margin-bottom: 6px;
+            font-weight: bold;
+            }
+
+            .concerns-result {
+            font-size: 12px;
+            color: #DC2626;
+            font-weight: bold;
+            }
+
+            .concerns-details {
+            font-size: 12px;
+            color: #1F2937;
+            line-height: 1.5;
+            text-align: justify;
+            }
+        
+        /* Potential Score Styling */
+            .potential-score-container {
+            display: flex;
+            align-items: center;
+            background-color: #FFFFFF;
+            border: 1px solid #D1D5DB;
+            border-radius: 8px;
+            padding: 15px;
+            margin-top: 10px;
+            margin-bottom: 20px;
+            }
+
+            .potential-score-left {
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            margin-right: 20px;
+            min-width: 120px;
+            }
+
+            .potential-score-title {
+            font-size: 12px;
+            font-weight: bold;
+            color: #6B7280;
+            text-align: center;
+            margin-bottom: 6px;
+            }
+
+            .potential-score-number {
+            font-size: 28px;
+            font-weight: bold;
+            color: #059669;
+            text-align: center;
+            }
+
+            .potential-score-text {
+            font-size: 12px;
+            color: #374151;
+            line-height: 1.4;
+            flex: 1;
+            text-align: left;
+            }
+        
+        .cwqi-current-title {
+            font-size: 12px;
+            font-weight: bold;
+            color: #1F2937;
+            text-align: center;
+            margin-bottom: 12px;
+            }
+        
+        /* Dynamic spacing between CWQI sections */
+            .cwqi-spacing-normal {
+            height: 200px; /* Large spacing when no coliform/potential score */
+            }
+
+            .cwqi-spacing-with-coliform {
+            height: 80px; /* Smaller spacing when coliform message and potential score are present */
+            }
+
         @media print {
           .container { padding: 15px; }
           .section-title { margin: 0 0 15px 0; }
@@ -803,8 +1275,8 @@ function processReportData(rawData) {
   );
 
   // Calculate CWQI scores (simplified version)
-  const healthCWQI = calculateSimpleCWQI(healthParameters);
-  const aoCWQI = calculateSimpleCWQI(aoParameters);
+  const healthCWQI = calculateCCMEWQI(healthParameters);
+  const aoCWQI = calculateCCMEWQI(aoParameters);
 
   // Get sample info from first row
   const sampleInfo = rawData[0] ? {
@@ -832,22 +1304,18 @@ function processReportData(rawData) {
 const generateCWQIComponent = (cwqi, title) => {
     if (!cwqi) return '';
   
-    const displayRating = cwqi.coliformDetected ? 'Poor' : getCWQIRating(cwqi.score);
+    const displayRating = cwqi.coliformDetected ? 'Poor' : cwqi.rating;
     const displayScore = cwqi.coliformDetected ? 0 : cwqi.score;
     const scoreColor = getCWQIColor(cwqi.score);
-    const barWidth = Math.max(5, Math.min(100, displayScore));
   
     return `
-      <div class="parameter-cwqi-section">
+      <div class="cwqi-container">
         <div class="cwqi-title">${title}</div>
         ${cwqi.coliformDetected ? `
-          <div class="cwqi-title-current">Current Score</div>
+          <div class="cwqi-current-title">Current Score</div>
         ` : ''}
         <div class="cwqi-score" style="color: ${scoreColor}">${displayScore}/100</div>
         <div class="cwqi-rating" style="color: ${scoreColor}">${displayRating}</div>
-        <div class="cwqi-bar">
-          <div class="cwqi-bar-fill" style="background-color: ${scoreColor}; width: ${barWidth}%"></div>
-        </div>
         <div class="cwqi-summary">
           ${cwqi.coliformDetected 
             ? 'Coliform bacteria detected'
@@ -997,40 +1465,173 @@ const generateCWQIComponent = (cwqi, title) => {
     `;
   };
 
-function calculateSimpleCWQI(parameters) {
-  if (!parameters || parameters.length === 0) return null;
-
-  const totalTests = parameters.length;
-  const failedTests = parameters.filter(param => {
-    if (param.parameter_category === 'health') {
-      return param.compliance_status === 'EXCEEDS_MAC';
-    } else if (param.parameter_category === 'ao') {
-      return param.compliance_status === 'EXCEEDS_AO' ||
-             (param.compliance_status === 'AO_RANGE_VALUE' && param.overall_compliance_status === 'WARNING');
-    }
-    return false;
-  }).length;
-
-  const passedTests = totalTests - failedTests;
-  const score = Math.round((passedTests / totalTests) * 100);
-
-  let rating;
-  if (score >= 95) rating = 'Excellent';
-  else if (score >= 89) rating = 'Very Good';
-  else if (score >= 80) rating = 'Good';
-  else if (score >= 65) rating = 'Fair';
-  else if (score >= 45) rating = 'Marginal';
-  else rating = 'Poor';
-
-  return {
-    score,
-    rating,
-    totalTests,
-    failedTests,
-    components: {
-      F1: (failedTests / totalTests) * 100,
-      F2: (failedTests / totalTests) * 100,
-      F3: 0 // Simplified
-    }
+  /**
+   * Group parameters by name to count unique parameters
+   */
+  const groupParametersByName = (parameters) => {
+    return parameters.reduce((groups, param) => {
+      const name = param.parameter_name;
+      if (!groups[name]) {
+        groups[name] = [];
+      }
+      groups[name].push(param);
+      return groups;
+    }, {});
   };
-}
+  
+  /**
+   * Calculate excursion for a failed test
+   */
+  const calculateExcursion = (param) => {
+    const testValue = parseFloat(param.result_numeric);
+    const objective = parseFloat(param.objective_value);
+    
+    if (isNaN(testValue) || isNaN(objective) || objective === 0) {
+      return null;
+    }
+  
+    const isMinimumGuideline = isMinimumParameter(param.parameter_name);
+    
+    let excursion;
+    if (isMinimumGuideline) {
+      excursion = (objective / testValue) - 1;
+    } else {
+      excursion = (testValue / objective) - 1;
+    }
+  
+    return Math.max(0, excursion);
+  };
+  
+  /**
+   * Determine if a parameter has a minimum guideline (like dissolved oxygen)
+   */
+  const isMinimumParameter = (parameterName) => {
+    const minimumParameters = [
+      'dissolved oxygen',
+      'oxygen',
+      'do'
+    ];
+    
+    return minimumParameters.some(param => 
+      parameterName.toLowerCase().includes(param)
+    );
+  };
+  
+
+/**
+ * Calculate the CCME Water Quality Index (CWQI) using the standard three-factor formula
+ */
+const calculateCCMEWQI = (parameters) => {
+    if (!parameters || parameters.length === 0) return null;
+  
+    // Check for coliform detection first
+    const coliformDetected = parameters.some(param => 
+      (param.parameter_name?.toLowerCase().includes('coliform') || 
+       param.parameter_name?.toLowerCase().includes('e. coli') ||
+       param.parameter_name?.toLowerCase().includes('e.coli')) &&
+      (param.result_display_value?.includes('Detected') || 
+       param.compliance_status === 'EXCEEDS_MAC')
+    );
+  
+    // Step 1: Organize the data
+    const parameterGroups = groupParametersByName(parameters);
+    const totalParameters = Object.keys(parameterGroups).length;
+    const totalTests = parameters.length;
+    
+    // Identify failed parameters and tests
+    const failedParameterNames = new Set();
+    const failedTests = [];
+    const allExcursions = [];
+  
+    parameters.forEach(param => {
+      // Updated compliance status checking based on parameter category
+      let isFailed = false;
+      
+      if (param.parameter_category === 'health') {
+        isFailed = param.compliance_status === 'EXCEEDS_MAC';
+      } else if (param.parameter_category === 'ao') {
+        if (param.compliance_status === 'EXCEEDS_AO') {
+          isFailed = true;
+        } else if (param.compliance_status === 'AO_RANGE_VALUE') {
+          isFailed = param.overall_compliance_status === 'WARNING';
+        }
+      } else {
+        isFailed = param.compliance_status === 'FAIL';
+      }
+      
+      if (isFailed) {
+        failedParameterNames.add(param.parameter_name);
+        failedTests.push(param);
+        
+        // Calculate excursion for this failed test
+        const excursion = calculateExcursion(param);
+        if (excursion !== null) {
+          allExcursions.push(excursion);
+        }
+      }
+    });
+  
+    // Calculate the three CWQI factors using standard formula
+    const F1 = (failedParameterNames.size / totalParameters) * 100;
+    const F2 = (failedTests.length / totalTests) * 100;
+    
+    let F3 = 0;
+    if (allExcursions.length > 0) {
+      const sumExcursions = allExcursions.reduce((sum, exc) => sum + exc, 0);
+      const nse = sumExcursions / 1; // One because only one test sample is being used
+      F3 = nse / (0.01 * nse + 1);
+    }
+  
+    // Use standard three-factor formula
+    const cwqiScore = 100 - Math.sqrt((F1 * F1 + F2 * F2 + F3 * F3) / 1.732);
+    let finalScore = Math.max(0, Math.min(100, Math.round(cwqiScore * 10) / 10));
+  
+    // Calculate potential score (without coliforms)
+    let potentialScore = null;
+    if (coliformDetected) {
+      const nonColiformParameters = parameters.filter(param => 
+        !(param.parameter_name?.toLowerCase().includes('coliform') || 
+          param.parameter_name?.toLowerCase().includes('e. coli') ||
+          param.parameter_name?.toLowerCase().includes('e.coli'))
+      );
+      
+      if (nonColiformParameters.length > 0) {
+        const potentialCWQI = calculateCCMEWQI(nonColiformParameters);
+        if (potentialCWQI) {
+          potentialScore = potentialCWQI.score;
+        }
+      }
+    }
+  
+    // Override score to 0 if coliforms detected (for health parameters only)
+    const isHealthCategory = parameters.some(param => param.parameter_category === 'health');
+    if (coliformDetected && isHealthCategory) {
+      finalScore = 0;
+    }
+    
+    const rating = getCWQIRating(finalScore);
+  
+    return {
+      score: finalScore,
+      rating: rating.name,
+      color: rating.color,
+      totalTests,
+      failedTests: failedTests.length,
+      totalParameters,
+      failedParameters: failedParameterNames.size,
+      coliformDetected,
+      potentialScore,
+      components: {
+        F1: Math.round(F1 * 10) / 10,
+        F2: Math.round(F2 * 10) / 10,
+        F3: Math.round(F3 * 1000) / 1000
+      },
+      details: {
+        failedParameterNames: Array.from(failedParameterNames),
+        excursions: allExcursions,
+        nse: allExcursions.length > 0 ? allExcursions.reduce((sum, exc) => sum + exc, 0) / failedTests.length : 0
+      }
+    };
+  };
+  
+  
