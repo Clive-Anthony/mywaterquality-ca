@@ -55,7 +55,7 @@ export default function AdminProtectedRoute({ children }) {
     };
 
     fetchUserRole();
-  }, [user, isReady]);
+  }, [user?.id, isReady]);
 
   // Reset state when user changes (including sign out)
   useEffect(() => {
