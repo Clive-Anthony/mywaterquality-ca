@@ -1,10 +1,11 @@
-// src/pages/AdminPage.jsx - Updated with Inventory Management
+// src/pages/AdminPage.jsx - Updated with Report Testing
 import { useState } from 'react';
 import { useAuth } from '../contexts/AuthContext';
 import PageLayout from '../components/PageLayout';
 import AdminOrdersList from '../components/AdminOrdersList';
 import AdminReportsUpload from '../components/AdminReportsUpload';
-import AdminInventoryManagement from '../components/AdminInventoryManagement'; 
+import AdminInventoryManagement from '../components/AdminInventoryManagement';
+import AdminReportTesting from '../components/AdminReportTesting'; // Add this import
 
 export default function AdminPage() {
   const { user } = useAuth();
@@ -35,6 +36,8 @@ export default function AdminPage() {
         return <AdminOrdersList showTitle={false} maxHeight="max-h-full" />;
       case 'reports':
         return <AdminReportsUpload />;
+      case 'report-testing':
+        return <AdminReportTesting />;
       case 'inventory':
         return <AdminInventoryManagement />;
       case 'kit-registrations':
@@ -56,6 +59,7 @@ export default function AdminPage() {
               </div>
               <nav className="py-2">
                 <ul>
+                  {/* Dashboard */}
                   <li>
                     <button
                       onClick={() => setActiveTab('dashboard')}
@@ -84,6 +88,8 @@ export default function AdminPage() {
                       <span className="truncate">Dashboard</span>
                     </button>
                   </li>
+
+                  {/* Orders */}
                   <li>
                     <button
                       onClick={() => setActiveTab('orders')}
@@ -112,6 +118,8 @@ export default function AdminPage() {
                       <span className="truncate">Orders</span>
                     </button>
                   </li>
+
+                  {/* Reports Upload */}
                   <li>
                     <button
                       onClick={() => setActiveTab('reports')}
@@ -137,9 +145,44 @@ export default function AdminPage() {
                           d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z"
                         />
                       </svg>
-                      <span className="truncate">Reports</span>
+                      <span className="truncate">Reports Upload</span>
                     </button>
                   </li>
+
+                  {/* NEW: Report Testing */}
+                  <li>
+                    <button
+                      onClick={() => setActiveTab('report-testing')}
+                      className={`w-full text-left px-4 sm:px-6 py-3 flex items-center text-sm sm:text-base ${
+                        activeTab === 'report-testing'
+                          ? 'bg-blue-50 text-blue-600 border-l-4 border-blue-600'
+                          : 'text-gray-600 hover:bg-gray-50'
+                      }`}
+                    >
+                      <svg
+                        className={`mr-2 sm:mr-3 h-4 w-4 sm:h-5 sm:w-5 flex-shrink-0 ${
+                          activeTab === 'report-testing' ? 'text-blue-600' : 'text-gray-400'
+                        }`}
+                        xmlns="http://www.w3.org/2000/svg"
+                        fill="none"
+                        viewBox="0 0 24 24"
+                        stroke="currentColor"
+                      >
+                        <path
+                          strokeLinecap="round"
+                          strokeLinejoin="round"
+                          strokeWidth="2"
+                          d="M10 21l5.09-5.09m0 0l.91-.91a2.004 2.004 0 000-2.828l-3.18-3.182a2.004 2.004 0 00-2.827 0l-.91.91m0 0L5.09 15M15 12l-3-3-3 3"
+                        />
+                      </svg>
+                      <span className="truncate">Report Testing</span>
+                      <span className="ml-auto bg-green-100 text-xs px-2 py-1 rounded-full flex-shrink-0 text-green-800">
+                        New
+                      </span>
+                    </button>
+                  </li>
+
+                  {/* Inventory */}
                   <li>
                     <button
                       onClick={() => setActiveTab('inventory')}
@@ -168,6 +211,8 @@ export default function AdminPage() {
                       <span className="truncate">Inventory</span>
                     </button>
                   </li>
+
+                  {/* Kit Registrations (Coming Soon) */}
                   <li>
                     <button
                       disabled
@@ -274,7 +319,39 @@ function AdminDashboardContent({ setActiveTab }) {
             </div>
           </div>
 
-          {/* Card 3 - Inventory Management */}
+          {/* Card 3 - NEW Report Testing */}
+          <div className="bg-white overflow-hidden shadow rounded-lg transition-shadow duration-300 hover:shadow-md">
+            <div className="px-4 py-4 sm:p-6">
+              <div className="flex items-start sm:items-center">
+                <div className="flex-shrink-0 bg-orange-100 rounded-md p-2 sm:p-3">
+                  <svg className="h-5 w-5 sm:h-6 sm:w-6 text-orange-600" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M10 21l5.09-5.09m0 0l.91-.91a2.004 2.004 0 000-2.828l-3.18-3.182a2.004 2.004 0 00-2.827 0l-.91.91m0 0L5.09 15M15 12l-3-3-3 3" />
+                  </svg>
+                </div>
+                <div className="ml-3 sm:ml-5 flex-1 min-w-0">
+                  <h3 className="text-base sm:text-lg font-medium text-gray-900">
+                    Test Report Generation
+                    <span className="ml-2 inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-green-100 text-green-800">
+                      New
+                    </span>
+                  </h3>
+                  <p className="mt-1 sm:mt-2 text-sm text-gray-500 leading-relaxed">
+                    Generate test reports for design verification without saving to storage.
+                  </p>
+                  <div className="mt-3 sm:mt-4">
+                    <button
+                      onClick={() => setActiveTab('report-testing')}
+                      className="inline-flex items-center px-3 py-1.5 sm:px-4 sm:py-2 border border-transparent text-xs sm:text-sm font-medium rounded-md text-orange-700 bg-orange-100 hover:bg-orange-200 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-orange-500 transition-colors duration-200"
+                    >
+                      Test Reports
+                    </button>
+                  </div>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          {/* Card 4 - Inventory Management */}
           <div className="bg-white overflow-hidden shadow rounded-lg transition-shadow duration-300 hover:shadow-md lg:col-span-2 xl:col-span-1">
             <div className="px-4 py-4 sm:p-6">
               <div className="flex items-start sm:items-center">
@@ -319,6 +396,7 @@ function AdminDashboardContent({ setActiveTab }) {
                 <li>Customer order history</li>
                 <li>Test result upload and processing</li>
                 <li>Automated report generation</li>
+                <li>Report testing and design verification</li>
                 <li>Inventory management and stock control</li>
               </ul>
             </div>
