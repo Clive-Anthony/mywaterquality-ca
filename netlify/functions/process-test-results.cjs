@@ -595,92 +595,55 @@ try {
     }
 
     // Get kit information for the report
-    let kitInfo = {
-      displayId: kitOrderCode,
-      kitCode: kitOrderCode,
-      testKitName: 'Water Test Kit',
-      testKitId: null,
-      customerFirstName: 'Valued Customer',
-      customerName: 'Customer'
-    };
+    // Get kit information from the admin view using the sample/work order numbers
+let kitInfo = {
+  displayId: kitOrderCode,
+  kitCode: kitOrderCode,
+  testKitName: 'Water Test Kit',
+  testKitId: null,
+  customerFirstName: 'Valued Customer',
+  customerName: 'Customer'
+};
 
-    // Get report details to determine kit type
-    const { data: reportDetails, error: reportDetailsError } = await supabase
-      .from('reports')
-      .select('kit_registration_id, legacy_kit_registration_id')
-      .eq('report_id', reportId)
-      .single();
+  // Try to get kit info from vw_test_kits_admin using work order or sample number
+  const { data: kitAdminData, error: kitAdminError } = await supabase
+    .from('vw_test_kits_admin')
+    .select('*')
+    .or(`work_order_number.eq.${workOrderNumber},sample_number.eq.${sampleNumber}`)
+    .limit(1)
+    .single();
 
-    if (!reportDetailsError && reportDetails) {
-      if (reportDetails.kit_registration_id) {
-        // Regular kit registration
-        const { data: kitData, error: kitError } = await supabase
-          .from('kit_registrations')
-          .select(`
-            display_id,
-            user_id,
-            order_items (
-              test_kits (
-                test_kit_id,
-                name
-              )
-            )
-          `)
-          .eq('kit_registration_id', reportDetails.kit_registration_id)
-          .single();
-
-        if (!kitError && kitData) {
-          // Get customer name
-          const { data: userData, error: userError } = await supabase
-            .from('users')
-            .select('first_name, last_name')
-            .eq('user_id', kitData.user_id)
-            .single();
-
-          kitInfo = {
-            displayId: kitData.display_id,
-            kitCode: kitData.display_id, // Use display_id for regular kits
-            testKitName: kitData.order_items?.test_kits?.name || 'Water Test Kit',
-            testKitId: kitData.order_items?.test_kits?.test_kit_id,
-            customerFirstName: userData?.first_name || 'Valued Customer',
-            customerName: `${userData?.first_name || ''} ${userData?.last_name || ''}`.trim() || 'Customer'
-          };
-        }
-      } else if (reportDetails.legacy_kit_registration_id) {
-        // Legacy kit registration
-        const { data: legacyKitData, error: legacyKitError } = await supabase
-          .from('legacy_kit_registrations')
-          .select(`
-            kit_code,
-            display_id,
-            user_id,
-            test_kits (
-              test_kit_id,
-              name
-            )
-          `)
-          .eq('id', reportDetails.legacy_kit_registration_id)
-          .single();
-
-        if (!legacyKitError && legacyKitData) {
-          // Get customer name
-          const { data: userData, error: userError } = await supabase
-            .from('users')
-            .select('first_name, last_name')
-            .eq('user_id', legacyKitData.user_id)
-            .single();
-
-          kitInfo = {
-            displayId: legacyKitData.display_id || legacyKitData.kit_code,
-            kitCode: legacyKitData.kit_code, // Use kit_code for legacy kits
-            testKitName: legacyKitData.test_kits?.name || 'Water Test Kit',
-            testKitId: legacyKitData.test_kits?.test_kit_id,
-            customerFirstName: userData?.first_name || 'Valued Customer',
-            customerName: `${userData?.first_name || ''} ${userData?.last_name || ''}`.trim() || 'Customer'
-          };
-        }
-      }
-    }
+    if (!kitAdminError && kitAdminData) {
+      // Format the shipping address
+      const formatLocation = (data) => {
+        const parts = [];
+        if (data.customer_city) parts.push(data.customer_city);
+        if (data.customer_province) parts.push(data.customer_province);
+        if (data.customer_postal_code) parts.push(data.customer_postal_code);
+        
+        return parts.length > 0 ? parts.join(', ') : 'Not specified';
+      };
+    
+      kitInfo = {
+        displayId: kitAdminData.kit_code || kitOrderCode,
+        kitCode: kitAdminData.kit_code || kitOrderCode,
+        testKitName: kitAdminData.test_kit_name || 'Water Test Kit',
+        testKitId: kitAdminData.test_kit_id,
+        customerFirstName: kitAdminData.customer_first_name || 'Valued Customer',
+        customerName: `${kitAdminData.customer_first_name || ''} ${kitAdminData.customer_last_name || ''}`.trim() || 'Customer',
+        customerEmail: kitAdminData.customer_email,
+        customerLocation: formatLocation(kitAdminData)
+      };
+      
+      log('info', 'Kit info retrieved from admin view', { kitInfo, requestId });
+    } else {
+    log('warn', 'Could not retrieve kit info from admin view', { 
+      error: kitAdminError?.message, 
+      workOrderNumber, 
+      sampleNumber, 
+      requestId 
+    });
+  }
 
     // Generate PDF report with kit information
     const pdfResult = await processReportGeneration(supabase, reportId, sampleNumber, requestId, kitOrderCode, kitInfo);
