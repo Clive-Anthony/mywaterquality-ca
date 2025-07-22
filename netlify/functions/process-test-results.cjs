@@ -614,9 +614,10 @@ let kitInfo = {
     .single();
 
     if (!kitAdminError && kitAdminData) {
-      // Format the shipping address
+      // Format the complete address including street address
       const formatLocation = (data) => {
         const parts = [];
+        if (data.customer_address) parts.push(data.customer_address);
         if (data.customer_city) parts.push(data.customer_city);
         if (data.customer_province) parts.push(data.customer_province);
         if (data.customer_postal_code) parts.push(data.customer_postal_code);

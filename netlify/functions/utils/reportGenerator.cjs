@@ -80,6 +80,123 @@ const formatDate = (dateString) => {
   });
 };
 
+// Road Salt Assessment Component
+const generateRoadSaltAssessment = (reportData) => {
+  // Find chloride and bromide parameters
+  const allParameters = [...reportData.healthParameters, ...reportData.aoParameters, ...reportData.generalParameters];
+  
+  const chlorideParam = allParameters.find(param => 
+    param.parameter_name?.toLowerCase().includes('chloride') && 
+    !param.parameter_name?.toLowerCase().includes('bromide')
+  );
+  
+  const bromideParam = allParameters.find(param => 
+    param.parameter_name?.toLowerCase().includes('bromide')
+  );
+
+  // Calculate road salt assessment
+  let assessmentResult = {
+    hasChloride: false,
+    hasBromide: false,
+    chlorideLevel: 0,
+    bromideLevel: 0,
+    ratio: 0,
+    isContamination: false,
+    chlorideExceeds100: false,
+    canCalculateRatio: false,
+    showNoContamination: false
+  };
+
+  if (chlorideParam && chlorideParam.result_numeric) {
+    assessmentResult.hasChloride = true;
+    assessmentResult.chlorideLevel = parseFloat(chlorideParam.result_numeric);
+    assessmentResult.chlorideExceeds100 = assessmentResult.chlorideLevel > 100;
+    
+    // If chloride is less than 100, show "No Contamination"
+    if (!assessmentResult.chlorideExceeds100) {
+      assessmentResult.showNoContamination = true;
+    }
+  }
+
+  if (bromideParam && bromideParam.result_numeric) {
+    assessmentResult.hasBromide = true;
+    assessmentResult.bromideLevel = parseFloat(bromideParam.result_numeric);
+  }
+
+  // Calculate ratio if conditions are met
+  if (assessmentResult.chlorideExceeds100 && assessmentResult.hasBromide && assessmentResult.bromideLevel > 0) {
+    assessmentResult.canCalculateRatio = true;
+    assessmentResult.ratio = assessmentResult.chlorideLevel / assessmentResult.bromideLevel;
+    assessmentResult.isContamination = assessmentResult.ratio > 1000;
+  }
+
+  return `
+    <div class="road-salt-spacing"></div>
+    
+    <div class="section-title">ROAD SALT IMPACT ASSESSMENT</div>
+    
+    <div class="parameters-unified-container">
+      <div class="parameters-container">
+        <div class="parameter-cwqi-section">
+          <div class="cwqi-title">Road Salt Score</div>
+          <div class="cwqi-score" style="color: ${assessmentResult.isContamination ? '#DC2626' : '#059669'}">
+            ${assessmentResult.canCalculateRatio 
+              ? Math.round(assessmentResult.ratio) 
+              : assessmentResult.showNoContamination 
+              ? '<100' 
+              : 'N/A'
+            }
+          </div>
+          <div class="cwqi-rating" style="color: ${assessmentResult.isContamination ? '#DC2626' : '#059669'}; font-size: 12px; font-weight: bold;">
+            ${assessmentResult.canCalculateRatio 
+              ? (assessmentResult.isContamination ? 'Road Salt Contamination' : 'No Contamination')
+              : assessmentResult.showNoContamination
+              ? 'No Contamination'
+              : 'Insufficient Data'
+            }
+          </div>
+          <div class="cwqi-summary">
+            ${assessmentResult.hasChloride ? `Chloride: ${assessmentResult.chlorideLevel} mg/L` : 'No chloride data'}
+          </div>
+          ${assessmentResult.hasBromide ? `
+            <div class="cwqi-summary">
+              Bromide: ${assessmentResult.bromideLevel} mg/L
+            </div>
+          ` : ''}
+        </div>
+        
+        <div class="parameter-text-section">
+          <div class="quality-statement">
+            To determine if groundwater is impacted by road salt, two conditions must be met:
+          </div>
+          <div class="quality-statement">
+            <strong>1. Chloride Concentration:</strong> The chloride level in the water must be greater than 100 mg/L.
+          </div>
+          <div class="quality-statement">
+            <strong>2. Chloride-to-Bromide Ratio (Cl:Br):</strong> If the chloride level exceeds 100 mg/L, the Cl:Br ratio is calculated. A result greater than 1,000 indicates likely contamination from road salt.
+          </div>
+          
+          ${(assessmentResult.canCalculateRatio || assessmentResult.showNoContamination) ? `
+            <div class="recommendations-section">
+              <div class="${assessmentResult.isContamination ? 'recommendations-header-health' : 'recommendations-header-green'}">
+                Assessment Result: ${assessmentResult.isContamination ? 'Road Salt Impact Detected' : 'No Road Salt Impact'}
+              </div>
+              <div class="recommendations-text">
+                ${assessmentResult.isContamination 
+                  ? 'Your water shows signs of road salt contamination. Consider consulting with a water treatment professional about filtration options.'
+                  : assessmentResult.showNoContamination
+                  ? 'Your water does not show signs of road salt contamination. The chloride level is below the threshold that would indicate potential road salt impact.'
+                  : 'Your water does not show signs of road salt contamination based on the chloride-to-bromide ratio analysis.'
+                }
+              </div>
+            </div>
+          ` : ''}
+        </div>
+      </div>
+    </div>
+  `;
+};
+
 // Summary Cards Component - Enhanced version
 const generateSummaryCards = (bacteriological, healthConcerns, aoConcerns, showBacteriologicalCard) => {
   const bacteriologicalExceeded = bacteriological.some(param => {
@@ -352,7 +469,7 @@ const getReportCSS = () => {
       .table-row-sample:last-child { border-bottom: none; }
       .table-cell-sample-label-wide {
           width: 55%; /* Increased width for left side labels */
-          font-size: 11px;
+          font-size: 12px;
           font-weight: bold;
           color: #374151;
           padding-right: 8px;
@@ -370,7 +487,7 @@ const getReportCSS = () => {
 
           .table-cell-sample-label {
           width: 45%; /* Keep original width for right side */
-          font-size: 11px;
+          font-size: 12px;
           font-weight: bold;
           color: #374151;
           padding-right: 8px;
@@ -531,24 +648,25 @@ const getReportCSS = () => {
       
       // Results Explanations
       .results-explanation-box {
-          background-color: #FFFFFF;
-          border: 1px solid #D1D5DB;
-          border-radius: 8px;
-          padding: 15px;
-          margin-bottom: 20px;
-          margin-top: 10px;
+          background-color: #EBF8FF;
+          border: 3px solid #3182CE;
+          border-radius: 10px;
+          padding: 20px;
+          margin-bottom: 25px;
+          margin-top: 15px;
+          box-shadow: 0 4px 8px rgba(0, 0, 0, 0.15);
           }
 
           .results-explanation-title {
           font-size: 14px;
           font-weight: bold;
-          color: #1F2937;
+          color: #1A365D;
           margin-bottom: 12px;
           }
 
           .results-explanation-text-bold {
           font-size: 12px;
-          color: #1F2937;
+          color: #2D3748;
           line-height: 1.4;
           margin-bottom: 8px;
           font-weight: bold;
@@ -556,7 +674,7 @@ const getReportCSS = () => {
 
           .results-explanation-text {
           font-size: 12px;
-          color: #374151;
+          color: #4A5568;
           line-height: 1.4;
           margin-bottom: 8px;
           }
@@ -601,6 +719,57 @@ const getReportCSS = () => {
           font-size: 12px;
           color: #374151;
           line-height: 1.5;
+          }
+
+          /* Next Steps Buttons */
+      .next-steps-button-container {
+          display: flex;
+          align-items: flex-start;
+          margin-bottom: 20px;
+          padding: 0;
+          }
+
+          .next-steps-text-with-button {
+          font-size: 12px;
+          color: #374151;
+          line-height: 1.5;
+          text-align: justify;
+          flex: 1;
+          margin-right: 15px;
+          }
+
+          .next-steps-button {
+          background-color: #1E3A8A;
+          color: white;
+          padding: 12px 16px;
+          border-radius: 8px;
+          text-decoration: none;
+          font-size: 9px;
+          font-weight: bold;
+          text-align: center;
+          min-width: 140px;
+          max-width: 140px;
+          flex-shrink: 0;
+          display: inline-block;
+          line-height: 1.3;
+          border: 2px solid #1E3A8A;
+          }
+
+          .next-steps-button:hover {
+          background-color: #1E40AF;
+          border-color: #1E40AF;
+          }
+
+          .button-top-text {
+          font-size: 10px;
+          font-weight: bold;
+          margin-bottom: 4px;
+          }
+
+          .button-bottom-text {
+          font-size: 8px;
+          font-weight: normal;
+          line-height: 1.2;
           }
       
       /* Drinking Water Quality Concerns Styling */
@@ -746,14 +915,15 @@ const getReportCSS = () => {
           margin-bottom: 12px;
           }
       
-      /* Dynamic spacing between CWQI sections */
-        .cwqi-spacing-normal {
-        height: 60px; /* Reduced but comfortable spacing when no coliforms */
-        }
+      /* Road Salt Section Spacing */
+      .road-salt-spacing {
+        height: 40px; /* Spacing between AO CWQI and Road Salt section */
+      }
 
-        .cwqi-spacing-with-coliform {
-        height: 0px; /* No spacing when coliforms are present */
-        }
+      /* Sample Info Spacing */
+      .sample-info-spacing {
+        height: 30px; /* Spacing after sample information */
+      }
 
       @media print {
         .container { padding: 15px; }
@@ -813,7 +983,7 @@ function generateHTMLReport(reportData, sampleNumber, kitInfo = {}) {
         <div class="header">
           <div>
               <div class="header-title">${customer_first}'s Drinking Water Quality Report Card</div>
-              <div class="header-subtitle">Order No ${order_number} - ${test_kit_display}</div>
+              <div class="header-subtitle">Order No ${order_number}</div>
           </div>
           <img src="https://mywaterqualityca.netlify.app/MWQ-logo-final.png" alt="My Water Quality" style="height: 50px; width: auto;" />
           </div>
@@ -849,6 +1019,9 @@ function generateHTMLReport(reportData, sampleNumber, kitInfo = {}) {
       </div>
       </div>
   </div>
+
+        <!-- Add spacing after sample information -->
+        <div class="sample-info-spacing"></div>
         
         <!-- Summary of Results -->
         <div class="section-title">SNAPSHOTS OF RESULTS</div>
@@ -876,7 +1049,7 @@ function generateHTMLReport(reportData, sampleNumber, kitInfo = {}) {
               </div>
           ` : ''}
           <div class="results-explanation-text">
-              Please refer to the Recommendations tables in the report for actions you can take to improve water quality.
+              Please refer to the Next Steps section in the report for actions you can take to improve water quality.
           </div>
           </div>
           ` : ''}
@@ -927,20 +1100,20 @@ function generateHTMLReport(reportData, sampleNumber, kitInfo = {}) {
         ${generateParametersSection(healthCWQI, healthConcerns, 'health', 'Health Related Parameters')}
         ` : ''}
 
-        <!-- Dynamic spacing based on coliform presence -->
-          ${hasColiformContamination ? `
-          <div class="cwqi-spacing-with-coliform"></div>
-          ` : `
-          <div class="cwqi-spacing-normal"></div>
-          `}
+        <!-- PAGE BREAK after Health CWQI -->
+        <div class="page-break"></div>
 
-        
+        <div class="section-title">YOUR DRINKING WATER AESTHETIC AND OPERATIONAL SCORE</div>
+
         <!-- AO Parameters -->
 
         ${aoCWQI ? `
         <div class="subsection-title">Aesthetic and Operational Parameters</div>
         ${generateParametersSection(aoCWQI, aoConcerns, 'ao', 'Aesthetic and Operational Parameters')}
         ` : ''}
+
+        <!-- Road Salt Impact Assessment -->
+        ${generateRoadSaltAssessment(reportData)}
 
       <!-- DRINKING WATER QUALITY CONCERNS - Only show if there are concerns -->
           ${(healthConcerns.length > 0 || aoConcerns.length > 0) ? `
@@ -1131,19 +1304,31 @@ function generateHTMLReport(reportData, sampleNumber, kitInfo = {}) {
           </div>
       </div>
 
-      <div class="next-steps-item">
+      <div class="next-steps-button-container">
           <span class="checkmark">✓</span>
-          <span class="next-steps-text">If your water test results indicate the presence of Total Coliform or E. coli bacteria, your water may be unsafe to drink. Immediate action is strongly recommended. For your convenience, the steps for addressing bacterial contamination are accessible by clicking the <strong>Water Well Disinfection Process</strong> Button.</span>
+          <div class="next-steps-text-with-button">If your water test results indicate the presence of Total Coliform or E. coli bacteria, your water may be unsafe to drink. Immediate action is strongly recommended. For your convenience, the steps for addressing bacterial contamination are accessible by clicking the button.</div>
+          <a href="https://www.publichealthontario.ca/en/Laboratory-Services/Well-Water-Testing/Well-Disinfection-Tool" target="_blank" class="next-steps-button">
+            <div class="button-top-text">CLICK HERE</div>
+            <div class="button-bottom-text">TO ACCESS THE WATER WELL DISINFECTION PROCESS</div>
+          </a>
       </div>
 
-      <div class="next-steps-item">
+      <div class="next-steps-button-container">
           <span class="checkmark">✓</span>
-          <span class="next-steps-text">If your water test results suggest contamination from road salt, there are important steps you should follow to assess and address the issue. For your convenience, the steps for addressing road salt contamination are accessible by clicking the <strong>Addressing Road Salt Impacts</strong> Button.</span>
+          <div class="next-steps-text-with-button">If your water test results suggest contamination from road salt, there are important steps you should follow to assess and address the issue. For your convenience, the steps for addressing road salt contamination are accessible by clicking the button.</div>
+          <a href="https://www.canadianwatercompliance.ca/blogs/toronto-legionella-disinfecting-bacteria-water-testing-blog/ontario-road-salt-drinking-water-impact" target="_blank" class="next-steps-button">
+            <div class="button-top-text">CLICK HERE</div>
+            <div class="button-bottom-text">TO ACCESS THE ROAD SALT IMPACT PROCESS</div>
+          </a>
       </div>
 
-      <div class="next-steps-item">
+      <div class="next-steps-button-container">
           <span class="checkmark">✓</span>
-          <span class="next-steps-text">If you have any questions on your drinking water results, please reach out by clicking <strong>Contact My Water Quality</strong>. We will respond to your inquiry within 24-hours.</span>
+          <div class="next-steps-text-with-button">If you have any questions on your drinking water results, please reach out by clicking the button. We will respond to your inquiry within 24-hours.</div>
+          <a href="https://www.mywaterquality.ca/contact" target="_blank" class="next-steps-button">
+            <div class="button-top-text">CLICK HERE</div>
+            <div class="button-bottom-text">TO CONTACT MY WATER QUALITY</div>
+          </a>
       </div>
       </div>
         
