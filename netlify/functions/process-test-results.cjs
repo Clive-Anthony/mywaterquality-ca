@@ -1,4 +1,4 @@
-// netlify/functions/process-test-results.js
+// netlify/functions/process-test-results.cjs - Updated to handle all report types
 const { createClient } = require('@supabase/supabase-js');
 const ExcelJS = require('exceljs');
 const { v4: uuidv4 } = require('uuid');
@@ -89,104 +89,124 @@ exports.handler = async function(event, context) {
     }
 
     // Parse multipart form data using busboy
-// console.log('Headers:', JSON.stringify(event.headers, null, 2));
-// console.log('Content-Type:', event.headers['content-type']);
+    const contentType = event.headers['content-type'] || event.headers['Content-Type'];
 
-const contentType = event.headers['content-type'] || event.headers['Content-Type'];
-// console.log('Found content-type:', contentType);
+    if (!contentType || !contentType.includes('multipart/form-data')) {
+      return {
+        statusCode: 400,
+        headers,
+        body: JSON.stringify({ error: 'Invalid content-type. Expected multipart/form-data' })
+      };
+    }
 
-if (!contentType || !contentType.includes('multipart/form-data')) {
-  return {
-    statusCode: 400,
-    headers,
-    body: JSON.stringify({ error: 'Invalid content-type. Expected multipart/form-data' })
-  };
-}
+    if (!event.body) {
+      return {
+        statusCode: 400,
+        headers,
+        body: JSON.stringify({ error: 'No request body received' })
+      };
+    }
 
-// console.log('Event body type:', typeof event.body);
-// console.log('Event body length:', event.body ? event.body.length : 'undefined');
-// console.log('Event isBase64Encoded:', event.isBase64Encoded);
+    // Parse multipart data with busboy
+    try {
+      const result = await parseMultipartWithBusboy(event.body, contentType, event.isBase64Encoded);
+      
+      const {
+        fileBuffer,
+        fileName,
+        kitRegistrationId,
+        kitRegistrationType,
+        workOrderNumber,
+        sampleNumber,
+        reportType, // NEW: report type
+        customCustomerInfo, // NEW: custom customer info
+        customKitInfo // NEW: custom kit info
+      } = result;
 
-if (!event.body) {
-  return {
-    statusCode: 400,
-    headers,
-    body: JSON.stringify({ error: 'No request body received' })
-  };
-}
+      // Validate required fields
+      if (!fileBuffer) {
+        return {
+          statusCode: 400,
+          headers,
+          body: JSON.stringify({ error: 'Missing file' })
+        };
+      }
 
-// Parse multipart data with busboy
-try {
-  const result = await parseMultipartWithBusboy(event.body, contentType, event.isBase64Encoded);
-  
-  const {
-    fileBuffer,
-    fileName,
-    kitRegistrationId,
-    kitRegistrationType,
-    workOrderNumber,
-    sampleNumber
-  } = result;
+      // Validate based on report type
+      if (reportType === 'registered' && !kitRegistrationId) {
+        return {
+          statusCode: 400,
+          headers,
+          body: JSON.stringify({ error: 'Kit registration ID required for registered reports' })
+        };
+      }
 
-  // Validate required fields
-if (!fileBuffer || !kitRegistrationId) {
-  return {
-    statusCode: 400,
-    headers,
-    body: JSON.stringify({ error: 'Missing required fields' })
-  };
-}
+      if (reportType === 'one_off' && (!customCustomerInfo || !customKitInfo)) {
+        return {
+          statusCode: 400,
+          headers,
+          body: JSON.stringify({ error: 'Customer and kit info required for one-off reports' })
+        };
+      }
 
-  log('info', 'Processing test results upload', {
-    kitRegistrationId,
-    kitRegistrationType,
-    workOrderNumber,
-    sampleNumber,
-    fileName,
-    fileSize: fileBuffer.length
-  });
+      log('info', 'Processing test results upload', {
+        reportType,
+        kitRegistrationId,
+        kitRegistrationType,
+        workOrderNumber,
+        sampleNumber,
+        fileName,
+        fileSize: fileBuffer.length,
+        hasCustomCustomerInfo: !!customCustomerInfo,
+        hasCustomKitInfo: !!customKitInfo
+      });
 
-  // Process the file and generate report
-  const processResult = await processTestResultsFile({
-    supabase,
-    user,
-    fileBuffer,
-    fileName,
-    kitRegistrationId,
-    kitRegistrationType
-  });
+      // Process the file and generate report
+      const processResult = await processTestResultsFile({
+        supabase,
+        user,
+        fileBuffer,
+        fileName,
+        kitRegistrationId,
+        kitRegistrationType,
+        reportType: reportType || 'registered', // Default to registered for backward compatibility
+        customCustomerInfo,
+        customKitInfo,
+        workOrderNumber,
+        sampleNumber
+      });
 
-  if (!processResult.success) {
-    return {
-      statusCode: 400,
-      headers,
-      body: JSON.stringify({ error: processResult.error })
-    };
-  }
+      if (!processResult.success) {
+        return {
+          statusCode: 400,
+          headers,
+          body: JSON.stringify({ error: processResult.error })
+        };
+      }
 
-  return {
-    statusCode: 200,
-    headers,
-    body: JSON.stringify({
-      success: true,
-      reportId: processResult.reportId,
-      message: 'Test results processed successfully'
-    })
-  };
+      return {
+        statusCode: 200,
+        headers,
+        body: JSON.stringify({
+          success: true,
+          reportId: processResult.reportId,
+          message: 'Test results processed successfully'
+        })
+      };
 
-} catch (parseError) {
-  console.error('Error parsing multipart data:', parseError);
-  console.error('Parse error stack:', parseError.stack);
-  
-  return {
-    statusCode: 400,
-    headers,
-    body: JSON.stringify({ 
-      error: 'Failed to parse multipart data: ' + parseError.message,
-      details: parseError.stack
-    })
-  };
-}
+    } catch (parseError) {
+      console.error('Error parsing multipart data:', parseError);
+      console.error('Parse error stack:', parseError.stack);
+      
+      return {
+        statusCode: 400,
+        headers,
+        body: JSON.stringify({ 
+          error: 'Failed to parse multipart data: ' + parseError.message,
+          details: parseError.stack
+        })
+      };
+    }
 
   } catch (error) {
     log('error', 'Unexpected function error', { error: error.message });
@@ -215,16 +235,13 @@ function parseMultipartWithBusboy(body, contentType, isBase64Encoded) {
         bodyBuffer = body;
       }
 
-      // console.log('Busboy parsing - Buffer length:', bodyBuffer.length);
-      // console.log('Busboy parsing - Content-Type:', contentType);
-
       // Initialize busboy
       const busboy = Busboy({ 
         headers: { 'content-type': contentType },
         limits: {
           fileSize: 10 * 1024 * 1024, // 10MB limit
           files: 1, // Only allow 1 file
-          fields: 10 // Allow up to 10 form fields
+          fields: 20 // Allow more fields for custom data
         }
       });
 
@@ -234,68 +251,53 @@ function parseMultipartWithBusboy(body, contentType, isBase64Encoded) {
 
       // Handle form fields
       busboy.on('field', (fieldname, value) => {
-        // console.log('Field received:', fieldname, '=', value);
         fields[fieldname] = value;
       });
 
       // Handle file uploads
-// Handle file uploads
-busboy.on('file', (fieldname, file, filename, encoding, mimetype) => {
-  // console.log('File received:', fieldname, 'filename:', filename, 'mimetype:', mimetype);
-  // console.log('Filename type:', typeof filename);
-  // console.log('Encoding:', encoding);
-  
-  fileCount++;
-  
-  if (fileCount > 1) {
-    reject(new Error('Only one file upload allowed'));
-    return;
-  }
+      busboy.on('file', (fieldname, file, filename, encoding, mimetype) => {
+        fileCount++;
+        
+        if (fileCount > 1) {
+          reject(new Error('Only one file upload allowed'));
+          return;
+        }
 
-  const chunks = [];
-  let totalSize = 0;
-  
-  file.on('data', (data) => {
-    chunks.push(data);
-    totalSize += data.length;
-    // console.log('Received chunk, size:', data.length, 'total so far:', totalSize);
-  });
-  
-  file.on('end', () => {
-    const fileBuffer = Buffer.concat(chunks);
-    // console.log('File processing complete. Final size:', fileBuffer.length);
-    // console.log('Is valid Buffer?', Buffer.isBuffer(fileBuffer));
-    
-    // Extract filename properly
-    let actualFilename;
-    if (typeof filename === 'object' && filename !== null) {
-      actualFilename = filename.filename || filename.name || 'uploaded-file';
-    } else {
-      actualFilename = filename || 'uploaded-file';
-    }
-    
-    // console.log('Extracted filename:', actualFilename);
-    
-    files[fieldname] = {
-      data: fileBuffer,
-      filename: String(actualFilename),
-      mimetype: mimetype,
-      size: fileBuffer.length
-    };
-  });
+        const chunks = [];
+        let totalSize = 0;
+        
+        file.on('data', (data) => {
+          chunks.push(data);
+          totalSize += data.length;
+        });
+        
+        file.on('end', () => {
+          const fileBuffer = Buffer.concat(chunks);
+          
+          // Extract filename properly
+          let actualFilename;
+          if (typeof filename === 'object' && filename !== null) {
+            actualFilename = filename.filename || filename.name || 'uploaded-file';
+          } else {
+            actualFilename = filename || 'uploaded-file';
+          }
+          
+          files[fieldname] = {
+            data: fileBuffer,
+            filename: String(actualFilename),
+            mimetype: mimetype,
+            size: fileBuffer.length
+          };
+        });
 
-  file.on('error', (err) => {
-    console.error('File processing error:', err);
-    reject(err);
-  });
-});
+        file.on('error', (err) => {
+          console.error('File processing error:', err);
+          reject(err);
+        });
+      });
 
       // Handle completion
       busboy.on('finish', () => {
-        // console.log('Busboy parsing finished');
-        // console.log('Fields received:', Object.keys(fields));
-        // console.log('Files received:', Object.keys(files));
-
         // Extract the data
         const fileData = files.file;
         
@@ -304,21 +306,33 @@ busboy.on('file', (fieldname, file, filename, encoding, mimetype) => {
           return;
         }
 
+        // Parse custom info if provided
+        let customCustomerInfo = null;
+        let customKitInfo = null;
+        
+        try {
+          if (fields.customCustomerInfo) {
+            customCustomerInfo = JSON.parse(fields.customCustomerInfo);
+          }
+          if (fields.customKitInfo) {
+            customKitInfo = JSON.parse(fields.customKitInfo);
+          }
+        } catch (jsonError) {
+          console.error('Error parsing custom info JSON:', jsonError);
+          // Don't reject, just log the error
+        }
+
         const result = {
           fileBuffer: fileData.data,
           fileName: String(fileData.filename || 'uploaded-file'),
           kitRegistrationId: String(fields.kitRegistrationId || ''),
-          kitRegistrationType: String(fields.kitRegistrationType || '')
+          kitRegistrationType: String(fields.kitRegistrationType || ''),
+          workOrderNumber: String(fields.workOrderNumber || ''),
+          sampleNumber: String(fields.sampleNumber || ''),
+          reportType: String(fields.reportType || 'registered'),
+          customCustomerInfo,
+          customKitInfo
         };
-
-        // console.log('Parse result:', {
-        //   fileName: result.fileName,
-        //   fileSize: result.fileBuffer.length,
-        //   kitRegistrationId: result.kitRegistrationId,
-        //   kitRegistrationType: result.kitRegistrationType,
-        //   workOrderNumber: result.workOrderNumber,
-        //   sampleNumber: result.sampleNumber
-        // });
 
         resolve(result);
       });
@@ -376,43 +390,68 @@ async function processTestResultsFile({
   fileBuffer,
   fileName,
   kitRegistrationId,
-  kitRegistrationType
+  kitRegistrationType,
+  reportType = 'registered',
+  customCustomerInfo = null,
+  customKitInfo = null,
+  workOrderNumber: providedWorkOrder = null,
+  sampleNumber: providedSample = null
 }) {
   const requestId = Math.random().toString(36).substring(2, 8);
   let reportId;
-  let kitOrderCode = 'UNKNOWN'; // Default fallback
+  let kitOrderCode = 'UNKNOWN';
   let workOrderNumber;
   let sampleNumber;
 
   try {
-    log('info', 'Starting file processing', { requestId, fileName });
+    log('info', 'Starting file processing', { requestId, fileName, reportType });
 
-    // Get kit order code (display_id) based on registration type
-try {
-  if (kitRegistrationType === 'regular') {
-    const { data: kitReg, error: kitRegError } = await supabase
-      .from('kit_registrations')
-      .select('display_id')
-      .eq('kit_registration_id', kitRegistrationId)
-      .single();
+    // For one-off reports, generate unique identifiers if not provided
+    if (reportType === 'one_off') {
+      if (!providedWorkOrder) {
+        workOrderNumber = `WO-${Date.now()}-${Math.random().toString(36).substring(2, 8)}`;
+      } else {
+        workOrderNumber = providedWorkOrder;
+      }
+      
+      if (!providedSample) {
+        sampleNumber = `S-${Date.now()}-${Math.random().toString(36).substring(2, 8)}`;
+      } else {
+        sampleNumber = providedSample;
+      }
+      
+      kitOrderCode = customKitInfo?.kitCode || `ONEOFF-${Date.now()}`;
+    } else {
+      // Get kit order code based on registration type and report type
+      try {
+        if (reportType === 'registered' && kitRegistrationType === 'regular') {
+          const { data: kitReg, error: kitRegError } = await supabase
+            .from('kit_registrations')
+            .select('display_id')
+            .eq('kit_registration_id', kitRegistrationId)
+            .single();
 
-    if (!kitRegError && kitReg?.display_id) {
-      kitOrderCode = kitReg.display_id;
+          if (!kitRegError && kitReg?.display_id) {
+            kitOrderCode = kitReg.display_id;
+          }
+        } else if ((reportType === 'registered' && kitRegistrationType === 'legacy') || 
+                   (reportType === 'unregistered' && kitRegistrationType === 'legacy')) {
+          const { data: legacyKitReg, error: legacyKitRegError } = await supabase
+            .from('legacy_kit_registrations')
+            .select('kit_code')
+            .eq('id', kitRegistrationId)
+            .single();
+
+          if (!legacyKitRegError && legacyKitReg?.kit_code) {
+            kitOrderCode = legacyKitReg.kit_code;
+          }
+        } else if (reportType === 'unregistered' && customKitInfo?.kitCode) {
+          kitOrderCode = customKitInfo.kitCode;
+        }
+      } catch (kitError) {
+        log('warn', 'Failed to get kit order code, using default', { error: kitError.message });
+      }
     }
-  } else if (kitRegistrationType === 'legacy') {
-    const { data: legacyKitReg, error: legacyKitRegError } = await supabase
-      .from('legacy_kit_registrations')
-      .select('kit_code')
-      .eq('id', kitRegistrationId)
-      .single();
-
-    if (!legacyKitRegError && legacyKitReg?.kit_code) {
-      kitOrderCode = legacyKitReg.kit_code;
-    }
-  }
-} catch (kitError) {
-  log('warn', 'Failed to get kit order code, using default', { error: kitError.message });
-}
 
     log('info', 'Kit order code determined', { kitOrderCode, requestId });
 
@@ -441,16 +480,25 @@ try {
         throw new Error('CSV content is empty or undefined');
       }
       
-      // Extract work order and sample number from CSV
-      const extracted = extractWorkOrderAndSampleFromCSV(csvContent);
-      workOrderNumber = extracted.workOrderNumber;
-      sampleNumber = extracted.sampleNumber;
-      
-      if (!workOrderNumber || !sampleNumber) {
-        throw new Error('Could not extract work order number or sample number from CSV file');
+      // Extract work order and sample number from CSV (if not already set for one-off reports)
+      if (reportType !== 'one_off' || (!workOrderNumber || !sampleNumber)) {
+        const extracted = extractWorkOrderAndSampleFromCSV(csvContent);
+        
+        // For one-off reports, only use CSV data if not provided by admin
+        if (reportType === 'one_off') {
+          workOrderNumber = workOrderNumber || extracted.workOrderNumber;
+          sampleNumber = sampleNumber || extracted.sampleNumber;
+        } else {
+          workOrderNumber = extracted.workOrderNumber;
+          sampleNumber = extracted.sampleNumber;
+        }
       }
       
-      log('info', 'Extracted from CSV', { workOrderNumber, sampleNumber, requestId });
+      if (!workOrderNumber || !sampleNumber) {
+        throw new Error('Could not extract or generate work order number or sample number');
+      }
+      
+      log('info', 'Work order and sample number determined', { workOrderNumber, sampleNumber, requestId });
       
     } catch (csvError) {
       console.error('Error converting file to CSV:', csvError);
@@ -460,19 +508,51 @@ try {
     // Generate report UUID
     reportId = uuidv4();
 
-    // Create report record
+    // Create report record with new fields
+    const reportRecord = {
+      report_id: reportId,
+      sample_number: sampleNumber,
+      work_order_number: workOrderNumber,
+      original_file_name: fileName,
+      processing_status: 'processing',
+      report_type: reportType, // NEW field
+      user_id: null // Will be set later when we find the kit registration or use admin user for one-off
+    };
+
+    // Set kit registration fields based on report type
+    if (reportType === 'registered') {
+      if (kitRegistrationType === 'regular') {
+        reportRecord.kit_registration_id = kitRegistrationId;
+      } else if (kitRegistrationType === 'legacy') {
+        reportRecord.legacy_kit_registration_id = kitRegistrationId;
+      }
+    } else if (reportType === 'unregistered') {
+      if (kitRegistrationType === 'regular') {
+        reportRecord.kit_registration_id = kitRegistrationId;
+      } else if (kitRegistrationType === 'legacy') {
+        reportRecord.legacy_kit_registration_id = kitRegistrationId;
+      }
+      // Add custom info for unregistered reports
+      if (customCustomerInfo) {
+        reportRecord.custom_customer_info = customCustomerInfo;
+      }
+      if (customKitInfo) {
+        reportRecord.custom_kit_info = customKitInfo;
+      }
+    } else if (reportType === 'one_off') {
+      // One-off reports don't have kit registrations but store custom info
+      reportRecord.custom_customer_info = customCustomerInfo;
+      reportRecord.custom_kit_info = customKitInfo;
+      reportRecord.user_id = user.id; // Set to admin user for one-off reports
+      // Set test_kit_id if available
+      if (customKitInfo?.testKitId) {
+        reportRecord.test_kit_id = customKitInfo.testKitId;
+      }
+    }
+
     const { data: report, error: reportError } = await supabase
       .from('reports')
-      .insert([{
-        report_id: reportId,
-        sample_number: sampleNumber,
-        work_order_number: workOrderNumber,
-        kit_registration_id: kitRegistrationType === 'regular' ? kitRegistrationId : null,
-        legacy_kit_registration_id: kitRegistrationType === 'legacy' ? kitRegistrationId : null,
-        user_id: null, // Will be set later when we find the kit registration
-        original_file_name: fileName,
-        processing_status: 'processing'
-      }])
+      .insert([reportRecord])
       .select()
       .single();
 
@@ -480,7 +560,7 @@ try {
       throw new Error(`Failed to create report record: ${reportError.message}`);
     }
 
-    log('info', 'Report record created', { reportId, requestId });
+    log('info', 'Report record created', { reportId, reportType, requestId });
 
     // Store CSV in Supabase storage with new naming format
     const csvFileName = `${kitOrderCode}_WO${workOrderNumber}_${sampleNumber}.csv`;
@@ -528,63 +608,75 @@ try {
       });
     }
 
-    // Find and update kit registration
-    const kitUpdateResult = await updateKitRegistration(supabase, kitRegistrationId, kitRegistrationType, workOrderNumber, sampleNumber, reportId, user.id);
-    
-    if (kitUpdateResult.success) {
-      log('info', 'Kit registration updated successfully', {
-        type: kitUpdateResult.type,
-        kitRegistrationId: kitUpdateResult.kitRegistrationId,
-        requestId
-      });
+    // Find and update kit registration (only for registered/unregistered reports)
+    let kitUpdateResult = { success: false };
+    if (reportType !== 'one_off') {
+      kitUpdateResult = await updateKitRegistration(supabase, kitRegistrationId, kitRegistrationType, workOrderNumber, sampleNumber, reportId, user.id);
+      
+      if (kitUpdateResult.success) {
+        log('info', 'Kit registration updated successfully', {
+          type: kitUpdateResult.type,
+          kitRegistrationId: kitUpdateResult.kitRegistrationId,
+          requestId
+        });
 
-      // Update the report record with the kit registration details
-      const reportUpdateData = {
-        csv_file_url: csvUrl.publicUrl,
-        processing_status: 'processing'
-      };
+        // Update the report record with the kit registration details
+        const reportUpdateData = {
+          csv_file_url: csvUrl.publicUrl,
+          processing_status: 'processing'
+        };
 
-      if (kitUpdateResult.type === 'regular') {
-        reportUpdateData.kit_registration_id = kitUpdateResult.kitRegistrationId;
-        
-        // Get the customer's user_id from the kit registration
-        const { data: kitDetails } = await supabase
-          .from('kit_registrations')
-          .select('user_id')
-          .eq('kit_registration_id', kitUpdateResult.kitRegistrationId)
-          .single();
+        if (kitUpdateResult.type === 'regular') {
+          reportUpdateData.kit_registration_id = kitUpdateResult.kitRegistrationId;
           
-        if (kitDetails) {
-          reportUpdateData.user_id = kitDetails.user_id;
-        }
-      } else if (kitUpdateResult.type === 'legacy') {
-        reportUpdateData.legacy_kit_registration_id = kitUpdateResult.kitRegistrationId;
-        
-        // Get the customer's user_id from the legacy kit registration
-        const { data: legacyKitDetails } = await supabase
-          .from('legacy_kit_registrations')
-          .select('user_id')
-          .eq('id', kitUpdateResult.kitRegistrationId)
-          .single();
+          // Get the customer's user_id from the kit registration
+          const { data: kitDetails } = await supabase
+            .from('kit_registrations')
+            .select('user_id')
+            .eq('kit_registration_id', kitUpdateResult.kitRegistrationId)
+            .single();
+            
+          if (kitDetails) {
+            reportUpdateData.user_id = kitDetails.user_id;
+          }
+        } else if (kitUpdateResult.type === 'legacy') {
+          reportUpdateData.legacy_kit_registration_id = kitUpdateResult.kitRegistrationId;
           
-        if (legacyKitDetails) {
-          reportUpdateData.user_id = legacyKitDetails.user_id;
+          // Get the customer's user_id from the legacy kit registration
+          const { data: legacyKitDetails } = await supabase
+            .from('legacy_kit_registrations')
+            .select('user_id')
+            .eq('id', kitUpdateResult.kitRegistrationId)
+            .single();
+            
+          if (legacyKitDetails) {
+            reportUpdateData.user_id = legacyKitDetails.user_id;
+          }
         }
+
+        // Update the report with the kit registration and customer info
+        await supabase
+          .from('reports')
+          .update(reportUpdateData)
+          .eq('report_id', reportId);
+
+      } else {
+        log('warn', 'Failed to update kit registration', {
+          error: kitUpdateResult.error,
+          requestId
+        });
+
+        // Still update the report with CSV URL even if kit registration update failed
+        await supabase
+          .from('reports')
+          .update({
+            csv_file_url: csvUrl.publicUrl,
+            processing_status: 'processing'
+          })
+          .eq('report_id', reportId);
       }
-
-      // Update the report with the kit registration and customer info
-      await supabase
-        .from('reports')
-        .update(reportUpdateData)
-        .eq('report_id', reportId);
-
     } else {
-      log('warn', 'Failed to update kit registration', {
-        error: kitUpdateResult.error,
-        requestId
-      });
-
-      // Still update the report with CSV URL even if kit registration update failed
+      // For one-off reports, just update with CSV URL
       await supabase
         .from('reports')
         .update({
@@ -594,57 +686,146 @@ try {
         .eq('report_id', reportId);
     }
 
-    // Get kit information for the report
-    // Get kit information from the admin view using the sample/work order numbers
-let kitInfo = {
-  displayId: kitOrderCode,
-  kitCode: kitOrderCode,
-  testKitName: 'Water Test Kit',
-  testKitId: null,
-  customerFirstName: 'Valued Customer',
-  customerName: 'Customer'
-};
+    // Prepare kit information for the report generation
+    let kitInfo = {
+      displayId: kitOrderCode,
+      kitCode: kitOrderCode,
+      testKitName: 'Water Test Kit',
+      testKitId: null,
+      customerFirstName: 'Valued Customer',
+      customerName: 'Customer',
+      customerLocation: 'Not specified'
+    };
 
-  // Try to get kit info from vw_test_kits_admin using work order or sample number
-  const { data: kitAdminData, error: kitAdminError } = await supabase
-    .from('vw_test_kits_admin')
-    .select('*')
-    .or(`work_order_number.eq.${workOrderNumber},sample_number.eq.${sampleNumber}`)
-    .limit(1)
-    .single();
-
-    if (!kitAdminError && kitAdminData) {
-      // Format the complete address including street address
-      const formatLocation = (data) => {
-        const parts = [];
-        if (data.customer_address) parts.push(data.customer_address);
-        if (data.customer_city) parts.push(data.customer_city);
-        if (data.customer_province) parts.push(data.customer_province);
-        if (data.customer_postal_code) parts.push(data.customer_postal_code);
+    // Get kit information based on report type
+    if (reportType === 'one_off') {
+      // Use custom info for one-off reports
+      if (customCustomerInfo) {
+        kitInfo.customerFirstName = customCustomerInfo.firstName || 'Valued Customer';
+        kitInfo.customerName = `${customCustomerInfo.firstName || ''} ${customCustomerInfo.lastName || ''}`.trim() || 'Customer';
+        kitInfo.customerEmail = customCustomerInfo.email || 'unknown@example.com';
         
-        return parts.length > 0 ? parts.join(', ') : 'Not specified';
-      };
-    
-      kitInfo = {
-        displayId: kitAdminData.kit_code || kitOrderCode,
-        kitCode: kitAdminData.kit_code || kitOrderCode,
-        testKitName: kitAdminData.test_kit_name || 'Water Test Kit',
-        testKitId: kitAdminData.test_kit_id,
-        customerFirstName: kitAdminData.customer_first_name || 'Valued Customer',
-        customerName: `${kitAdminData.customer_first_name || ''} ${kitAdminData.customer_last_name || ''}`.trim() || 'Customer',
-        customerEmail: kitAdminData.customer_email,
-        customerLocation: formatLocation(kitAdminData)
-      };
+        // Build location from address fields
+        const locationParts = [];
+        if (customCustomerInfo.address) locationParts.push(customCustomerInfo.address);
+        if (customCustomerInfo.city) locationParts.push(customCustomerInfo.city);
+        if (customCustomerInfo.province) locationParts.push(customCustomerInfo.province);
+        if (customCustomerInfo.postalCode) locationParts.push(customCustomerInfo.postalCode);
+        
+        kitInfo.customerLocation = locationParts.length > 0 ? locationParts.join(', ') : (customCustomerInfo.location || 'Not specified');
+      }
       
-      log('info', 'Kit info retrieved from admin view', { kitInfo, requestId });
+      if (customKitInfo) {
+        kitInfo.testKitName = customKitInfo.testKitName || 'Custom Water Test';
+        kitInfo.testKitId = customKitInfo.testKitId || null;
+        kitInfo.displayId = customKitInfo.kitCode || kitOrderCode;
+        kitInfo.kitCode = customKitInfo.kitCode || kitOrderCode;
+      }
+    } else if (reportType === 'unregistered') {
+      // For unregistered reports, prioritize custom info but fall back to kit registration
+      if (customCustomerInfo) {
+        kitInfo.customerFirstName = customCustomerInfo.firstName || kitInfo.customerFirstName;
+        kitInfo.customerName = `${customCustomerInfo.firstName || ''} ${customCustomerInfo.lastName || ''}`.trim() || kitInfo.customerName;
+        kitInfo.customerEmail = customCustomerInfo.email || kitInfo.customerEmail;
+        
+        // Build location from address fields if provided
+        if (customCustomerInfo.location || customCustomerInfo.address) {
+          const locationParts = [];
+          if (customCustomerInfo.address) locationParts.push(customCustomerInfo.address);
+          if (customCustomerInfo.city) locationParts.push(customCustomerInfo.city);
+          if (customCustomerInfo.province) locationParts.push(customCustomerInfo.province);
+          if (customCustomerInfo.postalCode) locationParts.push(customCustomerInfo.postalCode);
+          
+          kitInfo.customerLocation = locationParts.length > 0 ? locationParts.join(', ') : (customCustomerInfo.location || kitInfo.customerLocation);
+        }
+      }
+      
+      if (customKitInfo) {
+        kitInfo.testKitName = customKitInfo.testKitName || kitInfo.testKitName;
+        kitInfo.testKitId = customKitInfo.testKitId || kitInfo.testKitId;
+        if (customKitInfo.kitCode) {
+          kitInfo.displayId = customKitInfo.kitCode;
+          kitInfo.kitCode = customKitInfo.kitCode;
+        }
+      }
+      
+      // Try to get additional info from kit registration if available
+      const { data: kitAdminData, error: kitAdminError } = await supabase
+        .from('vw_test_kits_admin')
+        .select('*')
+        .or(`work_order_number.eq.${workOrderNumber},sample_number.eq.${sampleNumber}`)
+        .limit(1)
+        .single();
+
+      if (!kitAdminError && kitAdminData) {
+        // Only use kit admin data if custom info wasn't provided
+        if (!customCustomerInfo) {
+          kitInfo.customerFirstName = kitAdminData.customer_first_name || kitInfo.customerFirstName;
+          kitInfo.customerName = `${kitAdminData.customer_first_name || ''} ${kitAdminData.customer_last_name || ''}`.trim() || kitInfo.customerName;
+          kitInfo.customerEmail = kitAdminData.customer_email || kitInfo.customerEmail;
+          
+          const formatLocation = (data) => {
+            const parts = [];
+            if (data.customer_address) parts.push(data.customer_address);
+            if (data.customer_city) parts.push(data.customer_city);
+            if (data.customer_province) parts.push(data.customer_province);
+            if (data.customer_postal_code) parts.push(data.customer_postal_code);
+            
+            return parts.length > 0 ? parts.join(', ') : 'Not specified';
+          };
+          
+          kitInfo.customerLocation = formatLocation(kitAdminData);
+        }
+        
+        // Use kit admin data for kit info if custom info wasn't provided
+        if (!customKitInfo) {
+          kitInfo.displayId = kitAdminData.kit_code || kitInfo.displayId;
+          kitInfo.kitCode = kitAdminData.kit_code || kitInfo.kitCode;
+          kitInfo.testKitName = kitAdminData.test_kit_name || kitInfo.testKitName;
+          kitInfo.testKitId = kitAdminData.test_kit_id || kitInfo.testKitId;
+        }
+      }
     } else {
-    log('warn', 'Could not retrieve kit info from admin view', { 
-      error: kitAdminError?.message, 
-      workOrderNumber, 
-      sampleNumber, 
-      requestId 
-    });
-  }
+      // For registered reports, get info from admin view as before
+      const { data: kitAdminData, error: kitAdminError } = await supabase
+        .from('vw_test_kits_admin')
+        .select('*')
+        .or(`work_order_number.eq.${workOrderNumber},sample_number.eq.${sampleNumber}`)
+        .limit(1)
+        .single();
+
+      if (!kitAdminError && kitAdminData) {
+        const formatLocation = (data) => {
+          const parts = [];
+          if (data.customer_address) parts.push(data.customer_address);
+          if (data.customer_city) parts.push(data.customer_city);
+          if (data.customer_province) parts.push(data.customer_province);
+          if (data.customer_postal_code) parts.push(data.customer_postal_code);
+          
+          return parts.length > 0 ? parts.join(', ') : 'Not specified';
+        };
+      
+        kitInfo = {
+          displayId: kitAdminData.kit_code || kitOrderCode,
+          kitCode: kitAdminData.kit_code || kitOrderCode,
+          testKitName: kitAdminData.test_kit_name || 'Water Test Kit',
+          testKitId: kitAdminData.test_kit_id,
+          customerFirstName: kitAdminData.customer_first_name || 'Valued Customer',
+          customerName: `${kitAdminData.customer_first_name || ''} ${kitAdminData.customer_last_name || ''}`.trim() || 'Customer',
+          customerEmail: kitAdminData.customer_email,
+          customerLocation: formatLocation(kitAdminData)
+        };
+        
+        log('info', 'Kit info retrieved from admin view', { kitInfo, requestId });
+      } else {
+        log('warn', 'Could not retrieve kit info from admin view', { 
+          error: kitAdminError?.message, 
+          workOrderNumber, 
+          sampleNumber, 
+          requestId 
+        });
+      }
+    }
 
     // Generate PDF report with kit information
     const pdfResult = await processReportGeneration(supabase, reportId, sampleNumber, requestId, kitOrderCode, kitInfo);
@@ -659,8 +840,8 @@ let kitInfo = {
         })
         .eq('report_id', reportId);
       
-      // Update kit registration status to 'report_generated'
-      if (kitUpdateResult.success) {
+      // Update kit registration status to 'report_generated' (only for registered/unregistered)
+      if (reportType !== 'one_off' && kitUpdateResult.success) {
         if (kitUpdateResult.type === 'regular') {
           await supabase
             .from('kit_registrations')
@@ -684,7 +865,7 @@ let kitInfo = {
         .eq('report_id', reportId);
     }
 
-    log('info', 'Test results processing completed', { reportId, requestId });
+    log('info', 'Test results processing completed', { reportId, reportType, requestId });
 
     return {
       success: true,
@@ -696,7 +877,8 @@ let kitInfo = {
   } catch (error) {
     log('error', 'Error processing test results', { 
       error: error.message, 
-      requestId 
+      requestId,
+      reportType 
     });
 
     // Update report status to failed if report was created
@@ -723,9 +905,6 @@ let kitInfo = {
 
 async function convertExcelToCSVFallback(fileBuffer) {
   try {
-    // console.log('Trying fallback Excel conversion method...');
-    
-    // Try using node-xlsx as fallback
     const XLSX = require('xlsx');
     
     // Read the workbook from buffer
@@ -737,15 +916,10 @@ async function convertExcelToCSVFallback(fileBuffer) {
       throw new Error('No worksheets found in Excel file');
     }
     
-    // console.log('Found worksheets:', sheetNames);
     const worksheet = workbook.Sheets[sheetNames[0]];
     
     // Convert to CSV
     const csvContent = XLSX.utils.sheet_to_csv(worksheet);
-    
-    // console.log('Fallback conversion successful');
-    // console.log('CSV content length:', csvContent.length);
-    // console.log('First 200 chars:', csvContent.substring(0, 200));
     
     return csvContent;
   } catch (error) {
@@ -763,7 +937,6 @@ async function processCSVData(supabase, csvContent, sampleNumber, workOrderNumbe
     }
 
     const lines = csvContent.split('\n').filter(line => line.trim());
-    // console.log('CSV lines count:', lines.length);
     
     if (lines.length < 2) {
       throw new Error('CSV file must contain at least a header row and one data row');
@@ -771,11 +944,9 @@ async function processCSVData(supabase, csvContent, sampleNumber, workOrderNumbe
 
     // Parse CSV header
     const headers = parseCSVRow(lines[0]);
-    // console.log('Raw CSV headers:', headers);
     
     // Create column mapping for test_results_raw table schema
     const columnMapping = createColumnMapping(headers);
-    // console.log('Column mapping result:', columnMapping);
     
     // Filter out empty or invalid mappings
     const validMappings = {};
@@ -784,8 +955,6 @@ async function processCSVData(supabase, csvContent, sampleNumber, workOrderNumbe
         validMappings[key] = columnMapping[key];
       }
     });
-    
-    // console.log('Valid mappings:', validMappings);
 
     let processedCount = 0;
     let skippedCount = 0;
@@ -848,25 +1017,8 @@ async function processCSVData(supabase, csvContent, sampleNumber, workOrderNumbe
         }
       });
 
-      // Debug the row processing for first few rows
-      // if (i <= 3) {
-      //   console.log(`Row ${i} clean data:`, {
-      //     hasParameter,
-      //     parameterValue,
-      //     cleanRowDataKeys: Object.keys(cleanRowData),
-      //     workOrder: cleanRowData['Work Order #'],
-      //     sample: cleanRowData['Sample #'],
-      //     parameter: cleanRowData['Parameter']
-      //   });
-      // }
-
       // Ensure we have the required Parameter field
       if (!hasParameter || !cleanRowData['Parameter']) {
-        // console.log(`Skipping row ${i} without Parameter:`, { 
-        //   hasParameter, 
-        //   parameterValue, 
-        //   availableColumns: Object.keys(cleanRowData)
-        // });
         skippedCount++;
         continue;
       }
@@ -877,7 +1029,6 @@ async function processCSVData(supabase, csvContent, sampleNumber, workOrderNumbe
         const missingFields = requiredFields.filter(field => !cleanRowData[field]);
         
         if (missingFields.length > 0) {
-          // console.log(`Skipping row ${i} - missing required fields:`, missingFields);
           skippedCount++;
           continue;
         }
@@ -890,15 +1041,7 @@ async function processCSVData(supabase, csvContent, sampleNumber, workOrderNumbe
           }
         });
 
-        // Log the exact data being inserted for first few rows
-        // if (processedCount < 3) {
-        //   console.log(`Inserting row ${i}:`, {
-        //     cleanRowData,
-        //     dbRowDataKeys: Object.keys(dbRowData)
-        //   });
-        // }
-
-        // Insert new record (skip checking for existing for now to simplify)
+        // Insert new record
         const { error: insertError } = await supabase
           .from('test_results_raw')
           .insert([dbRowData]);
@@ -962,56 +1105,37 @@ function createColumnMapping(csvHeaders) {
     header && typeof header === 'string' && header.trim() !== ''
   );
   
-  // console.log('Processing valid headers for mapping:', validHeaders);
-  
   validHeaders.forEach(header => {
     const trimmedHeader = header.trim();
     const lowerHeader = trimmedHeader.toLowerCase();
     
-    // console.log(`Mapping header: "${trimmedHeader}" (lowercase: "${lowerHeader}")`);
-    
     // Map to exact database column names (without extra quotes)
     if (lowerHeader === 'work order #' || lowerHeader === 'work order' || lowerHeader === 'work_order' || lowerHeader === 'workorder') {
       mapping[trimmedHeader] = 'Work Order #';
-      // console.log(`  -> Mapped to Work Order #`);
     } else if (lowerHeader === 'sample #' || lowerHeader === 'sample' || lowerHeader === 'sample_number' || lowerHeader === 'samplenumber') {
       mapping[trimmedHeader] = 'Sample #';
-      // console.log(`  -> Mapped to Sample #`);
     } else if (lowerHeader === 'sample date' || lowerHeader === 'sample_date' || lowerHeader === 'sampledate') {
       mapping[trimmedHeader] = 'Sample Date';
-      // console.log(`  -> Mapped to Sample Date`);
     } else if (lowerHeader === 'matrix') {
       mapping[trimmedHeader] = 'Matrix';
-      // console.log(`  -> Mapped to Matrix`);
     } else if (lowerHeader === 'sample description' || lowerHeader === 'sample_description' || lowerHeader === 'description') {
       mapping[trimmedHeader] = 'Sample Description';
-      // console.log(`  -> Mapped to Sample Description`);
     } else if (lowerHeader === 'method' || lowerHeader === 'test_method' || lowerHeader === 'analysis_method') {
       mapping[trimmedHeader] = 'Method';
-      // console.log(`  -> Mapped to Method`);
     } else if (lowerHeader === 'parameter' || lowerHeader === 'parameter_name' || lowerHeader === 'analyte') {
       mapping[trimmedHeader] = 'Parameter';
-      // console.log(`  -> Mapped to Parameter`);
     } else if (lowerHeader === 'mdl' || lowerHeader === 'method detection limit' || lowerHeader === 'detection_limit') {
       mapping[trimmedHeader] = 'MDL';
-      // console.log(`  -> Mapped to MDL`);
     } else if (lowerHeader === 'result' || lowerHeader === 'value' || lowerHeader === 'concentration' || lowerHeader === 'test_result') {
       mapping[trimmedHeader] = 'Result';
-      // console.log(`  -> Mapped to Result`);
     } else if (lowerHeader === 'units' || lowerHeader === 'unit' || lowerHeader === 'uom') {
       mapping[trimmedHeader] = 'Units';
-      // console.log(`  -> Mapped to Units`);
     } else if (lowerHeader === 'received date' || lowerHeader === 'received_date' || lowerHeader === 'receiveddate' || lowerHeader === 'date_received') {
       mapping[trimmedHeader] = 'Received Date';
-      // console.log(`  -> Mapped to Received Date`);
     } else if (lowerHeader === 'analysis date' || lowerHeader === 'analysis_date' || lowerHeader === 'analysisdate' || lowerHeader === 'date_analyzed' || lowerHeader === 'test_date') {
       mapping[trimmedHeader] = 'Analysis Date';
-      // console.log(`  -> Mapped to Analysis Date`);
     } else if (lowerHeader === 'notes' || lowerHeader === 'comments' || lowerHeader === 'remarks') {
       mapping[trimmedHeader] = 'Notes';
-      // console.log(`  -> Mapped to Notes`);
-    } else {
-      // console.log(`  -> NO MAPPING FOUND for "${trimmedHeader}"`);
     }
   });
   
@@ -1023,7 +1147,6 @@ function createColumnMapping(csvHeaders) {
     }
   });
   
-  // console.log('Final valid mapping object:', validMapping);
   return validMapping;
 }
 

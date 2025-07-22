@@ -1,18 +1,43 @@
-// src/components/AdminReportsUpload.jsx
+// src/components/AdminReportsUpload.jsx - Updated with Report Type Selection
 import { useState, useEffect } from 'react';
 import { useAuth } from '../contexts/AuthContext';
 import { supabase } from '../lib/supabaseClient';
 
 export default function AdminReportsUpload() {
   const { user } = useAuth();
-  const [formData, setFormData] = useState({
-    kitRegistrationId: '',
-    kitRegistrationType: '', // 'regular' or 'legacy'
-    workOrderNumber: '',
-    sampleNumber: ''
-  });
-  const [selectedFile, setSelectedFile] = useState(null);
-  const [registeredKits, setRegisteredKits] = useState([]);
+  const [reportType, setReportType] = useState('kit'); // 'kit' or 'one_off'
+const [formData, setFormData] = useState({
+  kitRegistrationId: '',
+  kitRegistrationType: '',
+  workOrderNumber: '',
+  sampleNumber: ''
+});
+
+// Customer and Kit info for unregistered/one-off reports
+const [customCustomerInfo, setCustomCustomerInfo] = useState({
+  firstName: '',
+  lastName: '',
+  email: '',
+  address: '',
+  city: '',
+  province: '',
+  postalCode: '',
+  location: ''
+});
+
+const [customKitInfo, setCustomKitInfo] = useState({
+  kitCode: '',
+  testKitName: 'Advanced Water Test Kit',
+  testKitId: ''
+});
+
+const [selectedFile, setSelectedFile] = useState(null);
+const [availableKits, setAvailableKits] = useState({
+  registered: [],
+  unregistered: []
+});
+const [selectedKitInfo, setSelectedKitInfo] = useState(null);
+  const [testKits, setTestKits] = useState([]);
   const [loading, setLoading] = useState(false);
   const [processing, setProcessing] = useState(false);
   const [error, setError] = useState(null);
@@ -20,134 +45,134 @@ export default function AdminReportsUpload() {
   const [allTestKits, setAllTestKits] = useState([]);
   const [searchQuery, setSearchQuery] = useState('');
 
-  // Helper function for kit display info
-  const getKitDisplayInfo = (kit) => {
-    const statusBadge = kit.kitStatus ? ` (${kit.kitStatus})` : '';
-    const typeBadge = kit.type === 'legacy' ? ' [Legacy]' : '';
-    
-    return {
-      label: `${kit.displayId} - ${kit.productName} - ${kit.orderNumber}${typeBadge}${statusBadge}`,
-      subtitle: kit.customerName || 'No customer info',
-      type: kit.type
-    };
-  };
-
-  // Add the report download handler function
-  const handleDownloadReport = async (reportId, kitCode) => {
-    try {
-      // Get the report details to find the PDF file name
-      const { data: report, error } = await supabase
-        .from('reports')
-        .select('pdf_file_url')
-        .eq('report_id', reportId)
-        .single();
-  
-      if (error) {
-        console.error('Error fetching report:', error);
-        setError('Failed to fetch report details');
-        return;
-      }
-  
-      if (!report?.pdf_file_url) {
-        setError('Report PDF not available');
-        return;
-      }
-  
-      // Extract filename from URL or use kitCode pattern
-      let fileName;
-      if (report.pdf_file_url.includes('/')) {
-        fileName = report.pdf_file_url.split('/').pop();
-      } else {
-        fileName = `My-Water-Quality-Report-${kitCode}.pdf`;
-      }
-  
-      // Create a signed URL for secure download (valid for 1 hour)
-      const { data: signedUrlData, error: signedUrlError } = await supabase.storage
-        .from('generated-reports')
-        .createSignedUrl(fileName, 3600); // 1 hour expiry
-  
-      if (signedUrlError) {
-        console.error('Error creating signed URL:', signedUrlError);
-        setError('Failed to generate download link');
-        return;
-      }
-  
-      if (signedUrlData?.signedUrl) {
-        // Open the signed URL in a new tab for download
-        window.open(signedUrlData.signedUrl, '_blank');
-      } else {
-        setError('Failed to generate download link');
-      }
-    } catch (err) {
-      console.error('Error downloading report:', err);
-      setError('Failed to download report');
-    }
-  };
-
-// Load registered kits on component mount
-useEffect(() => {
-    loadRegisteredKits();
+  // Load data on component mount
+  useEffect(() => {
+    loadKitsData();
+    loadTestKitTypes();
     loadAllTestKits();
   }, []);
 
-  const loadRegisteredKits = async () => {
+  // Reset form when report type changes
+  useEffect(() => {
+    resetForm();
+  }, [reportType]);
+
+  const resetForm = () => {
+    setFormData({
+      kitRegistrationId: '',
+      kitRegistrationType: '',
+      workOrderNumber: '',
+      sampleNumber: ''
+    });
+    setCustomCustomerInfo({
+      firstName: '',
+      lastName: '',
+      email: '',
+      address: '',
+      city: '',
+      province: '',
+      postalCode: '',
+      location: ''
+    });
+    setCustomKitInfo({
+      kitCode: '',
+      testKitName: 'Advanced Water Test Kit',
+      testKitId: ''
+    });
+    setSelectedKitInfo(null);
+    setSelectedFile(null);
+    setError(null);
+    setSuccess(null);
+    
+    // Reset file input
+    const fileInput = document.getElementById('file-upload');
+    if (fileInput) fileInput.value = '';
+  };
+
+  const loadKitsData = async () => {
     try {
       setLoading(true);
       
-      // Load kits from the admin view that don't have results yet
+      // Load kits that are awaiting results and not yet reported
       const { data: kitsData, error: kitsError } = await supabase
         .from('vw_test_kits_admin')
         .select('*')
         .is('work_order_number', null)
-        .is('sample_number', null)
+        .is('sample_number', null) 
         .is('report_id', null)
+        .not('kit_status', 'in', '("report_generated","report_delivered")')
         .order('kit_created_at', { ascending: false });
-
+  
       if (kitsError) {
         throw kitsError;
       }
-
-      // Format the kits for the dropdown
-      const formattedKits = (kitsData || []).map(kit => ({
-        id: kit.kit_id,
-        type: kit.kit_type,
-        displayId: kit.kit_code,
-        productName: kit.test_kit_name,
-        orderNumber: kit.order_number,
-        customerName: `${kit.customer_first_name || ''} ${kit.customer_last_name || ''}`.trim(),
-        customerEmail: kit.customer_email || '',
-        createdAt: kit.kit_created_at,
-        // Additional fields for display
-        kitStatus: kit.kit_status,
-        isRegistered: kit.is_registered
-      }));
-
-      // Filter to only show registered kits (for regular kits) or all legacy kits
-      const availableKits = formattedKits.filter(kit => {
-        if (kit.type === 'legacy') {
-          return true; // Legacy kits are always considered "registered"
+  
+      // Separate registered and unregistered kits based on registration status
+      const registered = [];
+      const unregistered = [];
+      
+      (kitsData || []).forEach(kit => {
+        const formattedKit = {
+          id: kit.kit_id,
+          type: kit.kit_type,
+          displayId: kit.kit_code,
+          productName: kit.test_kit_name,
+          orderNumber: kit.order_number,
+          customerName: `${kit.customer_first_name || ''} ${kit.customer_last_name || ''}`.trim(),
+          customerEmail: kit.customer_email || '',
+          createdAt: kit.kit_created_at,
+          isRegistered: kit.is_registered
+        };
+  
+        // Use is_registered field to determine if registered or unregistered
+        if (kit.is_registered || kit.kit_type === 'legacy') {
+          registered.push(formattedKit);
         } else {
-          return kit.isRegistered; // Regular kits must be registered by customer
+          unregistered.push(formattedKit);
         }
       });
-
-      setRegisteredKits(availableKits);
-
+  
+      setAvailableKits({
+        registered,
+        unregistered
+      });
+  
     } catch (err) {
-      console.error('Error loading registered kits:', err);
-      setError('Failed to load registered kits');
+      console.error('Error loading kits data:', err);
+      setError('Failed to load kits data');
     } finally {
       setLoading(false);
     }
   };
-  
+
+  // Debug logging - you can remove this after testing
+useEffect(() => {
+  console.log('Available kits state:', availableKits);
+  console.log('Report type:', reportType);
+}, [availableKits, reportType]);
+
+  const loadTestKitTypes = async () => {
+    try {
+      const { data, error } = await supabase
+        .from('test_kits')
+        .select('*')
+        .eq('environment', 'prod')
+        .order('name');
+
+      if (error) throw error;
+      setTestKits(data || []);
+    } catch (err) {
+      console.error('Error loading test kits:', err);
+    }
+  };
+
   const loadAllTestKits = async () => {
     try {
       const { data, error } = await supabase
         .from('vw_test_kits_admin')
         .select('*')
         .order('kit_created_at', { ascending: false });
-  
+
       if (error) throw error;
       setAllTestKits(data || []);
     } catch (err) {
@@ -159,13 +184,36 @@ useEffect(() => {
     const { name, value } = e.target;
     
     if (name === 'kitRegistrationId') {
-      // When kit is selected, also set the type
-      const selectedKit = registeredKits.find(kit => kit.id === value);
+      // Find the selected kit from both registered and unregistered lists
+      const allKits = [...availableKits.registered, ...availableKits.unregistered];
+      const selectedKit = allKits.find(kit => kit.id === value);
+      
       setFormData(prev => ({
         ...prev,
         [name]: value,
         kitRegistrationType: selectedKit ? selectedKit.type : ''
       }));
+      
+      setSelectedKitInfo(selectedKit || null);
+      
+      // Reset custom info when switching kits
+      if (selectedKit) {
+        setCustomCustomerInfo({
+          firstName: '',
+          lastName: '', 
+          email: '',
+          address: '',
+          city: '',
+          province: '',
+          postalCode: '',
+          location: ''
+        });
+        setCustomKitInfo({
+          kitCode: '',
+          testKitName: 'Advanced Water Test Kit',
+          testKitId: ''
+        });
+      }
     } else {
       setFormData(prev => ({
         ...prev,
@@ -173,20 +221,45 @@ useEffect(() => {
       }));
     }
     
-    // Clear any existing error when user starts typing
     if (error) setError(null);
     if (success) setSuccess(null);
+  };
+
+  const handleCustomerInfoChange = (e) => {
+    const { name, value } = e.target;
+    setCustomCustomerInfo(prev => ({
+      ...prev,
+      [name]: value
+    }));
+  };
+
+  const handleKitInfoChange = (e) => {
+    const { name, value } = e.target;
+    
+    if (name === 'testKitName') {
+      // Find the selected test kit to get its ID
+      const selectedKit = testKits.find(kit => kit.name === value);
+      setCustomKitInfo(prev => ({
+        ...prev,
+        testKitName: value,
+        testKitId: selectedKit ? (selectedKit.id || selectedKit.test_kit_uuid || selectedKit.uuid) : ''
+      }));
+    } else {
+      setCustomKitInfo(prev => ({
+        ...prev,
+        [name]: value
+      }));
+    }
   };
 
   const handleFileChange = (e) => {
     const file = e.target.files[0];
     
     if (file) {
-      // Validate file type
       const allowedTypes = [
-        'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet', // .xlsx
-        'application/vnd.ms-excel', // .xls
-        'text/csv' // .csv
+        'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet',
+        'application/vnd.ms-excel',
+        'text/csv'
       ];
       
       if (!allowedTypes.includes(file.type)) {
@@ -194,7 +267,6 @@ useEffect(() => {
         return;
       }
       
-      // Validate file size (max 10MB)
       if (file.size > 10 * 1024 * 1024) {
         setError('File size must be less than 10MB');
         return;
@@ -206,24 +278,35 @@ useEffect(() => {
   };
 
   const validateForm = () => {
-    if (!formData.kitRegistrationId) {
-      setError('Please select a registered kit');
-      return false;
-    }
-    
-    // if (!formData.workOrderNumber.trim()) {
-    //   setError('Please enter a work order number');
-    //   return false;
-    // }
-    
-    // if (!formData.sampleNumber.trim()) {
-    //   setError('Please enter a sample number');
-    //   return false;
-    // }
-    
     if (!selectedFile) {
       setError('Please select a file to upload');
       return false;
+    }
+
+    if (reportType === 'kit') {
+      if (!formData.kitRegistrationId) {
+        setError('Please select a kit');
+        return false;
+      }
+      // For unregistered kits, kit code is required if custom info is provided
+      if (selectedKitInfo && !selectedKitInfo.isRegistered && customKitInfo.kitCode.trim() === '') {
+        setError('Please enter a kit code for unregistered kits');
+        return false;
+      }
+    } else if (reportType === 'one_off') {
+      // For one-off reports, require customer info and kit info
+      if (!customCustomerInfo.firstName.trim()) {
+        setError('Please enter customer first name');
+        return false;
+      }
+      if (!customCustomerInfo.lastName.trim()) {
+        setError('Please enter customer last name');
+        return false;
+      }
+      if (!customKitInfo.kitCode.trim()) {
+        setError('Please enter a kit code');
+        return false;
+      }
     }
     
     return true;
@@ -240,22 +323,40 @@ useEffect(() => {
     setSuccess(null);
 
     try {
-      // Get auth token
       const { data: { session } } = await supabase.auth.getSession();
       if (!session) {
         throw new Error('Authentication required');
       }
 
-    // Create form data for file upload
-    const uploadFormData = new FormData();
-    uploadFormData.append('file', selectedFile);
-    uploadFormData.append('kitRegistrationId', formData.kitRegistrationId);
-    uploadFormData.append('kitRegistrationType', formData.kitRegistrationType);
-    // SWAP THESE - the form labels are correct but the values are being sent backwards
-    uploadFormData.append('workOrderNumber', formData.sampleNumber);  // Send sample number as work order
-    uploadFormData.append('sampleNumber', formData.workOrderNumber);  // Send work order as sample number
+      const uploadFormData = new FormData();
+      uploadFormData.append('file', selectedFile);
+      uploadFormData.append('reportType', reportType);
+      
+      // Add common fields
+      uploadFormData.append('workOrderNumber', formData.sampleNumber || '');
+      uploadFormData.append('sampleNumber', formData.workOrderNumber || '');
+      
+      if (reportType === 'kit') {
+        uploadFormData.append('kitRegistrationId', formData.kitRegistrationId);
+        uploadFormData.append('kitRegistrationType', formData.kitRegistrationType);
+        
+        // Determine actual report type based on kit registration status
+        const actualReportType = selectedKitInfo?.isRegistered ? 'registered' : 'unregistered';
+        uploadFormData.append('reportType', actualReportType);
+        
+        // Add custom info for unregistered kits
+        if (!selectedKitInfo?.isRegistered) {
+          uploadFormData.append('customCustomerInfo', JSON.stringify(customCustomerInfo));
+          uploadFormData.append('customKitInfo', JSON.stringify(customKitInfo));
+        }
+      } else if (reportType === 'one_off') {
+        uploadFormData.append('customCustomerInfo', JSON.stringify(customCustomerInfo));
+        uploadFormData.append('customKitInfo', JSON.stringify(customKitInfo));
+        uploadFormData.append('kitRegistrationId', ''); // No kit registration for one-off
+        uploadFormData.append('kitRegistrationType', 'one_off');
+        uploadFormData.append('reportType', 'one_off');
+      }
 
-      // Call Netlify function to process the upload
       const response = await fetch('/.netlify/functions/process-test-results', {
         method: 'POST',
         headers: {
@@ -272,22 +373,10 @@ useEffect(() => {
       const result = await response.json();
       
       setSuccess(`Test results uploaded successfully! Report ID: ${result.reportId}`);
+      resetForm();
       
-      // Reset form
-        setFormData({
-            kitRegistrationId: '',
-            kitRegistrationType: '',
-            workOrderNumber: '',
-            sampleNumber: ''
-        });
-      setSelectedFile(null);
-      
-      // Reset file input
-      const fileInput = document.getElementById('file-upload');
-      if (fileInput) fileInput.value = '';
-      
-      // Reload kit registrations to show updated data
-      loadRegisteredKits();
+      // Reload data
+      loadKitsData();
       loadAllTestKits();
       
     } catch (err) {
@@ -296,6 +385,53 @@ useEffect(() => {
     } finally {
       setLoading(false);
       setProcessing(false);
+    }
+  };
+
+  const handleDownloadReport = async (reportId, kitCode) => {
+    try {
+      const { data: report, error } = await supabase
+        .from('reports')
+        .select('pdf_file_url')
+        .eq('report_id', reportId)
+        .single();
+
+      if (error) {
+        console.error('Error fetching report:', error);
+        setError('Failed to fetch report details');
+        return;
+      }
+
+      if (!report?.pdf_file_url) {
+        setError('Report PDF not available');
+        return;
+      }
+
+      let fileName;
+      if (report.pdf_file_url.includes('/')) {
+        fileName = report.pdf_file_url.split('/').pop();
+      } else {
+        fileName = `My-Water-Quality-Report-${kitCode}.pdf`;
+      }
+
+      const { data: signedUrlData, error: signedUrlError } = await supabase.storage
+        .from('generated-reports')
+        .createSignedUrl(fileName, 3600);
+
+      if (signedUrlError) {
+        console.error('Error creating signed URL:', signedUrlError);
+        setError('Failed to generate download link');
+        return;
+      }
+
+      if (signedUrlData?.signedUrl) {
+        window.open(signedUrlData.signedUrl, '_blank');
+      } else {
+        setError('Failed to generate download link');
+      }
+    } catch (err) {
+      console.error('Error downloading report:', err);
+      setError('Failed to download report');
     }
   };
 
@@ -311,6 +447,17 @@ useEffect(() => {
     );
   });
 
+  const getKitDisplayInfo = (kit) => {
+    const statusBadge = kit.kitStatus ? ` (${kit.kitStatus})` : '';
+    const typeBadge = kit.type === 'legacy' ? ' [Legacy]' : '';
+    
+    return {
+      label: `${kit.displayId} - ${kit.productName} - ${kit.orderNumber}${typeBadge}${statusBadge}`,
+      subtitle: kit.customerName || 'No customer info',
+      type: kit.type
+    };
+  };
+
   return (
     <div className="space-y-6">
       {/* Header */}
@@ -324,116 +471,237 @@ useEffect(() => {
           </p>
         </div>
 
+        {/* Report Type Selection */}
+        <div className="px-4 sm:px-6 py-4 border-b border-gray-200 bg-gray-50">
+          <div className="space-y-3">
+            <h4 className="text-sm font-medium text-gray-900">Report Type</h4>
+            <div className="flex flex-col sm:flex-row gap-3">
+              <label className="flex items-center">
+                <input
+                  type="radio"
+                  name="reportType"
+                  value="kit"
+                  checked={reportType === 'kit'}
+                  onChange={(e) => setReportType(e.target.value)}
+                  className="h-4 w-4 text-blue-600 focus:ring-blue-500 border-gray-300"
+                />
+                <span className="ml-2 text-sm text-gray-700">Existing Kit</span>
+                <span className="ml-2 text-xs text-gray-500">(Report for an existing kit in the system)</span>
+              </label>
+              
+              <label className="flex items-center">
+                <input
+                  type="radio"
+                  name="reportType"
+                  value="one_off"
+                  checked={reportType === 'one_off'}
+                  onChange={(e) => setReportType(e.target.value)}
+                  className="h-4 w-4 text-blue-600 focus:ring-blue-500 border-gray-300"
+                />
+                <span className="ml-2 text-sm text-gray-700">One-off Report</span>
+                <span className="ml-2 text-xs text-gray-500">(Independent report, not tied to existing kit)</span>
+              </label>
+            </div>
+          </div>
+        </div>
+
         {/* Upload Form */}
         <form onSubmit={handleSubmit} className="p-4 sm:p-6 space-y-6">
-          {/* Registered Kit Selection */}
-            <div>
-            <label htmlFor="kitRegistrationId" className="block text-sm font-medium text-gray-700 mb-2">
-                Registered Kit <span className="text-red-500">*</span>
-            </label>
-            <select
-              id="kitRegistrationId"
-              name="kitRegistrationId"
-              value={formData.kitRegistrationId}
-              onChange={handleInputChange}
-              className="w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 sm:text-sm"
-              required
-            >
-              <option value="">Select a registered kit awaiting results...</option>
-              {registeredKits.map((kit) => (
-                <option key={kit.id} value={kit.id}>
-                  {kit.displayId} - {kit.productName} - {kit.orderNumber}
-                  {kit.customerName && ` - ${kit.customerName}`}
-                  {kit.type === 'legacy' ? ' (Legacy)' : ''}
-                </option>
-              ))}
-            </select>
-            {registeredKits.length === 0 && !loading && (
-              <p className="mt-2 text-sm text-gray-500">
-                No registered kits available for results upload. Kits must be registered by customers before results can be uploaded.
-                {loading && " Loading available kits..."}
-              </p>
-            )}
+          {/* Kit Selection for Registered/Unregistered */}
+{(reportType === 'registered' || reportType === 'unregistered') && (
+  <div>
+    <label htmlFor="kitRegistrationId" className="block text-sm font-medium text-gray-700 mb-2">
+      {reportType === 'registered' ? 'Registered Kit' : 'Unregistered Kit'} <span className="text-red-500">*</span>
+    </label>
+    <select
+      id="kitRegistrationId"
+      name="kitRegistrationId"
+      value={formData.kitRegistrationId}
+      onChange={handleInputChange}
+      className="w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 sm:text-sm"
+      required
+    >
+      <option value="">
+        Select a {reportType === 'registered' ? 'registered' : 'unregistered'} kit awaiting results...
+      </option>
+      {(reportType === 'registered' ? registeredKits : unregisteredKits).map((kit) => {
+        const displayInfo = getKitDisplayInfo(kit);
+        return (
+          <option key={kit.id} value={kit.id}>
+            {displayInfo.label}
+            {kit.customerName && ` - ${kit.customerName}`}
+            {reportType === 'unregistered' && ' [UNREGISTERED]'}
+          </option>
+        );
+      })}
+    </select>
+    {((reportType === 'registered' ? registeredKits : unregisteredKits).length === 0) && !loading && (
+      <p className="mt-2 text-sm text-gray-500">
+        No {reportType === 'registered' ? 'registered' : 'unregistered'} kits available for results upload.
+        {loading && " Loading available kits..."}
+      </p>
+    )}
+  </div>
+)}
+
+          {/* Customer Information for Unregistered/One-off */}
+          {((reportType === 'kit' && selectedKitInfo && !selectedKitInfo.isRegistered) || reportType === 'one_off') && (
+            <div className="space-y-4 border-t border-gray-200 pt-6">
+              <h4 className="text-md font-medium text-gray-900">
+                Customer Information 
+                {reportType === 'one_off' && <span className="text-red-500">*</span>}
+              </h4>
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                <div>
+                  <label htmlFor="firstName" className="block text-sm font-medium text-gray-700 mb-1">
+                    First Name {reportType === 'one_off' && <span className="text-red-500">*</span>}
+                  </label>
+                  <input
+                    type="text"
+                    id="firstName"
+                    name="firstName"
+                    value={customCustomerInfo.firstName}
+                    onChange={handleCustomerInfoChange}
+                    className="w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 sm:text-sm"
+                    required={reportType === 'one_off'}
+                  />
+                </div>
+
+                <div>
+                  <label htmlFor="lastName" className="block text-sm font-medium text-gray-700 mb-1">
+                    Last Name {reportType === 'one_off' && <span className="text-red-500">*</span>}
+                  </label>
+                  <input
+                    type="text"
+                    id="lastName"
+                    name="lastName"
+                    value={customCustomerInfo.lastName}
+                    onChange={handleCustomerInfoChange}
+                    className="w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 sm:text-sm"
+                    required={reportType === 'one_off'}
+                  />
+                </div>
+
+                <div>
+                  <label htmlFor="email" className="block text-sm font-medium text-gray-700 mb-1">
+                    Email
+                  </label>
+                  <input
+                    type="email"
+                    id="email"
+                    name="email"
+                    value={customCustomerInfo.email}
+                    onChange={handleCustomerInfoChange}
+                    className="w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 sm:text-sm"
+                  />
+                </div>
+
+                <div>
+                  <label htmlFor="location" className="block text-sm font-medium text-gray-700 mb-1">
+                    Location/Address
+                  </label>
+                  <input
+                    type="text"
+                    id="location"
+                    name="location"
+                    value={customCustomerInfo.location}
+                    onChange={handleCustomerInfoChange}
+                    className="w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 sm:text-sm"
+                    placeholder="e.g., Toronto, ON or 123 Main St, Toronto, ON"
+                  />
+                </div>
+              </div>
             </div>
-        
-        {/* Selected Kit Info Display */}
-        {(() => {
-          const selectedKitInfo = registeredKits.find(kit => kit.id === formData.kitRegistrationId);
-          return selectedKitInfo ? (
-            <div className="bg-blue-50 border border-blue-200 rounded-md p-4">
-              <h4 className="text-sm font-medium text-blue-900 mb-2">Selected Kit Information</h4>
+          )}
+
+          {/* Kit Information for Unregistered/One-off */}
+          {((reportType === 'kit' && selectedKitInfo && !selectedKitInfo.isRegistered) || reportType === 'one_off') && (
+            <div className="space-y-4 border-t border-gray-200 pt-6">
+              <h4 className="text-md font-medium text-gray-900">Kit Information</h4>
+              
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+                <div>
+                  <label htmlFor="kitCode" className="block text-sm font-medium text-gray-700 mb-1">
+                    Kit Code <span className="text-red-500">*</span>
+                  </label>
+                  <input
+                    type="text"
+                    id="kitCode"
+                    name="kitCode"
+                    value={customKitInfo.kitCode}
+                    onChange={handleKitInfoChange}
+                    className="w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 sm:text-sm"
+                    placeholder="e.g., MWQ-001, CUSTOM-123"
+                    required
+                  />
+                </div>
+
+                <div>
+                  <label htmlFor="testKitName" className="block text-sm font-medium text-gray-700 mb-1">
+                    Test Kit Type
+                  </label>
+                  <select
+                    id="testKitName"
+                    name="testKitName"
+                    value={customKitInfo.testKitName}
+                    onChange={handleKitInfoChange}
+                    className="w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 sm:text-sm"
+                  >
+                    {testKits.map((kit) => (
+                      <option key={kit.id || kit.test_kit_uuid || kit.uuid} value={kit.name}>
+                        {kit.name}
+                      </option>
+                    ))}
+                  </select>
+                </div>
+              </div>
+            </div>
+          )}
+
+          {/* Selected Kit Info Display */}
+          {reportType === 'kit' && selectedKitInfo && (
+            <div className={`border rounded-md p-4 ${selectedKitInfo.isRegistered ? 'bg-blue-50 border-blue-200' : 'bg-yellow-50 border-yellow-200'}`}>
+              <h4 className={`text-sm font-medium mb-2 ${selectedKitInfo.isRegistered ? 'text-blue-900' : 'text-yellow-900'}`}>
+                Selected Kit Information
+              </h4>
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 text-sm">
                 <div>
-                  <span className="font-medium text-blue-800">Kit Code:</span>
-                  <span className="ml-2 text-blue-700">{selectedKitInfo.displayId}</span>
+                  <span className={`font-medium ${selectedKitInfo.isRegistered ? 'text-blue-800' : 'text-yellow-800'}`}>Kit Code:</span>
+                  <span className={`ml-2 ${selectedKitInfo.isRegistered ? 'text-blue-700' : 'text-yellow-700'}`}>{selectedKitInfo.displayId}</span>
                 </div>
                 <div>
-                  <span className="font-medium text-blue-800">Product:</span>
-                  <span className="ml-2 text-blue-700">{selectedKitInfo.productName}</span>
+                  <span className={`font-medium ${selectedKitInfo.isRegistered ? 'text-blue-800' : 'text-yellow-800'}`}>Product:</span>
+                  <span className={`ml-2 ${selectedKitInfo.isRegistered ? 'text-blue-700' : 'text-yellow-700'}`}>{selectedKitInfo.productName}</span>
                 </div>
                 <div>
-                  <span className="font-medium text-blue-800">Order:</span>
-                  <span className="ml-2 text-blue-700">{selectedKitInfo.orderNumber}</span>
+                  <span className={`font-medium ${selectedKitInfo.isRegistered ? 'text-blue-800' : 'text-yellow-800'}`}>Order:</span>
+                  <span className={`ml-2 ${selectedKitInfo.isRegistered ? 'text-blue-700' : 'text-yellow-700'}`}>{selectedKitInfo.orderNumber}</span>
                 </div>
                 {selectedKitInfo.customerName && (
                   <div>
-                    <span className="font-medium text-blue-800">Customer:</span>
-                    <span className="ml-2 text-blue-700">{selectedKitInfo.customerName}</span>
+                    <span className={`font-medium ${selectedKitInfo.isRegistered ? 'text-blue-800' : 'text-yellow-800'}`}>Customer:</span>
+                    <span className={`ml-2 ${selectedKitInfo.isRegistered ? 'text-blue-700' : 'text-yellow-700'}`}>{selectedKitInfo.customerName}</span>
                   </div>
                 )}
                 <div>
-                  <span className="font-medium text-blue-800">Type:</span>
-                  <span className="ml-2 text-blue-700 capitalize">
+                  <span className={`font-medium ${selectedKitInfo.isRegistered ? 'text-blue-800' : 'text-yellow-800'}`}>Type:</span>
+                  <span className={`ml-2 ${selectedKitInfo.isRegistered ? 'text-blue-700' : 'text-yellow-700'} capitalize`}>
                     {selectedKitInfo.type}
                     {selectedKitInfo.type === 'legacy' && ' Kit'}
                   </span>
                 </div>
                 <div>
-                  <span className="font-medium text-blue-800">Status:</span>
-                  <span className="ml-2 text-blue-700">{selectedKitInfo.kitStatus}</span>
+                  <span className={`font-medium ${selectedKitInfo.isRegistered ? 'text-blue-800' : 'text-yellow-800'}`}>Registration Status:</span>
+                  <span className={`ml-2 font-medium ${selectedKitInfo.isRegistered ? 'text-green-700' : 'text-red-700'}`}>
+                    {selectedKitInfo.isRegistered ? 'Registered' : 'Unregistered'}
+                  </span>
                 </div>
               </div>
             </div>
-          ) : null;
-        })()}
-
-          {/* Work Order Number and Sample Number - Side by side on larger screens */}
-          {/* <div className="grid grid-cols-1 sm:grid-cols-2 gap-4 sm:gap-6">
-            <div>
-              <label htmlFor="workOrderNumber" className="block text-sm font-medium text-gray-700 mb-2">
-                Work Order Number <span className="text-red-500">*</span>
-              </label>
-              <input
-                type="text"
-                id="workOrderNumber"
-                name="workOrderNumber"
-                value={formData.workOrderNumber}
-                onChange={handleInputChange}
-                className="w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 sm:text-sm"
-                placeholder="Enter work order number"
-                required
-              />
-            </div>
-
-            <div>
-              <label htmlFor="sampleNumber" className="block text-sm font-medium text-gray-700 mb-2">
-                Sample Number <span className="text-red-500">*</span>
-              </label>
-              <input
-                type="text"
-                id="sampleNumber"
-                name="sampleNumber"
-                value={formData.sampleNumber}
-                onChange={handleInputChange}
-                className="w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 sm:text-sm"
-                placeholder="Enter sample number"
-                required
-              />
-            </div>
-          </div> */}
+          )}
 
           {/* File Upload */}
-          <div>
+          <div className="border-t border-gray-200 pt-6">
             <label htmlFor="file-upload" className="block text-sm font-medium text-gray-700 mb-2">
               Test Results File <span className="text-red-500">*</span>
             </label>
@@ -476,7 +744,6 @@ useEffect(() => {
               </div>
             </div>
             
-            {/* Show selected file */}
             {selectedFile && (
               <div className="mt-3 p-3 bg-blue-50 border border-blue-200 rounded-md">
                 <div className="flex items-center justify-between">
@@ -506,7 +773,7 @@ useEffect(() => {
             )}
           </div>
 
-          {/* Error/Success Messages */}
+          {/* Error/Success/Processing Messages */}
           {error && (
             <div className="bg-red-50 border border-red-200 rounded-md p-4">
               <div className="flex">
@@ -559,7 +826,7 @@ useEffect(() => {
           )}
 
           {/* Submit Button */}
-          <div className="flex justify-end">
+          <div className="flex justify-end border-t border-gray-200 pt-6">
             <button
               type="submit"
               disabled={loading}
@@ -578,7 +845,7 @@ useEffect(() => {
                   <svg className="h-4 w-4 mr-2" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                     <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M7 16a4 4 0 01-.88-7.903A5 5 0 1115.9 6L16 6a5 5 0 011 9.9M15 13l-3-3m0 0l-3 3m3-3v12" />
                   </svg>
-                  Save
+                  Upload & Process Results
                 </>
               )}
             </button>
@@ -591,7 +858,7 @@ useEffect(() => {
         <div className="px-4 sm:px-6 py-4 sm:py-5 border-b border-gray-200">
           <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between">
             <h3 className="text-lg leading-6 font-medium text-gray-900 mb-2 sm:mb-0">
-              All Test Kits
+              All Test Kits & Reports
             </h3>
             <div className="w-full sm:w-64">
               <input
@@ -621,6 +888,9 @@ useEffect(() => {
                   Customer Name
                 </th>
                 <th className="px-6 py-3 text-center text-xs font-medium text-gray-500 uppercase tracking-wider">
+                  Registration Status
+                </th>
+                <th className="px-6 py-3 text-center text-xs font-medium text-gray-500 uppercase tracking-wider">
                   Chain of Custody
                 </th>
                 <th className="px-6 py-3 text-center text-xs font-medium text-gray-500 uppercase tracking-wider">
@@ -631,23 +901,22 @@ useEffect(() => {
             <tbody className="bg-white divide-y divide-gray-200">
               {filteredTestKits.map((kit) => (
                 <tr key={kit.kit_id} className="hover:bg-gray-50">
-                  {/* Details Column */}
                   <td className="px-6 py-4 whitespace-nowrap">
                     <div>
                       <div className="text-sm font-medium text-gray-900">{kit.kit_code || 'N/A'}</div>
                       <div className="text-sm text-gray-500">#{kit.order_number || 'N/A'}</div>
+                      <div className="text-xs text-gray-400">
+                        {kit.kit_type === 'legacy' ? 'Legacy Kit' : 'Regular Kit'}
+                      </div>
                     </div>
                   </td>
                   
-                  {/* Customer Name Column - Handle missing customer info gracefully */}
                   <td className="px-6 py-4 whitespace-nowrap">
                     <div>
                       <div className="text-sm font-medium text-gray-900">
                         {kit.kit_type === 'legacy' ? (
-                          // For legacy kits, show customer name from profiles if available
                           `${kit.customer_first_name || ''} ${kit.customer_last_name || ''}`.trim() || 'Legacy Customer'
                         ) : (
-                          // For regular kits, show full name or fallback
                           `${kit.customer_first_name || ''} ${kit.customer_last_name || ''}`.trim() || 'Unknown Customer'
                         )}
                       </div>
@@ -657,7 +926,16 @@ useEffect(() => {
                     </div>
                   </td>
                   
-                  {/* Chain of Custody Column */}
+                  <td className="px-6 py-4 whitespace-nowrap text-center">
+                    <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium ${
+                      kit.is_registered || kit.kit_type === 'legacy'
+                        ? 'bg-green-100 text-green-800'
+                        : 'bg-red-100 text-red-800'
+                    }`}>
+                      {kit.is_registered || kit.kit_type === 'legacy' ? 'Registered' : 'Unregistered'}
+                    </span>
+                  </td>
+                  
                   <td className="px-6 py-4 whitespace-nowrap text-center">
                     {kit.chain_of_custody_url ? (
                       <button
@@ -674,7 +952,6 @@ useEffect(() => {
                     )}
                   </td>
                   
-                  {/* Report Column */}
                   <td className="px-6 py-4 whitespace-nowrap text-center">
                     {kit.has_report && kit.report_id ? (
                       <button
