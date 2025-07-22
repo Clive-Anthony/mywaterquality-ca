@@ -257,21 +257,17 @@ async function recordCouponUsage(supabaseAdmin, couponId, userId, orderId, disco
   }
 }
 
-// Reduce test kit inventory quantities
+// Reduce test kit inventory quantities using RPC function
 async function reduceInventoryQuantities(supabaseAdmin, orderItems, requestId) {
   try {
     log('info', `📦 Reducing inventory quantities for ${orderItems.length} items [${requestId}]`);
 
     const updatePromises = orderItems.map(async (item) => {
       const { data, error } = await supabaseAdmin
-        .from('test_kits')
-        .update({ 
-          quantity: supabaseAdmin.sql`quantity - ${item.quantity}`,
-          updated_at: new Date().toISOString()
-        })
-        .eq('id', item.test_kit_id)
-        .select('id, name, quantity')
-        .single();
+        .rpc('reduce_test_kit_inventory', {
+          kit_id: item.test_kit_id,
+          reduce_quantity: item.quantity
+        });
 
       if (error) {
         throw new Error(`Failed to reduce inventory for ${item.test_kit_id}: ${error.message}`);
