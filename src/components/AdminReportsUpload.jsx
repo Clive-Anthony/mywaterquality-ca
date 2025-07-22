@@ -35,24 +35,48 @@ export default function AdminReportsUpload() {
   // Add the report download handler function
   const handleDownloadReport = async (reportId, kitCode) => {
     try {
-      // Get the report details to find the PDF URL
+      // Get the report details to find the PDF file name
       const { data: report, error } = await supabase
         .from('reports')
         .select('pdf_file_url')
         .eq('report_id', reportId)
         .single();
-
+  
       if (error) {
         console.error('Error fetching report:', error);
         setError('Failed to fetch report details');
         return;
       }
-
-      if (report?.pdf_file_url) {
-        // Open the PDF in a new tab for download
-        window.open(report.pdf_file_url, '_blank');
-      } else {
+  
+      if (!report?.pdf_file_url) {
         setError('Report PDF not available');
+        return;
+      }
+  
+      // Extract filename from URL or use kitCode pattern
+      let fileName;
+      if (report.pdf_file_url.includes('/')) {
+        fileName = report.pdf_file_url.split('/').pop();
+      } else {
+        fileName = `My-Water-Quality-Report-${kitCode}.pdf`;
+      }
+  
+      // Create a signed URL for secure download (valid for 1 hour)
+      const { data: signedUrlData, error: signedUrlError } = await supabase.storage
+        .from('generated-reports')
+        .createSignedUrl(fileName, 3600); // 1 hour expiry
+  
+      if (signedUrlError) {
+        console.error('Error creating signed URL:', signedUrlError);
+        setError('Failed to generate download link');
+        return;
+      }
+  
+      if (signedUrlData?.signedUrl) {
+        // Open the signed URL in a new tab for download
+        window.open(signedUrlData.signedUrl, '_blank');
+      } else {
+        setError('Failed to generate download link');
       }
     } catch (err) {
       console.error('Error downloading report:', err);
