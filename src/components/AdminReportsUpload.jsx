@@ -12,6 +12,8 @@ const [formData, setFormData] = useState({
   workOrderNumber: '',
   sampleNumber: ''
 });
+const [kitSearchQuery, setKitSearchQuery] = useState('');
+const [showDropdown, setShowDropdown] = useState(false);
 
 // Customer and Kit info for unregistered/one-off reports
 const [customCustomerInfo, setCustomCustomerInfo] = useState({
@@ -83,6 +85,8 @@ const [selectedKitInfo, setSelectedKitInfo] = useState(null);
     setSelectedFile(null);
     setError(null);
     setSuccess(null);
+    setKitSearchQuery('');
+    setShowDropdown(false);
     
     // Reset file input
     const fileInput = document.getElementById('file-upload');
@@ -94,43 +98,45 @@ const [selectedKitInfo, setSelectedKitInfo] = useState(null);
       setLoading(true);
       
       // Load kits that are awaiting results and not yet reported
-      const { data: kitsData, error: kitsError } = await supabase
-        .from('vw_test_kits_admin')
-        .select('*')
-        .is('work_order_number', null)
-        .is('sample_number', null) 
-        .is('report_id', null)
-        .not('kit_status', 'in', '("report_generated","report_delivered")')
-        .order('kit_created_at', { ascending: false });
+const { data: kitsData, error: kitsError } = await supabase
+.from('vw_test_kits_admin')
+.select('*')
+.is('work_order_number', null)
+.is('sample_number', null) 
+.is('report_id', null)
+.not('kit_status', 'in', '("report_generated","report_delivered")')
+.in('registration_status', ['registered', 'unregistered'])
+.order('kit_created_at', { ascending: false });
   
       if (kitsError) {
         throw kitsError;
       }
   
-      // Separate registered and unregistered kits based on registration status
-      const registered = [];
-      const unregistered = [];
-      
-      (kitsData || []).forEach(kit => {
-        const formattedKit = {
-          id: kit.kit_id,
-          type: kit.kit_type,
-          displayId: kit.kit_code,
-          productName: kit.test_kit_name,
-          orderNumber: kit.order_number,
-          customerName: `${kit.customer_first_name || ''} ${kit.customer_last_name || ''}`.trim(),
-          customerEmail: kit.customer_email || '',
-          createdAt: kit.kit_created_at,
-          isRegistered: kit.is_registered
-        };
-  
-        // Use is_registered field to determine if registered or unregistered
-        if (kit.is_registered || kit.kit_type === 'legacy') {
-          registered.push(formattedKit);
-        } else {
-          unregistered.push(formattedKit);
-        }
-      });
+      // Separate registered and unregistered kits based on registration_status
+const registered = [];
+const unregistered = [];
+
+(kitsData || []).forEach(kit => {
+  const formattedKit = {
+    id: kit.kit_id,
+    type: kit.kit_type,
+    displayId: kit.kit_code,
+    productName: kit.test_kit_name,
+    orderNumber: kit.order_number,
+    customerName: `${kit.customer_first_name || ''} ${kit.customer_last_name || ''}`.trim(),
+    customerEmail: kit.customer_email || '',
+    createdAt: kit.kit_created_at,
+    isRegistered: kit.registration_status === 'registered'
+  };
+
+  // Use registration_status field to determine if registered or unregistered
+  if (kit.registration_status === 'registered') {
+    registered.push(formattedKit);
+  } else if (kit.registration_status === 'unregistered') {
+    unregistered.push(formattedKit);
+  }
+  // Skip any kits that don't have a clear registration_status
+});
   
       setAvailableKits({
         registered,
@@ -144,12 +150,6 @@ const [selectedKitInfo, setSelectedKitInfo] = useState(null);
       setLoading(false);
     }
   };
-
-  // Debug logging - you can remove this after testing
-useEffect(() => {
-  console.log('Available kits state:', availableKits);
-  console.log('Report type:', reportType);
-}, [availableKits, reportType]);
 
   const loadTestKitTypes = async () => {
     try {
@@ -288,11 +288,7 @@ useEffect(() => {
         setError('Please select a kit');
         return false;
       }
-      // For unregistered kits, kit code is required if custom info is provided
-      if (selectedKitInfo && !selectedKitInfo.isRegistered && customKitInfo.kitCode.trim() === '') {
-        setError('Please enter a kit code for unregistered kits');
-        return false;
-      }
+      // No additional validation needed for unregistered kits since kit info comes from the order
     } else if (reportType === 'one_off') {
       // For one-off reports, require customer info and kit info
       if (!customCustomerInfo.firstName.trim()) {
@@ -347,7 +343,14 @@ useEffect(() => {
         // Add custom info for unregistered kits
         if (!selectedKitInfo?.isRegistered) {
           uploadFormData.append('customCustomerInfo', JSON.stringify(customCustomerInfo));
-          uploadFormData.append('customKitInfo', JSON.stringify(customKitInfo));
+          
+          // Use the actual kit info from the selected kit, not the customKitInfo state
+          const actualKitInfo = {
+            kitCode: selectedKitInfo.displayId,
+            testKitName: selectedKitInfo.productName,
+            testKitId: selectedKitInfo.testKitId || ''
+          };
+          uploadFormData.append('customKitInfo', JSON.stringify(actualKitInfo));
         }
       } else if (reportType === 'one_off') {
         uploadFormData.append('customCustomerInfo', JSON.stringify(customCustomerInfo));
@@ -435,6 +438,120 @@ useEffect(() => {
     }
   };
 
+  const handleLabChainOfCustodyUpload = async (kitId, kitType, kitCode, file) => {
+    try {
+      setError(null);
+      setSuccess(null);
+      
+      if (!file) return;
+  
+      const { data: { session } } = await supabase.auth.getSession();
+      if (!session) {
+        throw new Error('Authentication required');
+      }
+  
+      // Generate filename using the new format: LAB_COC_{kit_code}.pdf
+      const fileExtension = file.name.split('.').pop() || 'pdf';
+      const fileName = `LAB_COC_${kitCode}.${fileExtension}`;
+  
+      // Upload to lab-chain-of-custody bucket
+      const { data: uploadData, error: uploadError } = await supabase.storage
+        .from('lab-chain-of-custody')
+        .upload(fileName, file, {
+          contentType: 'application/pdf',
+          upsert: true // Allow overwriting if file already exists
+        });
+  
+      if (uploadError) {
+        throw new Error(`Upload failed: ${uploadError.message}`);
+      }
+  
+      // Get public URL
+      const { data: urlData } = supabase.storage
+        .from('lab-chain-of-custody')
+        .getPublicUrl(fileName);
+  
+      // Update the appropriate table with the URL
+      if (kitType === 'legacy') {
+        const { error: updateError } = await supabase
+          .from('legacy_kit_registrations')
+          .update({ lab_chain_of_custody_url: urlData.publicUrl })
+          .eq('id', kitId);
+        
+        if (updateError) throw updateError;
+      } else {
+        const { error: updateError } = await supabase
+          .from('kit_registrations')
+          .update({ lab_chain_of_custody_url: urlData.publicUrl })
+          .eq('kit_registration_id', kitId);
+        
+        if (updateError) throw updateError;
+      }
+  
+      // Refresh the data
+      loadAllTestKits();
+      
+      // Show success message
+      setSuccess(`Lab chain of custody uploaded successfully for kit ${kitCode}`);
+      setError(null);
+    } catch (err) {
+      setError(`Failed to upload lab chain of custody: ${err.message}`);
+      setSuccess(null);
+    }
+  };
+  
+  const handleDownloadChainOfCustody = async (url, kitCode, type = 'original') => {
+    try {
+      if (!url) {
+        setError(`No ${type} chain of custody available`);
+        return;
+      }
+  
+      let bucket, fileName;
+      
+      if (type === 'lab') {
+        // For lab chain of custody
+        bucket = 'lab-chain-of-custody';
+        // Extract filename from URL - get everything after the last slash
+        fileName = url.split('/').pop();
+      } else {
+        // For original chain of custody - determine bucket and filename from URL
+        if (url.includes('/storage/v1/object/public/')) {
+          // Parse the URL to extract bucket and filename
+          const urlParts = url.split('/storage/v1/object/public/')[1];
+          const [bucketName, ...filenameParts] = urlParts.split('/');
+          bucket = bucketName;
+          fileName = filenameParts.join('/');
+        } else {
+          // Fallback - assume it's in the generated-chain-of-custody bucket
+          bucket = 'generated-chain-of-custody';
+          fileName = url.split('/').pop();
+        }
+      }
+  
+      // console.log(`Attempting to download from bucket: ${bucket}, filename: ${fileName}`);
+  
+      // Create signed URL
+      const { data: signedUrlData, error: signedUrlError } = await supabase.storage
+        .from(bucket)
+        .createSignedUrl(fileName, 3600);
+  
+      if (signedUrlError) {
+        throw new Error(`Failed to generate download link: ${signedUrlError.message}`);
+      }
+  
+      if (signedUrlData?.signedUrl) {
+        window.open(signedUrlData.signedUrl, '_blank');
+        setError(null);
+      } else {
+        setError('Failed to generate download link');
+      }
+    } catch (err) {
+      console.error('Error downloading chain of custody:', err);
+      setError(`Failed to download ${type} chain of custody: ${err.message}`);
+    }
+  };
+
   const filteredTestKits = allTestKits.filter(kit => {
     if (!searchQuery) return true;
     const query = searchQuery.toLowerCase();
@@ -507,38 +624,135 @@ useEffect(() => {
 
         {/* Upload Form */}
         <form onSubmit={handleSubmit} className="p-4 sm:p-6 space-y-6">
-          {/* Kit Selection for Registered/Unregistered */}
-{(reportType === 'registered' || reportType === 'unregistered') && (
+          {/* Kit Selection for Existing Kits */}
+{reportType === 'kit' && (
   <div>
-    <label htmlFor="kitRegistrationId" className="block text-sm font-medium text-gray-700 mb-2">
-      {reportType === 'registered' ? 'Registered Kit' : 'Unregistered Kit'} <span className="text-red-500">*</span>
+    <label htmlFor="kitSearchDropdown" className="block text-sm font-medium text-gray-700 mb-2">
+      Search and Select Test Kit <span className="text-red-500">*</span>
     </label>
-    <select
-      id="kitRegistrationId"
-      name="kitRegistrationId"
-      value={formData.kitRegistrationId}
-      onChange={handleInputChange}
-      className="w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 sm:text-sm"
-      required
-    >
-      <option value="">
-        Select a {reportType === 'registered' ? 'registered' : 'unregistered'} kit awaiting results...
-      </option>
-      {(reportType === 'registered' ? registeredKits : unregisteredKits).map((kit) => {
-        const displayInfo = getKitDisplayInfo(kit);
-        return (
-          <option key={kit.id} value={kit.id}>
-            {displayInfo.label}
-            {kit.customerName && ` - ${kit.customerName}`}
-            {reportType === 'unregistered' && ' [UNREGISTERED]'}
-          </option>
-        );
-      })}
-    </select>
-    {((reportType === 'registered' ? registeredKits : unregisteredKits).length === 0) && !loading && (
+    
+    <div className="relative">
+      <input
+        type="text"
+        id="kitSearchDropdown"
+        placeholder="Type kit code or customer name to search..."
+        value={kitSearchQuery}
+        onChange={(e) => {
+          setKitSearchQuery(e.target.value);
+          setShowDropdown(true);
+          // Clear selection if user is typing
+          if (formData.kitRegistrationId && e.target.value !== selectedKitInfo?.displayName) {
+            setFormData(prev => ({ ...prev, kitRegistrationId: '' }));
+            setSelectedKitInfo(null);
+          }
+        }}
+        onFocus={() => setShowDropdown(true)}
+        onBlur={() => setTimeout(() => setShowDropdown(false), 200)}
+        className="w-full px-3 py-2 pr-10 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 sm:text-sm"
+        autoComplete="off"
+      />
+      
+      <div className="absolute inset-y-0 right-0 pr-3 flex items-center pointer-events-none">
+        <svg className="h-4 w-4 text-gray-400" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M19 9l-7 7-7-7" />
+        </svg>
+      </div>
+      
+      {/* Dropdown Results */}
+      {showDropdown && (
+        <div className="absolute z-10 mt-1 w-full bg-white shadow-lg max-h-60 rounded-md py-1 text-base ring-1 ring-black ring-opacity-5 overflow-auto focus:outline-none sm:text-sm">
+          {(() => {
+            const filteredRegistered = availableKits.registered.filter(kit => 
+              kitSearchQuery === '' || 
+              kit.displayId.toLowerCase().includes(kitSearchQuery.toLowerCase()) ||
+              kit.customerName.toLowerCase().includes(kitSearchQuery.toLowerCase()) ||
+              kit.orderNumber.toLowerCase().includes(kitSearchQuery.toLowerCase())
+            );
+            
+            const filteredUnregistered = availableKits.unregistered.filter(kit => 
+              kitSearchQuery === '' || 
+              kit.displayId.toLowerCase().includes(kitSearchQuery.toLowerCase()) ||
+              kit.customerName.toLowerCase().includes(kitSearchQuery.toLowerCase()) ||
+              kit.orderNumber.toLowerCase().includes(kitSearchQuery.toLowerCase())
+            );
+            
+            const hasResults = filteredRegistered.length > 0 || filteredUnregistered.length > 0;
+            
+            if (!hasResults && kitSearchQuery) {
+              return (
+                <div className="px-3 py-2 text-gray-500 text-sm">
+                  No kits found matching "{kitSearchQuery}"
+                </div>
+              );
+            }
+            
+            return (
+              <>
+                {/* Registered Kits Section */}
+                {filteredRegistered.length > 0 && (
+                  <>
+                    <div className="px-3 py-1 text-xs font-medium text-gray-500 uppercase tracking-wide bg-gray-50">
+                      Registered Kits
+                    </div>
+                    {filteredRegistered.map((kit) => {
+                      const displayInfo = getKitDisplayInfo(kit);
+                      return (
+                        <div
+                          key={kit.id}
+                          className="px-3 py-2 hover:bg-blue-50 cursor-pointer text-sm"
+                          onMouseDown={(e) => {
+                            e.preventDefault();
+                            setFormData(prev => ({ ...prev, kitRegistrationId: kit.id, kitRegistrationType: kit.type }));
+                            setSelectedKitInfo({ ...kit, displayName: `${displayInfo.label} - ${kit.customerName}` });
+                            setKitSearchQuery(`${displayInfo.label} - ${kit.customerName}`);
+                            setShowDropdown(false);
+                          }}
+                        >
+                          <div className="font-medium text-gray-900">{displayInfo.label}</div>
+                          <div className="text-gray-500">{kit.customerName} • {kit.orderNumber}</div>
+                        </div>
+                      );
+                    })}
+                  </>
+                )}
+                
+                {/* Unregistered Kits Section */}
+                {filteredUnregistered.length > 0 && (
+                  <>
+                    <div className="px-3 py-1 text-xs font-medium text-gray-500 uppercase tracking-wide bg-gray-50">
+                      Unregistered Kits
+                    </div>
+                    {filteredUnregistered.map((kit) => {
+                      const displayInfo = getKitDisplayInfo(kit);
+                      return (
+                        <div
+                          key={kit.id}
+                          className="px-3 py-2 hover:bg-yellow-50 cursor-pointer text-sm"
+                          onMouseDown={(e) => {
+                            e.preventDefault();
+                            setFormData(prev => ({ ...prev, kitRegistrationId: kit.id, kitRegistrationType: kit.type }));
+                            setSelectedKitInfo({ ...kit, displayName: `${displayInfo.label} - ${kit.customerName} [UNREGISTERED]` });
+                            setKitSearchQuery(`${displayInfo.label} - ${kit.customerName} [UNREGISTERED]`);
+                            setShowDropdown(false);
+                          }}
+                        >
+                          <div className="font-medium text-gray-900">{displayInfo.label}</div>
+                          <div className="text-gray-500">{kit.customerName} • {kit.orderNumber} • <span className="text-orange-600 font-medium">UNREGISTERED</span></div>
+                        </div>
+                      );
+                    })}
+                  </>
+                )}
+              </>
+            );
+          })()}
+        </div>
+      )}
+    </div>
+    
+    {(availableKits.registered.length === 0 && availableKits.unregistered.length === 0) && !loading && (
       <p className="mt-2 text-sm text-gray-500">
-        No {reportType === 'registered' ? 'registered' : 'unregistered'} kits available for results upload.
-        {loading && " Loading available kits..."}
+        No kits available for results upload.
       </p>
     )}
   </div>
@@ -614,8 +828,8 @@ useEffect(() => {
             </div>
           )}
 
-          {/* Kit Information for Unregistered/One-off */}
-          {((reportType === 'kit' && selectedKitInfo && !selectedKitInfo.isRegistered) || reportType === 'one_off') && (
+          {/* Kit Information for One-off only */}
+            {reportType === 'one_off' && (
             <div className="space-y-4 border-t border-gray-200 pt-6">
               <h4 className="text-md font-medium text-gray-900">Kit Information</h4>
               
@@ -888,10 +1102,10 @@ useEffect(() => {
                   Customer Name
                 </th>
                 <th className="px-6 py-3 text-center text-xs font-medium text-gray-500 uppercase tracking-wider">
-                  Registration Status
+                  Original Chain of Custody
                 </th>
                 <th className="px-6 py-3 text-center text-xs font-medium text-gray-500 uppercase tracking-wider">
-                  Chain of Custody
+                  Lab Chain of Custody
                 </th>
                 <th className="px-6 py-3 text-center text-xs font-medium text-gray-500 uppercase tracking-wider">
                   Report
@@ -927,30 +1141,67 @@ useEffect(() => {
                   </td>
                   
                   <td className="px-6 py-4 whitespace-nowrap text-center">
-                    <span className={`inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium ${
-                      kit.is_registered || kit.kit_type === 'legacy'
-                        ? 'bg-green-100 text-green-800'
-                        : 'bg-red-100 text-red-800'
-                    }`}>
-                      {kit.is_registered || kit.kit_type === 'legacy' ? 'Registered' : 'Unregistered'}
-                    </span>
-                  </td>
-                  
-                  <td className="px-6 py-4 whitespace-nowrap text-center">
-                    {kit.chain_of_custody_url ? (
-                      <button
-                        onClick={() => window.open(kit.chain_of_custody_url, '_blank')}
-                        className="inline-flex items-center px-3 py-1.5 border border-transparent text-xs font-medium rounded-md text-blue-700 bg-blue-100 hover:bg-blue-200 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500 transition-colors duration-200"
-                      >
-                        <svg className="mr-1 h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M12 10v6m0 0l-3-3m3 3l3-3m2 8H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
-                        </svg>
-                        Download
-                      </button>
-                    ) : (
-                      <span className="text-gray-400 text-sm">-</span>
-                    )}
-                  </td>
+  {kit.chain_of_custody_url ? (
+    <button
+      onClick={() => handleDownloadChainOfCustody(kit.chain_of_custody_url, kit.kit_code, 'original')}
+      className="inline-flex items-center justify-center w-8 h-8 bg-blue-100 hover:bg-blue-200 text-blue-700 rounded-md transition-colors duration-200"
+      title="Download Original Chain of Custody"
+    >
+      <svg className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M12 10v6m0 0l-3-3m3 3l3-3m2 8H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
+      </svg>
+    </button>
+  ) : (
+    <span className="text-gray-400 text-sm">-</span>
+  )}
+</td>
+
+<td className="px-6 py-4 whitespace-nowrap text-center">
+  <div className="flex items-center justify-center space-x-2">
+    {/* Upload Lab Chain of Custody */}
+    <label
+      htmlFor={`lab-upload-${kit.kit_id}`}
+      className="inline-flex items-center justify-center w-8 h-8 bg-green-100 hover:bg-green-200 text-green-700 rounded-md cursor-pointer transition-colors duration-200"
+      title="Upload Lab Chain of Custody"
+    >
+      <svg className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M7 16a4 4 0 01-.88-7.903A5 5 0 1115.9 6L16 6a5 5 0 011 9.9M15 13l-3-3m0 0l-3 3m3-3v12" />
+      </svg>
+    </label>
+    <input
+      id={`lab-upload-${kit.kit_id}`}
+      type="file"
+      accept=".pdf"
+      className="hidden"
+      onChange={(e) => {
+        const file = e.target.files[0];
+        if (file) {
+          handleLabChainOfCustodyUpload(kit.kit_id, kit.kit_type, kit.kit_code, file);
+          e.target.value = ''; // Reset input
+        }
+      }}
+    />
+    
+    {/* Download Lab Chain of Custody */}
+    {kit.lab_chain_of_custody_url ? (
+      <button
+        onClick={() => handleDownloadChainOfCustody(kit.lab_chain_of_custody_url, kit.kit_code, 'lab')}
+        className="inline-flex items-center justify-center w-8 h-8 bg-blue-100 hover:bg-blue-200 text-blue-700 rounded-md transition-colors duration-200"
+        title="Download Lab Chain of Custody"
+      >
+        <svg className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M12 10v6m0 0l-3-3m3 3l3-3m2 8H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
+        </svg>
+      </button>
+    ) : (
+      <span className="w-8 h-8 flex items-center justify-center text-gray-400">
+        <svg className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M20 12H4" />
+        </svg>
+      </span>
+    )}
+  </div>
+</td>
                   
                   <td className="px-6 py-4 whitespace-nowrap text-center">
                     {kit.has_report && kit.report_id ? (

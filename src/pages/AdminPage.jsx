@@ -5,7 +5,6 @@ import PageLayout from '../components/PageLayout';
 import AdminOrdersList from '../components/AdminOrdersList';
 import AdminReportsUpload from '../components/AdminReportsUpload';
 import AdminInventoryManagement from '../components/AdminInventoryManagement';
-import AdminReportTesting from '../components/AdminReportTesting'; // Add this import
 
 export default function AdminPage() {
   const { user } = useAuth();
@@ -149,38 +148,6 @@ export default function AdminPage() {
                     </button>
                   </li>
 
-                  {/* NEW: Report Testing */}
-                  <li>
-                    <button
-                      onClick={() => setActiveTab('report-testing')}
-                      className={`w-full text-left px-4 sm:px-6 py-3 flex items-center text-sm sm:text-base ${
-                        activeTab === 'report-testing'
-                          ? 'bg-blue-50 text-blue-600 border-l-4 border-blue-600'
-                          : 'text-gray-600 hover:bg-gray-50'
-                      }`}
-                    >
-                      <svg
-                        className={`mr-2 sm:mr-3 h-4 w-4 sm:h-5 sm:w-5 flex-shrink-0 ${
-                          activeTab === 'report-testing' ? 'text-blue-600' : 'text-gray-400'
-                        }`}
-                        xmlns="http://www.w3.org/2000/svg"
-                        fill="none"
-                        viewBox="0 0 24 24"
-                        stroke="currentColor"
-                      >
-                        <path
-                          strokeLinecap="round"
-                          strokeLinejoin="round"
-                          strokeWidth="2"
-                          d="M10 21l5.09-5.09m0 0l.91-.91a2.004 2.004 0 000-2.828l-3.18-3.182a2.004 2.004 0 00-2.827 0l-.91.91m0 0L5.09 15M15 12l-3-3-3 3"
-                        />
-                      </svg>
-                      <span className="truncate">Report Testing</span>
-                      <span className="ml-auto bg-green-100 text-xs px-2 py-1 rounded-full flex-shrink-0 text-green-800">
-                        New
-                      </span>
-                    </button>
-                  </li>
 
                   {/* Inventory */}
                   <li>
@@ -209,31 +176,6 @@ export default function AdminPage() {
                         />
                       </svg>
                       <span className="truncate">Inventory</span>
-                    </button>
-                  </li>
-
-                  {/* Kit Registrations (Coming Soon) */}
-                  <li>
-                    <button
-                      disabled
-                      className="w-full text-left px-4 sm:px-6 py-3 flex items-center text-gray-400 cursor-not-allowed text-sm sm:text-base"
-                    >
-                      <svg
-                        className="mr-2 sm:mr-3 h-4 w-4 sm:h-5 sm:w-5 flex-shrink-0 text-gray-400"
-                        xmlns="http://www.w3.org/2000/svg"
-                        fill="none"
-                        viewBox="0 0 24 24"
-                        stroke="currentColor"
-                      >
-                        <path
-                          strokeLinecap="round"
-                          strokeLinejoin="round"
-                          strokeWidth="2"
-                          d="M20 7l-8-4-8 4m16 0l-8 4m8-4v10l-8 4m0-10L4 7m8 4v10M4 7v10l8 4"
-                        />
-                      </svg>
-                      <span className="truncate">Kit Registrations</span>
-                      <span className="ml-auto bg-gray-100 text-xs px-2 py-1 rounded-full flex-shrink-0">Soon</span>
                     </button>
                   </li>
                 </ul>
