@@ -21,7 +21,6 @@ export default function AdminInventoryManagement() {
         .from('test_kits')
         .select('*')
         .eq('active', true)
-        .eq('environment','prod')
         .order('name');
 
       if (error) throw error;
@@ -57,9 +56,9 @@ export default function AdminInventoryManagement() {
       
       const newQuantity = Math.max(0, parseInt(editValues[kitId]) || 0);
       
-    //   console.log('Attempting to update kit:', kitId, 'with quantity:', newQuantity);
-    //   console.log('Kit ID type:', typeof kitId);
-    //   console.log('Kit ID value:', JSON.stringify(kitId));
+      console.log('Attempting to update kit:', kitId, 'with quantity:', newQuantity);
+      console.log('Kit ID type:', typeof kitId);
+      console.log('Kit ID value:', JSON.stringify(kitId));
       
       // First, let's verify the kit exists
       const { data: existingKit, error: selectError } = await supabase
@@ -68,7 +67,7 @@ export default function AdminInventoryManagement() {
         .eq('id', kitId)
         .single();
       
-    //   console.log('Existing kit check:', { existingKit, selectError });
+      console.log('Existing kit check:', { existingKit, selectError });
       
       if (selectError) {
         console.error('Error finding kit:', selectError);
@@ -89,7 +88,7 @@ export default function AdminInventoryManagement() {
         .eq('id', kitId)
         .select();
 
-    //   console.log('Update response:', { data, error });
+      console.log('Update response:', { data, error });
 
       if (error) {
         console.error('Supabase error:', error);
@@ -99,12 +98,12 @@ export default function AdminInventoryManagement() {
 
       if (!data || data.length === 0) {
         console.error('No rows were updated');
-        // console.log('All test kits for comparison:', testKits.map(k => ({ id: k.id, name: k.name })));
+        console.log('All test kits for comparison:', testKits.map(k => ({ id: k.id, name: k.name })));
         alert('No rows were updated. Check console for debugging info.');
         return;
       }
 
-    //   console.log('Successfully updated:', data[0]);
+      console.log('Successfully updated:', data[0]);
 
       // Update local state
       setTestKits(prev => 
@@ -145,6 +144,18 @@ export default function AdminInventoryManagement() {
       {testKits.map((kit) => (
         <div key={kit.id} className="bg-white rounded-lg shadow border border-gray-200 overflow-hidden h-full flex flex-col">
           <div className="p-4 sm:p-6 flex-1 flex flex-col">
+            {/* Low Stock Warning */}
+            {kit.quantity < 10 && (
+              <div className="mb-3 bg-orange-50 border border-orange-200 rounded-md p-2">
+                <div className="flex items-center">
+                  <svg className="h-4 w-4 text-orange-400 mr-2" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" />
+                  </svg>
+                  <span className="text-sm font-medium text-orange-800">Low Stock</span>
+                </div>
+              </div>
+            )}
+
             {/* Test Kit Info - Fixed height section */}
             <div className="flex-1 mb-6">
               <h3 className="text-lg font-semibold text-gray-900 mb-3 min-h-[2.5rem] line-clamp-2">
@@ -154,7 +165,7 @@ export default function AdminInventoryManagement() {
                 <p className="text-sm text-gray-600">
                   <span className="font-medium">Price:</span> {formatPrice(kit.price)}
                 </p>
-                <p className="text-sm text-gray-900">
+                <p className={`text-sm ${kit.quantity < 10 ? 'text-orange-600 font-semibold' : 'text-gray-900'}`}>
                   <span className="font-medium">Quantity:</span> {kit.quantity}
                 </p>
               </div>

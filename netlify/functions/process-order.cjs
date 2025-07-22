@@ -257,6 +257,47 @@ async function recordCouponUsage(supabaseAdmin, couponId, userId, orderId, disco
   }
 }
 
+// Reduce test kit inventory quantities
+async function reduceInventoryQuantities(supabaseAdmin, orderItems, requestId) {
+  try {
+    log('info', `📦 Reducing inventory quantities for ${orderItems.length} items [${requestId}]`);
+
+    const updatePromises = orderItems.map(async (item) => {
+      const { data, error } = await supabaseAdmin
+        .from('test_kits')
+        .update({ 
+          quantity: supabaseAdmin.sql`quantity - ${item.quantity}`,
+          updated_at: new Date().toISOString()
+        })
+        .eq('id', item.test_kit_id)
+        .select('id, name, quantity')
+        .single();
+
+      if (error) {
+        throw new Error(`Failed to reduce inventory for ${item.test_kit_id}: ${error.message}`);
+      }
+
+      log('info', `📦 Reduced inventory for ${data.name}: -${item.quantity} (new quantity: ${data.quantity})`);
+      return data;
+    });
+
+    const results = await Promise.all(updatePromises);
+    
+    log('info', `✅ Successfully reduced inventory for all ${orderItems.length} items [${requestId}]`);
+    return { success: true, results };
+
+  } catch (error) {
+    log('error', `❌ Failed to reduce inventory quantities: ${error.message}`, {
+      orderItems: orderItems.map(item => ({ 
+        test_kit_id: item.test_kit_id, 
+        quantity: item.quantity 
+      })),
+      error: error.message
+    });
+    return { success: false, error: error.message };
+  }
+}
+
 // CART CLEARING FUNCTION - IMPLEMENTATION WITH MULTIPLE FALLBACK METHODS
 async function clearUserCart(userId, supabaseAdmin, requestId) {
   log('info', `🛒 Starting cart clearing for user ${userId} [${requestId}]`);
@@ -502,6 +543,26 @@ exports.handler = async function(event, context) {
           orderId: orderResult.order.id
         });
       }
+    }
+
+    // CRITICAL: Reduce inventory quantities after successful order creation
+    log('info', `📦 Reducing inventory quantities for order ${orderResult.order.id} [${requestId}]`);
+    const inventoryResult = await reduceInventoryQuantities(
+      supabaseAdmin, 
+      orderData.items, 
+      requestId
+    );
+    
+    if (!inventoryResult.success) {
+      log('warn', 'Inventory reduction failed but order was successful', {
+        error: inventoryResult.error,
+        orderId: orderResult.order.id,
+        orderNumber: orderResult.order.order_number
+      });
+      // Don't fail the order - it's already been paid for, just log the issue
+      // Admin can manually adjust inventory if needed
+    } else {
+      log('info', `✅ Inventory successfully reduced for order ${orderResult.order.order_number}`);
     }
 
     const processingTime = Date.now() - startTime;
