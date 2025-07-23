@@ -7,7 +7,7 @@ import AuthRedirect from './components/AuthRedirect';
 import CallbackDebugger from './components/CallbackDebugger';
 import ScrollToTop from './components/ScrollToTop';
 import LegacyKitClaimPage from './pages/LegacyKitClaimPage';
-// import CartDebugger from './components/CartDebugger'; // ADD THIS LINE
+import TestKitDetailPage from './pages/TestKitDetailPage';
 import SignupPage from './pages/SignupPage';
 import LoginPage from './pages/LoginPage';
 import ResetPasswordPage from './pages/ResetPasswordPage';
@@ -86,6 +86,9 @@ export default function App() {
             
             {/* Public test kits page */}
             <Route path="/shop" element={<TestKitsPage />} />
+
+            {/* Individual test kit detail pages */}
+            <Route path="/shop/:slug" element={<TestKitDetailPage />} />
             
             {/* Public Canada's water page */}
             <Route path="/about-canadas-drinking-water" element={<WaterQualityStandardsPage />} />

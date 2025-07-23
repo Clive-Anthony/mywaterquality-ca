@@ -1,26 +1,49 @@
-// src/pages/TestKitsPage.jsx - Updated with priority ordering
+// src/pages/TestKitsPage.jsx - Updated with product page links and reusable components
 import { useState, useEffect } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import PageLayout from '../components/PageLayout';
+import QuantitySelector from '../components/QuantitySelector';
 import { supabase } from '../lib/supabaseClient';
 import { useAuth } from '../contexts/AuthContext';
-import { useCart } from '../contexts/CartContext';
+import { useCartActions } from '../hooks/useCartActions';
+import { 
+  formatPrice, 
+  getStockStatus, 
+  isInStock,
+  generateSlug,
+  searchTestKitsByParameters 
+} from '../utils/testKitHelpers';
 
 export default function TestKitsPage() {
   const navigate = useNavigate();
   const { user } = useAuth();
-  const { addToCart, getItemQuantity, isInCart, loading: cartLoading } = useCart();
   
   const [testKits, setTestKits] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
-  const [addingToCart, setAddingToCart] = useState({});
-  const [successMessage, setSuccessMessage] = useState(null);
-  const [showLoginPrompt, setShowLoginPrompt] = useState(false);
-  const [selectedKit, setSelectedKit] = useState(null);
+  const [searchTerm, setSearchTerm] = useState('');
+  const [searchResults, setSearchResults] = useState([]);
+  const [isSearching, setIsSearching] = useState(false);
   
   // State to track quantities for each kit
   const [quantities, setQuantities] = useState({});
+
+  // Use cart actions hook
+  const {
+    handleAddToCart,
+    handleLoginRedirect,
+    handleSignupRedirect,
+    closeLoginPrompt,
+    clearError,
+    clearSuccessMessage,
+    loading: cartLoading,
+    error: cartError,
+    successMessage,
+    showLoginPrompt,
+    selectedKit,
+    getAddToCartButtonProps,
+    isAddingToCart
+  } = useCartActions();
 
   // Fetch test kits from Supabase with priority ordering
   useEffect(() => {
@@ -80,79 +103,50 @@ export default function TestKitsPage() {
     }));
   };
 
-  // Handle add to cart button click
-// Handle add to cart button click
-const handleAddToCart = async (kit) => {
-  // Check if user is authenticated
-  if (!user) {
-    setSelectedKit(kit);
-    setShowLoginPrompt(true);
-    return;
-  }
-
-  // Get the quantity for this kit
-  const quantity = quantities[kit.id] || 1;
-
-  // Check stock
-  if (kit.quantity <= 0) {
-    setError('This item is out of stock');
-    return;
-  }
-
-  if (quantity > kit.quantity) {
-    setError(`Only ${kit.quantity} items available in stock`);
-    return;
-  }
-
-  setAddingToCart(prev => ({ ...prev, [kit.id]: true }));
-  setError(null);
-
-  try {
-    const { success, error: cartError } = await addToCart(kit, quantity);
-    
-    if (!success) {
-      throw cartError;
-    }
-
-    setSuccessMessage(`${quantity} x ${kit.name} added to cart!`);
-    
-    // Add small delay to ensure cart state updates before showing dropdown
-    setTimeout(() => {
-      window.dispatchEvent(new CustomEvent('showCartDropdown'));
-    }, 100);
-    
-    // Clear success message after 3 seconds
-    setTimeout(() => {
-      setSuccessMessage(null);
-    }, 3000);
-
-  } catch (error) {
-    console.error('Error adding to cart:', error);
-    setError(error.message || 'Failed to add item to cart');
-  } finally {
-    setAddingToCart(prev => ({ ...prev, [kit.id]: false }));
-  }
-};
-
-  // Handle login prompt actions
-  const handleLoginRedirect = () => {
-    setShowLoginPrompt(false);
-    navigate('/login', { 
-      state: { 
-        message: 'Please log in to add items to your cart',
-        returnTo: '/shop'
-      }
-    });
+  // Handle add to cart with cart actions hook
+  const onAddToCart = async (kit) => {
+    const quantity = quantities[kit.id] || 1;
+    await handleAddToCart(kit, quantity);
   };
 
-  const handleSignupRedirect = () => {
-    setShowLoginPrompt(false);
-    navigate('/signup', { 
-      state: { 
-        message: 'Create an account to start shopping',
-        returnTo: '/shop'
+  // Handle parameter search
+  const handleParameterSearch = async (term) => {
+    if (!term || term.trim().length < 2) {
+      setSearchResults([]);
+      setIsSearching(false);
+      return;
+    }
+
+    setIsSearching(true);
+    try {
+      const { testKits: results, error: searchError } = await searchTestKitsByParameters(term);
+      
+      if (searchError) {
+        console.error('Search error:', searchError);
+        setSearchResults([]);
+      } else {
+        setSearchResults(results || []);
       }
-    });
+    } catch (error) {
+      console.error('Search exception:', error);
+      setSearchResults([]);
+    } finally {
+      setIsSearching(false);
+    }
+  };
+
+  // Debounced search effect
+  useEffect(() => {
+    const timeoutId = setTimeout(() => {
+      handleParameterSearch(searchTerm);
+    }, 300);
+
+    return () => clearTimeout(timeoutId);
+  }, [searchTerm]);
+
+  // Generate slug for test kit (fallback if slug doesn't exist in DB)
+  const getTestKitSlug = (testKit) => {
+    return testKit.slug || generateSlug(testKit.name);
   };
 
   // Hero section for the test kits page
@@ -172,67 +166,6 @@ const handleAddToCart = async (kit) => {
     </div>
   );
 
-  // Format price for display
-  const formatPrice = (price) => {
-    return new Intl.NumberFormat('en-CA', {
-      style: 'currency',
-      currency: 'CAD',
-    }).format(price);
-  };
-
-  // Check if kit is in stock
-  const isInStock = (quantity) => quantity > 0;
-
-  // Get stock status text and styling
-  const getStockStatus = (quantity) => {
-    if (quantity === 0) {
-      return { text: 'Out of Stock', className: 'bg-red-100 text-red-800' };
-    } else if (quantity <= 10) {
-      return { text: 'Low Stock', className: 'bg-yellow-100 text-yellow-800' };
-    } else {
-      return { text: 'In Stock', className: 'bg-green-100 text-green-800' };
-    }
-  };
-
-  // Get add to cart button content
-  const getAddToCartButton = (kit) => {
-    const inStock = isInStock(kit.quantity);
-    const itemQuantity = getItemQuantity(kit.id);
-    const isAdding = addingToCart[kit.id];
-    const inCart = isInCart(kit.id);
-    const selectedQuantity = quantities[kit.id] || 1;
-
-    if (!inStock) {
-      return {
-        text: 'Out of Stock',
-        disabled: true,
-        className: 'bg-gray-100 text-gray-400 cursor-not-allowed'
-      };
-    }
-
-    if (isAdding) {
-      return {
-        text: 'Adding...',
-        disabled: true,
-        className: 'bg-blue-400 text-white cursor-not-allowed'
-      };
-    }
-
-    if (inCart) {
-      return {
-        text: `Add ${selectedQuantity} More (${itemQuantity} in cart)`,
-        disabled: false,
-        className: 'bg-green-600 text-white hover:bg-green-700 focus:ring-2 focus:ring-green-500 focus:ring-offset-2'
-      };
-    }
-
-    return {
-      text: user ? `Add ${selectedQuantity} to Cart` : 'Login to Add to Cart',
-      disabled: false,
-      className: 'bg-blue-600 text-white hover:bg-blue-700 focus:ring-2 focus:ring-blue-500 focus:ring-offset-2'
-    };
-  };
-
   return (
     <PageLayout hero={<TestKitsHero />}>
       <div className="max-w-7xl mx-auto py-12 px-4 sm:px-6 lg:px-8">
@@ -245,6 +178,34 @@ const handleAddToCart = async (kit) => {
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M5 13l4 4L19 7" />
               </svg>
               <span className="text-green-700">{successMessage}</span>
+              <button 
+                onClick={clearSuccessMessage}
+                className="ml-auto text-green-500 hover:text-green-700"
+              >
+                <svg className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M6 18L18 6M6 6l12 12" />
+                </svg>
+              </button>
+            </div>
+          </div>
+        )}
+
+        {/* Cart Error */}
+        {cartError && (
+          <div className="mb-8 bg-red-50 border-l-4 border-red-500 p-4 rounded">
+            <div className="flex items-center">
+              <svg className="h-5 w-5 text-red-500 mr-2" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M12 9v2m0 4h.01m-6.938 4h13.856c1.54 0 2.502-1.667 1.732-3L13.732 4c-.77-1.333-2.694-1.333-3.464 0L3.34 16c-.77 1.333.192 3 1.732 3z" />
+              </svg>
+              <span className="text-red-700">{cartError}</span>
+              <button 
+                onClick={clearError}
+                className="ml-auto text-red-500 hover:text-red-700"
+              >
+                <svg className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M6 18L18 6M6 6l12 12" />
+                </svg>
+              </button>
             </div>
           </div>
         )}
@@ -288,12 +249,73 @@ const handleAddToCart = async (kit) => {
           <>
             <div className="mb-8">
               <h2 className="text-2xl font-bold text-gray-900 mb-4">Available Test Kits</h2>
-              <p className="text-gray-600">
+              <p className="text-gray-600 mb-6">
                 All test kits include professional laboratory analysis and detailed results within 5-7 business days.
                 {/* <span className="block text-sm text-blue-600 mt-1">
                   ✨ Test kits are displayed in order of priority based on our recommendations.
                 </span> */}
               </p>
+
+              {/* Parameter Search */}
+              <div className="mb-6">
+                <div className="relative max-w-md">
+                  <input
+                    type="text"
+                    placeholder="Search by parameter (e.g., lead, chloride, iron)..."
+                    value={searchTerm}
+                    onChange={(e) => setSearchTerm(e.target.value)}
+                    className="w-full pl-10 pr-4 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                  />
+                  <svg 
+                    className="absolute left-3 top-3.5 h-4 w-4 text-gray-400" 
+                    fill="none" 
+                    viewBox="0 0 24 24" 
+                    stroke="currentColor"
+                  >
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M21 21l-6-6m2-5a7 7 0 11-14 0 7 7 0 0114 0z" />
+                  </svg>
+                  {isSearching && (
+                    <div className="absolute right-3 top-3.5">
+                      <div className="animate-spin rounded-full h-4 w-4 border-t-2 border-b-2 border-blue-500"></div>
+                    </div>
+                  )}
+                </div>
+                
+                {/* Search Results */}
+                {searchTerm.length >= 2 && searchResults.length > 0 && (
+                  <div className="mt-4 bg-blue-50 border border-blue-200 rounded-lg p-4">
+                    <h3 className="text-sm font-medium text-blue-900 mb-3">
+                      Found {searchResults.length} test kit{searchResults.length !== 1 ? 's' : ''} with matching parameters:
+                    </h3>
+                    <div className="space-y-2">
+                      {searchResults.slice(0, 5).map((result) => (
+                        <div key={result.id}>
+                          <Link 
+                            to={`/shop/${result.slug}`}
+                            className="text-blue-700 hover:text-blue-900 font-medium text-sm"
+                          >
+                            {result.name}
+                          </Link>
+                        </div>
+                      ))}
+                      {searchResults.length > 5 && (
+                        <p className="text-xs text-blue-600 pt-2 border-t border-blue-200">
+                          + {searchResults.length - 5} more results
+                        </p>
+                      )}
+                    </div>
+                  </div>
+                )}
+                
+                {searchTerm.length >= 2 && searchResults.length === 0 && !isSearching && (
+                  <div className="mt-4 bg-gray-50 border border-gray-200 rounded-lg p-4">
+                    <p className="text-sm text-gray-600">
+                      No test kits found with parameters matching "{searchTerm}". Try a different search term.
+                    </p>
+                  </div>
+                )}
+              </div>
+
               {!user && (
                 <div className="mt-4 bg-blue-50 border border-blue-200 rounded-lg p-4">
                   <div className="flex items-center">
@@ -315,80 +337,85 @@ const handleAddToCart = async (kit) => {
             <div className="grid grid-cols-1 gap-8 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
               {testKits.map((kit, index) => {
                 const stockStatus = getStockStatus(kit.quantity);
-                const buttonProps = getAddToCartButton(kit);
+                const buttonProps = getAddToCartButtonProps(kit, quantities[kit.id] || 1);
                 const currentQuantity = quantities[kit.id] || 1;
+                const slug = getTestKitSlug(kit);
                 
                 return (
                   <div 
                     key={kit.id} 
                     className="bg-white rounded-lg shadow-md overflow-hidden hover:shadow-lg transition-shadow duration-300 flex flex-col h-full"
                   >
-                    {/* Card Header */}
-                    <div className="p-6 flex-1 flex flex-col">
-                      <div className="mb-4">
-                        <div className="h-12 mb-3">
-                          <h3 className="text-lg font-semibold text-gray-900 line-clamp-2 leading-6">
-                            {kit.name}
-                          </h3>
+                    {/* Card Header - Clickable to product page */}
+                    <Link to={`/shop/${slug}`} className="block">
+                      <div className="p-6 pb-4 hover:bg-gray-50 transition-colors duration-200">
+                        <div className="mb-4">
+                          <div className="h-12 mb-3">
+                            <h3 className="text-lg font-semibold text-gray-900 line-clamp-2 leading-6 hover:text-blue-600 transition-colors duration-200">
+                              {kit.name}
+                            </h3>
+                          </div>
+                          
+                          {/* Price */}
+                          <div className="mb-3">
+                            <span className="text-3xl font-bold text-blue-600">
+                              {formatPrice(kit.price)}
+                            </span>
+                            <span className="text-gray-500 text-sm ml-1">CAD</span>
+                          </div>
+                          
+                          <p className="text-gray-600 text-sm line-clamp-3 flex-1">
+                            {kit.description || "Click to see parameters and learn how this test kit can support your drinking water quality"}
+                          </p>
                         </div>
                         
-                        {/* Price */}
-                        <div className="mb-3">
-                          <span className="text-3xl font-bold text-blue-600">
-                            {formatPrice(kit.price)}
-                          </span>
-                          <span className="text-gray-500 text-sm ml-1">CAD</span>
-                        </div>
-                        
-                        <p className="text-gray-600 text-sm line-clamp-3 flex-1">
-                          {kit.description}
-                        </p>
+                        {/* Parameters count */}
+                        {kit.num_parameters && (
+                          <div className="mb-3">
+                            <span className="inline-flex items-center px-2.5 py-0.5 rounded-full text-xs font-medium bg-blue-100 text-blue-800">
+                              {kit.num_parameters} parameters tested
+                            </span>
+                          </div>
+                        )}
                       </div>
-                    </div>
+                    </Link>
 
-                    {/* Card Footer - Fixed height and positioning */}
+                    {/* Card Footer - Non-clickable actions */}
                     <div className="px-6 pb-6 mt-auto">
+                      {/* View Details Link */}
+                      <div className="mb-4">
+                        <Link 
+                          to={`/shop/${slug}`}
+                          className="text-blue-600 hover:text-blue-800 text-sm font-medium underline"
+                        >
+                          View Details & Parameters →
+                        </Link>
+                      </div>
+                      
                       {/* Quantity Selector */}
                       {isInStock(kit.quantity) && (
                         <div className="mb-4">
-                          <label className="block text-sm font-medium text-gray-700 mb-2">
-                            Quantity
-                          </label>
-                          <div className="flex items-center">
-                            <button
-                              onClick={() => handleQuantityChange(kit.id, currentQuantity - 1)}
-                              disabled={currentQuantity <= 1}
-                              className="w-8 h-8 rounded-l border border-gray-300 bg-gray-50 flex items-center justify-center hover:bg-gray-100 disabled:opacity-50 disabled:cursor-not-allowed"
-                            >
-                              -
-                            </button>
-                            <input
-                              type="number"
-                              min="1"
-                              max={kit.quantity}
-                              value={currentQuantity}
-                              onChange={(e) => handleQuantityChange(kit.id, e.target.value)}
-                              className="w-16 h-8 text-center border-t border-b border-gray-300 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
-                            />
-                            <button
-                              onClick={() => handleQuantityChange(kit.id, currentQuantity + 1)}
-                              disabled={currentQuantity >= kit.quantity}
-                              className="w-8 h-8 rounded-r border border-gray-300 bg-gray-50 flex items-center justify-center hover:bg-gray-100 disabled:opacity-50 disabled:cursor-not-allowed"
-                            >
-                              +
-                            </button>
-                          </div>
-                          <p className="text-xs text-gray-500 mt-1">
-                            {/* Max: {kit.quantity} */}
-                          </p>
+                          <QuantitySelector
+                            quantity={currentQuantity}
+                            maxQuantity={kit.quantity}
+                            onQuantityChange={(newQuantity) => handleQuantityChange(kit.id, newQuantity)}
+                            disabled={isAddingToCart(kit.id)}
+                            size="default"
+                          />
                         </div>
                       )}
                       
                       <button
-                        onClick={() => handleAddToCart(kit)}
+                        onClick={() => onAddToCart(kit)}
                         disabled={buttonProps.disabled}
                         className={`w-full py-3 px-4 rounded-md font-medium transition-colors duration-200 ${buttonProps.className}`}
                       >
+                        {buttonProps.showSpinner && (
+                          <svg className="animate-spin -ml-1 mr-2 h-4 w-4 text-white inline" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+                            <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
+                            <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+                          </svg>
+                        )}
                         {buttonProps.text}
                       </button>
                       
@@ -401,7 +428,7 @@ const handleAddToCart = async (kit) => {
         )}
 
         {/* Login Prompt Modal */}
-        {showLoginPrompt && (
+        {showLoginPrompt && selectedKit && (
           <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center p-4 z-50">
             <div className="bg-white rounded-lg max-w-md w-full p-6">
               <div className="flex items-center mb-4">
@@ -415,35 +442,33 @@ const handleAddToCart = async (kit) => {
                 You need to be logged in to add items to your cart. Please log in to your existing account or create a new one.
               </p>
               
-              {selectedKit && (
-                <div className="bg-gray-50 rounded-lg p-3 mb-6">
-                  <p className="text-sm text-gray-700">
-                    Selected: <span className="font-medium">{selectedKit.name}</span>
-                  </p>
-                  <p className="text-sm text-gray-600">
-                    Quantity: {quantities[selectedKit.id] || 1}
-                  </p>
-                  <p className="text-sm text-gray-600">
-                    Price: {formatPrice(selectedKit.price * (quantities[selectedKit.id] || 1))}
-                  </p>
-                </div>
-              )}
+              <div className="bg-gray-50 rounded-lg p-3 mb-6">
+                <p className="text-sm text-gray-700">
+                  Selected: <span className="font-medium">{selectedKit.name}</span>
+                </p>
+                <p className="text-sm text-gray-600">
+                  Quantity: {selectedKit.quantity}
+                </p>
+                <p className="text-sm text-gray-600">
+                  Price: {formatPrice(selectedKit.price * selectedKit.quantity)}
+                </p>
+              </div>
               
               <div className="flex space-x-3">
                 <button
-                  onClick={handleLoginRedirect}
+                  onClick={() => handleLoginRedirect('/shop')}
                   className="flex-1 bg-blue-600 text-white px-4 py-2 rounded-md hover:bg-blue-700 font-medium transition-colors duration-200"
                 >
                   Log In
                 </button>
                 <button
-                  onClick={handleSignupRedirect}
+                  onClick={() => handleSignupRedirect('/shop')}
                   className="flex-1 bg-gray-600 text-white px-4 py-2 rounded-md hover:bg-gray-700 font-medium transition-colors duration-200"
                 >
                   Sign Up
                 </button>
                 <button
-                  onClick={() => setShowLoginPrompt(false)}
+                  onClick={closeLoginPrompt}
                   className="px-4 py-2 border border-gray-300 text-gray-700 rounded-md hover:bg-gray-50 font-medium transition-colors duration-200"
                 >
                   Cancel
