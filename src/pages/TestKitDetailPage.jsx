@@ -473,9 +473,9 @@ export default function TestKitDetailPage() {
 
                 {/* Content */}
                 <div className="flex-1 overflow-y-auto p-6">
-                  <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-3">
+                  <div className="grid grid-cols-1 sm:grid-cols-2 lg:grid-cols-3 gap-4">
                     {sortParametersAlphabetically(parameters).map((parameter) => (
-                      <div key={parameter.id} className="text-sm text-gray-700">
+                      <div key={parameter.id} className="text-sm text-gray-700 break-words leading-relaxed">
                         {parameter.display_name || parameter.parameter_name}
                       </div>
                     ))}
