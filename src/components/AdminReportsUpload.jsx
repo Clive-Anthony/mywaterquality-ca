@@ -1,44 +1,44 @@
-// src/components/AdminReportsUpload.jsx - Updated with Report Type Selection
+// src/components/AdminReportsUpload.jsx - Updated with Customer Email Functionality
 import { useState, useEffect } from 'react';
 import { useAuth } from '../contexts/AuthContext';
 import { supabase } from '../lib/supabaseClient';
 
 export default function AdminReportsUpload() {
   const { user } = useAuth();
-  const [reportType, setReportType] = useState('kit'); // 'kit' or 'one_off'
-const [formData, setFormData] = useState({
-  kitRegistrationId: '',
-  kitRegistrationType: '',
-  workOrderNumber: '',
-  sampleNumber: ''
-});
-const [kitSearchQuery, setKitSearchQuery] = useState('');
-const [showDropdown, setShowDropdown] = useState(false);
+  const [reportType, setReportType] = useState('kit');
+  const [formData, setFormData] = useState({
+    kitRegistrationId: '',
+    kitRegistrationType: '',
+    workOrderNumber: '',
+    sampleNumber: ''
+  });
+  const [kitSearchQuery, setKitSearchQuery] = useState('');
+  const [showDropdown, setShowDropdown] = useState(false);
 
-// Customer and Kit info for unregistered/one-off reports
-const [customCustomerInfo, setCustomCustomerInfo] = useState({
-  firstName: '',
-  lastName: '',
-  email: '',
-  address: '',
-  city: '',
-  province: '',
-  postalCode: '',
-  location: ''
-});
+  // Customer and Kit info for unregistered/one-off reports
+  const [customCustomerInfo, setCustomCustomerInfo] = useState({
+    firstName: '',
+    lastName: '',
+    email: '',
+    address: '',
+    city: '',
+    province: '',
+    postalCode: '',
+    location: ''
+  });
 
-const [customKitInfo, setCustomKitInfo] = useState({
-  kitCode: '',
-  testKitName: 'Advanced Water Test Kit',
-  testKitId: ''
-});
+  const [customKitInfo, setCustomKitInfo] = useState({
+    kitCode: '',
+    testKitName: 'Advanced Water Test Kit',
+    testKitId: ''
+  });
 
-const [selectedFile, setSelectedFile] = useState(null);
-const [availableKits, setAvailableKits] = useState({
-  registered: [],
-  unregistered: []
-});
-const [selectedKitInfo, setSelectedKitInfo] = useState(null);
+  const [selectedFile, setSelectedFile] = useState(null);
+  const [availableKits, setAvailableKits] = useState({
+    registered: [],
+    unregistered: []
+  });
+  const [selectedKitInfo, setSelectedKitInfo] = useState(null);
   const [testKits, setTestKits] = useState([]);
   const [loading, setLoading] = useState(false);
   const [processing, setProcessing] = useState(false);
@@ -46,6 +46,12 @@ const [selectedKitInfo, setSelectedKitInfo] = useState(null);
   const [success, setSuccess] = useState(null);
   const [allTestKits, setAllTestKits] = useState([]);
   const [searchQuery, setSearchQuery] = useState('');
+
+  // NEW: Customer email modal states
+  const [showCustomerEmailModal, setShowCustomerEmailModal] = useState(false);
+  const [selectedReportForEmail, setSelectedReportForEmail] = useState(null);
+  const [customerEmailAddress, setCustomerEmailAddress] = useState('');
+  const [sendingToCustomer, setSendingToCustomer] = useState(false);
 
   // Load data on component mount
   useEffect(() => {
@@ -97,58 +103,54 @@ const [selectedKitInfo, setSelectedKitInfo] = useState(null);
     try {
       setLoading(true);
       
-      // Load kits that are awaiting results and not yet reported
-const { data: kitsData, error: kitsError } = await supabase
-.from('vw_test_kits_admin')
-.select('*')
-.is('work_order_number', null)
-.is('sample_number', null) 
-.is('report_id', null)
-.not('kit_status', 'in', '("report_generated","report_delivered")')
-.in('registration_status', ['registered', 'unregistered'])
-.order('kit_created_at', { ascending: false });
-  
-      if (kitsError) {
-        throw kitsError;
+      const { data: kitsData, error: kitsError } = await supabase
+        .from('vw_test_kits_admin_dev')
+        .select('*')
+        .is('work_order_number', null)
+        .is('sample_number', null) 
+        .is('report_id', null)
+        .not('kit_status', 'in', '("report_generated","report_delivered")')
+        .in('registration_status', ['registered', 'unregistered'])
+        .order('kit_created_at', { ascending: false });
+    
+        if (kitsError) {
+          throw kitsError;
+        }
+    
+        const registered = [];
+        const unregistered = [];
+
+        (kitsData || []).forEach(kit => {
+          const formattedKit = {
+            id: kit.kit_id,
+            type: kit.kit_type,
+            displayId: kit.kit_code,
+            productName: kit.test_kit_name,
+            orderNumber: kit.order_number,
+            customerName: `${kit.customer_first_name || ''} ${kit.customer_last_name || ''}`.trim(),
+            customerEmail: kit.customer_email || '',
+            createdAt: kit.kit_created_at,
+            isRegistered: kit.registration_status === 'registered'
+          };
+
+          if (kit.registration_status === 'registered') {
+            registered.push(formattedKit);
+          } else if (kit.registration_status === 'unregistered') {
+            unregistered.push(formattedKit);
+          }
+        });
+    
+        setAvailableKits({
+          registered,
+          unregistered
+        });
+    
+      } catch (err) {
+        console.error('Error loading kits data:', err);
+        setError('Failed to load kits data');
+      } finally {
+        setLoading(false);
       }
-  
-      // Separate registered and unregistered kits based on registration_status
-const registered = [];
-const unregistered = [];
-
-(kitsData || []).forEach(kit => {
-  const formattedKit = {
-    id: kit.kit_id,
-    type: kit.kit_type,
-    displayId: kit.kit_code,
-    productName: kit.test_kit_name,
-    orderNumber: kit.order_number,
-    customerName: `${kit.customer_first_name || ''} ${kit.customer_last_name || ''}`.trim(),
-    customerEmail: kit.customer_email || '',
-    createdAt: kit.kit_created_at,
-    isRegistered: kit.registration_status === 'registered'
-  };
-
-  // Use registration_status field to determine if registered or unregistered
-  if (kit.registration_status === 'registered') {
-    registered.push(formattedKit);
-  } else if (kit.registration_status === 'unregistered') {
-    unregistered.push(formattedKit);
-  }
-  // Skip any kits that don't have a clear registration_status
-});
-  
-      setAvailableKits({
-        registered,
-        unregistered
-      });
-  
-    } catch (err) {
-      console.error('Error loading kits data:', err);
-      setError('Failed to load kits data');
-    } finally {
-      setLoading(false);
-    }
   };
 
   const loadTestKitTypes = async () => {
@@ -169,7 +171,7 @@ const unregistered = [];
   const loadAllTestKits = async () => {
     try {
       const { data, error } = await supabase
-        .from('vw_test_kits_admin')
+        .from('vw_test_kits_admin_dev')
         .select('*')
         .order('kit_created_at', { ascending: false });
 
@@ -184,7 +186,6 @@ const unregistered = [];
     const { name, value } = e.target;
     
     if (name === 'kitRegistrationId') {
-      // Find the selected kit from both registered and unregistered lists
       const allKits = [...availableKits.registered, ...availableKits.unregistered];
       const selectedKit = allKits.find(kit => kit.id === value);
       
@@ -196,7 +197,6 @@ const unregistered = [];
       
       setSelectedKitInfo(selectedKit || null);
       
-      // Reset custom info when switching kits
       if (selectedKit) {
         setCustomCustomerInfo({
           firstName: '',
@@ -237,7 +237,6 @@ const unregistered = [];
     const { name, value } = e.target;
     
     if (name === 'testKitName') {
-      // Find the selected test kit to get its ID
       const selectedKit = testKits.find(kit => kit.name === value);
       setCustomKitInfo(prev => ({
         ...prev,
@@ -288,7 +287,13 @@ const unregistered = [];
         setError('Please select a kit');
         return false;
       }
-      // No additional validation needed for unregistered kits since kit info comes from the order
+      // For unregistered kits, require location
+      if (selectedKitInfo && !selectedKitInfo.isRegistered) {
+        if (!customCustomerInfo.location.trim()) {
+          setError('Please enter sample location');
+          return false;
+        }
+      }
     } else if (reportType === 'one_off') {
       // For one-off reports, require customer info and kit info
       if (!customCustomerInfo.firstName.trim()) {
@@ -328,7 +333,6 @@ const unregistered = [];
       uploadFormData.append('file', selectedFile);
       uploadFormData.append('reportType', reportType);
       
-      // Add common fields
       uploadFormData.append('workOrderNumber', formData.sampleNumber || '');
       uploadFormData.append('sampleNumber', formData.workOrderNumber || '');
       
@@ -336,15 +340,12 @@ const unregistered = [];
         uploadFormData.append('kitRegistrationId', formData.kitRegistrationId);
         uploadFormData.append('kitRegistrationType', formData.kitRegistrationType);
         
-        // Determine actual report type based on kit registration status
         const actualReportType = selectedKitInfo?.isRegistered ? 'registered' : 'unregistered';
         uploadFormData.append('reportType', actualReportType);
         
-        // Add custom info for unregistered kits
         if (!selectedKitInfo?.isRegistered) {
           uploadFormData.append('customCustomerInfo', JSON.stringify(customCustomerInfo));
           
-          // Use the actual kit info from the selected kit, not the customKitInfo state
           const actualKitInfo = {
             kitCode: selectedKitInfo.displayId,
             testKitName: selectedKitInfo.productName,
@@ -355,7 +356,7 @@ const unregistered = [];
       } else if (reportType === 'one_off') {
         uploadFormData.append('customCustomerInfo', JSON.stringify(customCustomerInfo));
         uploadFormData.append('customKitInfo', JSON.stringify(customKitInfo));
-        uploadFormData.append('kitRegistrationId', ''); // No kit registration for one-off
+        uploadFormData.append('kitRegistrationId', '');
         uploadFormData.append('kitRegistrationType', 'one_off');
         uploadFormData.append('reportType', 'one_off');
       }
@@ -378,7 +379,6 @@ const unregistered = [];
       setSuccess(`Test results uploaded successfully! Report ID: ${result.reportId}`);
       resetForm();
       
-      // Reload data
       loadKitsData();
       loadAllTestKits();
       
@@ -388,6 +388,74 @@ const unregistered = [];
     } finally {
       setLoading(false);
       setProcessing(false);
+    }
+  };
+
+  // NEW: Handle send to customer button click
+  const handleSendToCustomer = async (kit) => {
+    if (!kit.has_report || !kit.report_id) {
+      setError('No report available for this kit');
+      return;
+    }
+
+    setSelectedReportForEmail({
+      reportId: kit.report_id,
+      kitCode: kit.kit_code,
+      customerName: `${kit.customer_first_name || ''} ${kit.customer_last_name || ''}`.trim(),
+      defaultEmail: kit.customer_email || ''
+    });
+    
+    setCustomerEmailAddress(kit.customer_email || '');
+    setShowCustomerEmailModal(true);
+    setError(null);
+    setSuccess(null);
+  };
+
+  // NEW: Send report to customer
+  const sendReportToCustomer = async () => {
+    if (!selectedReportForEmail || !customerEmailAddress.trim()) {
+      setError('Please enter a valid email address');
+      return;
+    }
+
+    setSendingToCustomer(true);
+    setError(null);
+
+    try {
+      const { data: { session } } = await supabase.auth.getSession();
+      if (!session) {
+        throw new Error('Authentication required');
+      }
+
+      const response = await fetch('/.netlify/functions/send-customer-report', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${session.access_token}`
+        },
+        body: JSON.stringify({
+          reportId: selectedReportForEmail.reportId,
+          customEmail: customerEmailAddress.trim()
+        })
+      });
+
+      if (!response.ok) {
+        const errorData = await response.json();
+        throw new Error(errorData.error || 'Failed to send report to customer');
+      }
+
+      const result = await response.json();
+      
+      setSuccess(`Report sent successfully to ${result.customerEmail}`);
+      setShowCustomerEmailModal(false);
+      setSelectedReportForEmail(null);
+      setCustomerEmailAddress('');
+      
+    } catch (err) {
+      console.error('Error sending report to customer:', err);
+      setError(err.message || 'Failed to send report to customer');
+    } finally {
+      setSendingToCustomer(false);
     }
   };
 
@@ -450,28 +518,24 @@ const unregistered = [];
         throw new Error('Authentication required');
       }
   
-      // Generate filename using the new format: LAB_COC_{kit_code}.pdf
       const fileExtension = file.name.split('.').pop() || 'pdf';
       const fileName = `LAB_COC_${kitCode}.${fileExtension}`;
   
-      // Upload to lab-chain-of-custody bucket
       const { data: uploadData, error: uploadError } = await supabase.storage
         .from('lab-chain-of-custody')
         .upload(fileName, file, {
           contentType: 'application/pdf',
-          upsert: true // Allow overwriting if file already exists
+          upsert: true
         });
   
       if (uploadError) {
         throw new Error(`Upload failed: ${uploadError.message}`);
       }
   
-      // Get public URL
       const { data: urlData } = supabase.storage
         .from('lab-chain-of-custody')
         .getPublicUrl(fileName);
   
-      // Update the appropriate table with the URL
       if (kitType === 'legacy') {
         const { error: updateError } = await supabase
           .from('legacy_kit_registrations')
@@ -488,10 +552,8 @@ const unregistered = [];
         if (updateError) throw updateError;
       }
   
-      // Refresh the data
       loadAllTestKits();
       
-      // Show success message
       setSuccess(`Lab chain of custody uploaded successfully for kit ${kitCode}`);
       setError(null);
     } catch (err) {
@@ -510,28 +572,20 @@ const unregistered = [];
       let bucket, fileName;
       
       if (type === 'lab') {
-        // For lab chain of custody
         bucket = 'lab-chain-of-custody';
-        // Extract filename from URL - get everything after the last slash
         fileName = url.split('/').pop();
       } else {
-        // For original chain of custody - determine bucket and filename from URL
         if (url.includes('/storage/v1/object/public/')) {
-          // Parse the URL to extract bucket and filename
           const urlParts = url.split('/storage/v1/object/public/')[1];
           const [bucketName, ...filenameParts] = urlParts.split('/');
           bucket = bucketName;
           fileName = filenameParts.join('/');
         } else {
-          // Fallback - assume it's in the generated-chain-of-custody bucket
           bucket = 'generated-chain-of-custody';
           fileName = url.split('/').pop();
         }
       }
   
-      // console.log(`Attempting to download from bucket: ${bucket}, filename: ${fileName}`);
-  
-      // Create signed URL
       const { data: signedUrlData, error: signedUrlError } = await supabase.storage
         .from(bucket)
         .createSignedUrl(fileName, 3600);
@@ -625,150 +679,172 @@ const unregistered = [];
         {/* Upload Form */}
         <form onSubmit={handleSubmit} className="p-4 sm:p-6 space-y-6">
           {/* Kit Selection for Existing Kits */}
-{reportType === 'kit' && (
-  <div>
-    <label htmlFor="kitSearchDropdown" className="block text-sm font-medium text-gray-700 mb-2">
-      Search and Select Test Kit <span className="text-red-500">*</span>
-    </label>
-    
-    <div className="relative">
-      <input
-        type="text"
-        id="kitSearchDropdown"
-        placeholder="Type kit code or customer name to search..."
-        value={kitSearchQuery}
-        onChange={(e) => {
-          setKitSearchQuery(e.target.value);
-          setShowDropdown(true);
-          // Clear selection if user is typing
-          if (formData.kitRegistrationId && e.target.value !== selectedKitInfo?.displayName) {
-            setFormData(prev => ({ ...prev, kitRegistrationId: '' }));
-            setSelectedKitInfo(null);
-          }
-        }}
-        onFocus={() => setShowDropdown(true)}
-        onBlur={() => setTimeout(() => setShowDropdown(false), 200)}
-        className="w-full px-3 py-2 pr-10 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 sm:text-sm"
-        autoComplete="off"
-      />
-      
-      <div className="absolute inset-y-0 right-0 pr-3 flex items-center pointer-events-none">
-        <svg className="h-4 w-4 text-gray-400" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M19 9l-7 7-7-7" />
-        </svg>
-      </div>
-      
-      {/* Dropdown Results */}
-      {showDropdown && (
-        <div className="absolute z-10 mt-1 w-full bg-white shadow-lg max-h-60 rounded-md py-1 text-base ring-1 ring-black ring-opacity-5 overflow-auto focus:outline-none sm:text-sm">
-          {(() => {
-            const filteredRegistered = availableKits.registered.filter(kit => 
-              kitSearchQuery === '' || 
-              kit.displayId.toLowerCase().includes(kitSearchQuery.toLowerCase()) ||
-              kit.customerName.toLowerCase().includes(kitSearchQuery.toLowerCase()) ||
-              kit.orderNumber.toLowerCase().includes(kitSearchQuery.toLowerCase())
-            );
-            
-            const filteredUnregistered = availableKits.unregistered.filter(kit => 
-              kitSearchQuery === '' || 
-              kit.displayId.toLowerCase().includes(kitSearchQuery.toLowerCase()) ||
-              kit.customerName.toLowerCase().includes(kitSearchQuery.toLowerCase()) ||
-              kit.orderNumber.toLowerCase().includes(kitSearchQuery.toLowerCase())
-            );
-            
-            const hasResults = filteredRegistered.length > 0 || filteredUnregistered.length > 0;
-            
-            if (!hasResults && kitSearchQuery) {
-              return (
-                <div className="px-3 py-2 text-gray-500 text-sm">
-                  No kits found matching "{kitSearchQuery}"
-                </div>
-              );
-            }
-            
-            return (
-              <>
-                {/* Registered Kits Section */}
-                {filteredRegistered.length > 0 && (
-                  <>
-                    <div className="px-3 py-1 text-xs font-medium text-gray-500 uppercase tracking-wide bg-gray-50">
-                      Registered Kits
-                    </div>
-                    {filteredRegistered.map((kit) => {
-                      const displayInfo = getKitDisplayInfo(kit);
-                      return (
-                        <div
-                          key={kit.id}
-                          className="px-3 py-2 hover:bg-blue-50 cursor-pointer text-sm"
-                          onMouseDown={(e) => {
-                            e.preventDefault();
-                            setFormData(prev => ({ ...prev, kitRegistrationId: kit.id, kitRegistrationType: kit.type }));
-                            setSelectedKitInfo({ ...kit, displayName: `${displayInfo.label} - ${kit.customerName}` });
-                            setKitSearchQuery(`${displayInfo.label} - ${kit.customerName}`);
-                            setShowDropdown(false);
-                          }}
-                        >
-                          <div className="font-medium text-gray-900">{displayInfo.label}</div>
-                          <div className="text-gray-500">{kit.customerName} • {kit.orderNumber}</div>
-                        </div>
-                      );
-                    })}
-                  </>
-                )}
+          {reportType === 'kit' && (
+            <div>
+              <label htmlFor="kitSearchDropdown" className="block text-sm font-medium text-gray-700 mb-2">
+                Search and Select Test Kit <span className="text-red-500">*</span>
+              </label>
+              
+              <div className="relative">
+                <input
+                  type="text"
+                  id="kitSearchDropdown"
+                  placeholder="Type kit code or customer name to search..."
+                  value={kitSearchQuery}
+                  onChange={(e) => {
+                    setKitSearchQuery(e.target.value);
+                    setShowDropdown(true);
+                    if (formData.kitRegistrationId && e.target.value !== selectedKitInfo?.displayName) {
+                      setFormData(prev => ({ ...prev, kitRegistrationId: '' }));
+                      setSelectedKitInfo(null);
+                    }
+                  }}
+                  onFocus={() => setShowDropdown(true)}
+                  onBlur={() => setTimeout(() => setShowDropdown(false), 200)}
+                  className="w-full px-3 py-2 pr-10 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 sm:text-sm"
+                  autoComplete="off"
+                />
                 
-                {/* Unregistered Kits Section */}
-                {filteredUnregistered.length > 0 && (
-                  <>
-                    <div className="px-3 py-1 text-xs font-medium text-gray-500 uppercase tracking-wide bg-gray-50">
-                      Unregistered Kits
-                    </div>
-                    {filteredUnregistered.map((kit) => {
-                      const displayInfo = getKitDisplayInfo(kit);
-                      return (
-                        <div
-                          key={kit.id}
-                          className="px-3 py-2 hover:bg-yellow-50 cursor-pointer text-sm"
-                          onMouseDown={(e) => {
-                            e.preventDefault();
-                            setFormData(prev => ({ ...prev, kitRegistrationId: kit.id, kitRegistrationType: kit.type }));
-                            setSelectedKitInfo({ ...kit, displayName: `${displayInfo.label} - ${kit.customerName} [UNREGISTERED]` });
-                            setKitSearchQuery(`${displayInfo.label} - ${kit.customerName} [UNREGISTERED]`);
-                            setShowDropdown(false);
-                          }}
-                        >
-                          <div className="font-medium text-gray-900">{displayInfo.label}</div>
-                          <div className="text-gray-500">{kit.customerName} • {kit.orderNumber} • <span className="text-orange-600 font-medium">UNREGISTERED</span></div>
-                        </div>
+                <div className="absolute inset-y-0 right-0 pr-3 flex items-center pointer-events-none">
+                  <svg className="h-4 w-4 text-gray-400" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M19 9l-7 7-7-7" />
+                  </svg>
+                </div>
+                
+                {/* Dropdown Results */}
+                {showDropdown && (
+                  <div className="absolute z-10 mt-1 w-full bg-white shadow-lg max-h-60 rounded-md py-1 text-base ring-1 ring-black ring-opacity-5 overflow-auto focus:outline-none sm:text-sm">
+                    {(() => {
+                      const filteredRegistered = availableKits.registered.filter(kit => 
+                        kitSearchQuery === '' || 
+                        kit.displayId.toLowerCase().includes(kitSearchQuery.toLowerCase()) ||
+                        kit.customerName.toLowerCase().includes(kitSearchQuery.toLowerCase()) ||
+                        kit.orderNumber.toLowerCase().includes(kitSearchQuery.toLowerCase())
                       );
-                    })}
-                  </>
+                      
+                      const filteredUnregistered = availableKits.unregistered.filter(kit => 
+                        kitSearchQuery === '' || 
+                        kit.displayId.toLowerCase().includes(kitSearchQuery.toLowerCase()) ||
+                        kit.customerName.toLowerCase().includes(kitSearchQuery.toLowerCase()) ||
+                        kit.orderNumber.toLowerCase().includes(kitSearchQuery.toLowerCase())
+                      );
+                      
+                      const hasResults = filteredRegistered.length > 0 || filteredUnregistered.length > 0;
+                      
+                      if (!hasResults && kitSearchQuery) {
+                        return (
+                          <div className="px-3 py-2 text-gray-500 text-sm">
+                            No kits found matching "{kitSearchQuery}"
+                          </div>
+                        );
+                      }
+                      
+                      return (
+                        <>
+                          {filteredRegistered.length > 0 && (
+                            <>
+                              <div className="px-3 py-1 text-xs font-medium text-gray-500 uppercase tracking-wide bg-gray-50">
+                                Registered Kits
+                              </div>
+                              {filteredRegistered.map((kit) => {
+                                const displayInfo = getKitDisplayInfo(kit);
+                                return (
+                                  <div
+                                    key={kit.id}
+                                    className="px-3 py-2 hover:bg-blue-50 cursor-pointer text-sm"
+                                    onMouseDown={(e) => {
+                                      e.preventDefault();
+                                      setFormData(prev => ({ ...prev, kitRegistrationId: kit.id, kitRegistrationType: kit.type }));
+                                      setSelectedKitInfo({ ...kit, displayName: `${displayInfo.label} - ${kit.customerName}` });
+                                      setKitSearchQuery(`${displayInfo.label} - ${kit.customerName}`);
+                                      setShowDropdown(false);
+                                    }}
+                                  >
+                                    <div className="font-medium text-gray-900">{displayInfo.label}</div>
+                                    <div className="text-gray-500">{kit.customerName} • {kit.orderNumber}</div>
+                                  </div>
+                                );
+                              })}
+                            </>
+                          )}
+                          
+                          {filteredUnregistered.length > 0 && (
+                            <>
+                              <div className="px-3 py-1 text-xs font-medium text-gray-500 uppercase tracking-wide bg-gray-50">
+                                Unregistered Kits
+                              </div>
+                              {filteredUnregistered.map((kit) => {
+                                const displayInfo = getKitDisplayInfo(kit);
+                                return (
+                                  <div
+                                    key={kit.id}
+                                    className="px-3 py-2 hover:bg-yellow-50 cursor-pointer text-sm"
+                                    onMouseDown={(e) => {
+                                      e.preventDefault();
+                                      setFormData(prev => ({ ...prev, kitRegistrationId: kit.id, kitRegistrationType: kit.type }));
+                                      setSelectedKitInfo({ ...kit, displayName: `${displayInfo.label} - ${kit.customerName} [UNREGISTERED]` });
+                                      setKitSearchQuery(`${displayInfo.label} - ${kit.customerName} [UNREGISTERED]`);
+                                      setShowDropdown(false);
+                                    }}
+                                  >
+                                    <div className="font-medium text-gray-900">{displayInfo.label}</div>
+                                    <div className="text-gray-500">{kit.customerName} • {kit.orderNumber} • <span className="text-orange-600 font-medium">UNREGISTERED</span></div>
+                                  </div>
+                                );
+                              })}
+                            </>
+                          )}
+                        </>
+                      );
+                    })()}
+                  </div>
                 )}
-              </>
-            );
-          })()}
-        </div>
-      )}
-    </div>
-    
-    {(availableKits.registered.length === 0 && availableKits.unregistered.length === 0) && !loading && (
-      <p className="mt-2 text-sm text-gray-500">
-        No kits available for results upload.
-      </p>
-    )}
-  </div>
-)}
+              </div>
+              
+              {(availableKits.registered.length === 0 && availableKits.unregistered.length === 0) && !loading && (
+                <p className="mt-2 text-sm text-gray-500">
+                  No kits available for results upload.
+                </p>
+              )}
+            </div>
+          )}
 
-          {/* Customer Information for Unregistered/One-off */}
-          {((reportType === 'kit' && selectedKitInfo && !selectedKitInfo.isRegistered) || reportType === 'one_off') && (
+          {/* Customer Information - Simplified for unregistered, full for one-off */}
+          {reportType === 'kit' && selectedKitInfo && !selectedKitInfo.isRegistered ? (
+            // SIMPLIFIED: Only location for unregistered kits
             <div className="space-y-4 border-t border-gray-200 pt-6">
               <h4 className="text-md font-medium text-gray-900">
-                Customer Information 
-                {reportType === 'one_off' && <span className="text-red-500">*</span>}
+                Sample Location
+              </h4>
+              <div>
+                <label htmlFor="location" className="block text-sm font-medium text-gray-700 mb-1">
+                  Sample Location <span className="text-red-500">*</span>
+                </label>
+                <input
+                  type="text"
+                  id="location"
+                  name="location"
+                  value={customCustomerInfo.location}
+                  onChange={handleCustomerInfoChange}
+                  className="w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 sm:text-sm"
+                  placeholder="e.g., Toronto, ON or 123 Main St, Toronto, ON"
+                  required
+                />
+                <p className="mt-1 text-xs text-gray-500">
+                  Customer and kit information is already available from the existing registration.
+                </p>
+              </div>
+            </div>
+          ) : reportType === 'one_off' ? (
+            // FULL FORM: Complete customer info for one-off reports
+            <div className="space-y-4 border-t border-gray-200 pt-6">
+              <h4 className="text-md font-medium text-gray-900">
+                Customer Information <span className="text-red-500">*</span>
               </h4>
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
                 <div>
                   <label htmlFor="firstName" className="block text-sm font-medium text-gray-700 mb-1">
-                    First Name {reportType === 'one_off' && <span className="text-red-500">*</span>}
+                    First Name <span className="text-red-500">*</span>
                   </label>
                   <input
                     type="text"
@@ -777,13 +853,13 @@ const unregistered = [];
                     value={customCustomerInfo.firstName}
                     onChange={handleCustomerInfoChange}
                     className="w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 sm:text-sm"
-                    required={reportType === 'one_off'}
+                    required
                   />
                 </div>
 
                 <div>
                   <label htmlFor="lastName" className="block text-sm font-medium text-gray-700 mb-1">
-                    Last Name {reportType === 'one_off' && <span className="text-red-500">*</span>}
+                    Last Name <span className="text-red-500">*</span>
                   </label>
                   <input
                     type="text"
@@ -792,7 +868,7 @@ const unregistered = [];
                     value={customCustomerInfo.lastName}
                     onChange={handleCustomerInfoChange}
                     className="w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 sm:text-sm"
-                    required={reportType === 'one_off'}
+                    required
                   />
                 </div>
 
@@ -826,10 +902,10 @@ const unregistered = [];
                 </div>
               </div>
             </div>
-          )}
+          ) : null}
 
           {/* Kit Information for One-off only */}
-            {reportType === 'one_off' && (
+          {reportType === 'one_off' && (
             <div className="space-y-4 border-t border-gray-200 pt-6">
               <h4 className="text-md font-medium text-gray-900">Kit Information</h4>
               
@@ -1108,7 +1184,7 @@ const unregistered = [];
                   Lab Chain of Custody
                 </th>
                 <th className="px-6 py-3 text-center text-xs font-medium text-gray-500 uppercase tracking-wider">
-                  Report
+                  Report Actions
                 </th>
               </tr>
             </thead>
@@ -1141,82 +1217,97 @@ const unregistered = [];
                   </td>
                   
                   <td className="px-6 py-4 whitespace-nowrap text-center">
-  {kit.chain_of_custody_url ? (
-    <button
-      onClick={() => handleDownloadChainOfCustody(kit.chain_of_custody_url, kit.kit_code, 'original')}
-      className="inline-flex items-center justify-center w-8 h-8 bg-blue-100 hover:bg-blue-200 text-blue-700 rounded-md transition-colors duration-200"
-      title="Download Original Chain of Custody"
-    >
-      <svg className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M12 10v6m0 0l-3-3m3 3l3-3m2 8H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
-      </svg>
-    </button>
-  ) : (
-    <span className="text-gray-400 text-sm">-</span>
-  )}
-</td>
-
-<td className="px-6 py-4 whitespace-nowrap text-center">
-  <div className="flex items-center justify-center space-x-2">
-    {/* Upload Lab Chain of Custody */}
-    <label
-      htmlFor={`lab-upload-${kit.kit_id}`}
-      className="inline-flex items-center justify-center w-8 h-8 bg-green-100 hover:bg-green-200 text-green-700 rounded-md cursor-pointer transition-colors duration-200"
-      title="Upload Lab Chain of Custody"
-    >
-      <svg className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M7 16a4 4 0 01-.88-7.903A5 5 0 1115.9 6L16 6a5 5 0 011 9.9M15 13l-3-3m0 0l-3 3m3-3v12" />
-      </svg>
-    </label>
-    <input
-      id={`lab-upload-${kit.kit_id}`}
-      type="file"
-      accept=".pdf"
-      className="hidden"
-      onChange={(e) => {
-        const file = e.target.files[0];
-        if (file) {
-          handleLabChainOfCustodyUpload(kit.kit_id, kit.kit_type, kit.kit_code, file);
-          e.target.value = ''; // Reset input
-        }
-      }}
-    />
-    
-    {/* Download Lab Chain of Custody */}
-    {kit.lab_chain_of_custody_url ? (
-      <button
-        onClick={() => handleDownloadChainOfCustody(kit.lab_chain_of_custody_url, kit.kit_code, 'lab')}
-        className="inline-flex items-center justify-center w-8 h-8 bg-blue-100 hover:bg-blue-200 text-blue-700 rounded-md transition-colors duration-200"
-        title="Download Lab Chain of Custody"
-      >
-        <svg className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M12 10v6m0 0l-3-3m3 3l3-3m2 8H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
-        </svg>
-      </button>
-    ) : (
-      <span className="w-8 h-8 flex items-center justify-center text-gray-400">
-        <svg className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M20 12H4" />
-        </svg>
-      </span>
-    )}
-  </div>
-</td>
-                  
-                  <td className="px-6 py-4 whitespace-nowrap text-center">
-                    {kit.has_report && kit.report_id ? (
+                    {kit.chain_of_custody_url ? (
                       <button
-                        onClick={() => handleDownloadReport(kit.report_id, kit.kit_code)}
-                        className="inline-flex items-center px-3 py-1.5 border border-transparent text-xs font-medium rounded-md text-green-700 bg-green-100 hover:bg-green-200 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-green-500 transition-colors duration-200"
+                        onClick={() => handleDownloadChainOfCustody(kit.chain_of_custody_url, kit.kit_code, 'original')}
+                        className="inline-flex items-center justify-center w-8 h-8 bg-blue-100 hover:bg-blue-200 text-blue-700 rounded-md transition-colors duration-200"
+                        title="Download Original Chain of Custody"
                       >
-                        <svg className="mr-1 h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
+                        <svg className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M12 10v6m0 0l-3-3m3 3l3-3m2 8H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
                         </svg>
-                        Download
                       </button>
                     ) : (
                       <span className="text-gray-400 text-sm">-</span>
                     )}
+                  </td>
+
+                  <td className="px-6 py-4 whitespace-nowrap text-center">
+                    <div className="flex items-center justify-center space-x-2">
+                      <label
+                        htmlFor={`lab-upload-${kit.kit_id}`}
+                        className="inline-flex items-center justify-center w-8 h-8 bg-green-100 hover:bg-green-200 text-green-700 rounded-md cursor-pointer transition-colors duration-200"
+                        title="Upload Lab Chain of Custody"
+                      >
+                        <svg className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M7 16a4 4 0 01-.88-7.903A5 5 0 1115.9 6L16 6a5 5 0 011 9.9M15 13l-3-3m0 0l-3 3m3-3v12" />
+                        </svg>
+                      </label>
+                      <input
+                        id={`lab-upload-${kit.kit_id}`}
+                        type="file"
+                        accept=".pdf"
+                        className="hidden"
+                        onChange={(e) => {
+                          const file = e.target.files[0];
+                          if (file) {
+                            handleLabChainOfCustodyUpload(kit.kit_id, kit.kit_type, kit.kit_code, file);
+                            e.target.value = '';
+                          }
+                        }}
+                      />
+                      
+                      {kit.lab_chain_of_custody_url ? (
+                        <button
+                          onClick={() => handleDownloadChainOfCustody(kit.lab_chain_of_custody_url, kit.kit_code, 'lab')}
+                          className="inline-flex items-center justify-center w-8 h-8 bg-blue-100 hover:bg-blue-200 text-blue-700 rounded-md transition-colors duration-200"
+                          title="Download Lab Chain of Custody"
+                        >
+                          <svg className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M12 10v6m0 0l-3-3m3 3l3-3m2 8H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
+                          </svg>
+                        </button>
+                      ) : (
+                        <span className="w-8 h-8 flex items-center justify-center text-gray-400">
+                          <svg className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M20 12H4" />
+                          </svg>
+                        </span>
+                      )}
+                    </div>
+                  </td>
+                    
+                  <td className="px-6 py-4 whitespace-nowrap text-center">
+                    <div className="flex items-center justify-center space-x-2">
+                      {kit.has_report && kit.report_id ? (
+                        <>
+                          <button
+                            onClick={() => handleDownloadReport(kit.report_id, kit.kit_code)}
+                            className="inline-flex items-center px-2 py-1 border border-transparent text-xs font-medium rounded-md text-green-700 bg-green-100 hover:bg-green-200 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-green-500 transition-colors duration-200"
+                            title="Download Report"
+                          >
+                            <svg className="h-4 w-4 mr-1" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M12 10v6m0 0l-3-3m3 3l3-3m2 8H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
+                            </svg>
+                            Download
+                          </button>
+                          
+                          {/* NEW: Send to Customer Button */}
+                          <button
+                            onClick={() => handleSendToCustomer(kit)}
+                            className="inline-flex items-center px-2 py-1 border border-transparent text-xs font-medium rounded-md text-blue-700 bg-blue-100 hover:bg-blue-200 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500 transition-colors duration-200"
+                            title="Send Report to Customer"
+                          >
+                            <svg className="h-4 w-4 mr-1" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M3 8l7.89 7.89a2 2 0 002.22 0L21 8M5 19h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z" />
+                            </svg>
+                            Send to Customer
+                          </button>
+                        </>
+                      ) : (
+                        <span className="text-gray-400 text-sm">-</span>
+                      )}
+                    </div>
                   </td>
                 </tr>
               ))}
@@ -1236,6 +1327,90 @@ const unregistered = [];
           )}
         </div>
       </div>
+
+      {/* NEW: Customer Email Modal */}
+      {showCustomerEmailModal && (
+        <div className="fixed inset-0 bg-gray-600 bg-opacity-50 overflow-y-auto h-full w-full z-50">
+          <div className="relative top-20 mx-auto p-5 border w-96 shadow-lg rounded-md bg-white">
+            <div className="mt-3">
+              <div className="flex items-center justify-between mb-4">
+                <h3 className="text-lg font-medium text-gray-900">Send Report to Customer</h3>
+                <button
+                  onClick={() => {
+                    setShowCustomerEmailModal(false);
+                    setSelectedReportForEmail(null);
+                    setCustomerEmailAddress('');
+                  }}
+                  className="text-gray-400 hover:text-gray-600"
+                >
+                  <svg className="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M6 18L18 6M6 6l12 12" />
+                  </svg>
+                </button>
+              </div>
+              
+              {selectedReportForEmail && (
+                <div className="mb-4 p-3 bg-gray-50 rounded-md">
+                  <p className="text-sm text-gray-700">
+                    <span className="font-medium">Kit:</span> {selectedReportForEmail.kitCode}
+                  </p>
+                  <p className="text-sm text-gray-700">
+                    <span className="font-medium">Customer:</span> {selectedReportForEmail.customerName || 'N/A'}
+                  </p>
+                </div>
+              )}
+              
+              <div className="mb-4">
+                <label htmlFor="customerEmail" className="block text-sm font-medium text-gray-700 mb-2">
+                  Customer Email Address <span className="text-red-500">*</span>
+                </label>
+                <input
+                  type="email"
+                  id="customerEmail"
+                  value={customerEmailAddress}
+                  onChange={(e) => setCustomerEmailAddress(e.target.value)}
+                  className="w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 sm:text-sm"
+                  placeholder="customer@example.com"
+                  disabled={sendingToCustomer}
+                />
+              </div>
+              
+              <div className="flex justify-end space-x-3">
+                <button
+                  type="button"
+                  onClick={() => {
+                    setShowCustomerEmailModal(false);
+                    setSelectedReportForEmail(null);
+                    setCustomerEmailAddress('');
+                  }}
+                  disabled={sendingToCustomer}
+                  className="px-4 py-2 border border-gray-300 rounded-md text-sm font-medium text-gray-700 hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500 disabled:opacity-50"
+                >
+                  Cancel
+                </button>
+                <button
+                  type="button"
+                  onClick={sendReportToCustomer}
+                  disabled={sendingToCustomer || !customerEmailAddress.trim()}
+                  className="px-4 py-2 border border-transparent rounded-md text-sm font-medium text-white bg-blue-600 hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500 disabled:opacity-50 disabled:cursor-not-allowed"
+                >
+                  {sendingToCustomer ? (
+                    <>
+                      <svg className="animate-spin -ml-1 mr-2 h-4 w-4 text-white" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+                        <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
+                        <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+                      </svg>
+                      Sending...
+                    </>
+                  ) : (
+                    'Send Report'
+                  )}
+                </button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

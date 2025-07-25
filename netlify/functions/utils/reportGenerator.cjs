@@ -1462,6 +1462,71 @@ async function processReportGeneration(supabase, reportId, sampleNumber, request
   }
 }
 
+async function sendAdminNotification(supabase, reportId, kitInfo, requestId) {
+  try {
+    console.log(`[${requestId}] Sending admin notification for report ${reportId}`);
+    
+    // Get the base URL from environment
+    const baseUrl = process.env.VITE_APP_URL || 'https://mywaterqualityca.netlify.app';
+    const adminEmail = 'admin@mywaterquality.ca';
+    
+    const adminNotificationResponse = await fetch(`${baseUrl}/.netlify/functions/send-admin-report-notification`, {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify({
+        reportId: reportId,
+        kitInfo: {
+          kitCode: kitInfo.kitCode || kitInfo.displayId || 'UNKNOWN',
+          displayId: kitInfo.displayId || kitInfo.kitCode || 'UNKNOWN', 
+          testKitName: kitInfo.testKitName || 'Water Test Kit',
+          testKitId: kitInfo.testKitId || null,
+          customerName: kitInfo.customerName || 'Customer',
+          customerEmail: kitInfo.customerEmail || 'unknown@example.com',
+          customerLocation: kitInfo.customerLocation || 'Not specified'
+        },
+        adminEmail: adminEmail
+      })
+    });
+
+    // Enhanced response handling
+    const responseText = await adminNotificationResponse.text();
+    
+    console.log(`[${requestId}] Admin notification response:`, {
+      status: adminNotificationResponse.status,
+      contentType: adminNotificationResponse.headers.get('content-type'),
+      responseLength: responseText.length
+    });
+
+    if (adminNotificationResponse.ok) {
+      // Try to parse as JSON, but don't fail if it's not JSON
+      let result;
+      try {
+        result = responseText ? JSON.parse(responseText) : { success: true };
+      } catch (parseError) {
+        console.log(`[${requestId}] Response not JSON, but request succeeded:`, responseText.substring(0, 200));
+        result = { success: true };
+      }
+      
+      console.log(`[${requestId}] Admin notification sent successfully`, { 
+        reportId, 
+        token: result.token?.substring(0, 8) + '...' || 'no-token'
+      });
+    } else {
+      // For error responses, log the full response for debugging
+      console.error(`[${requestId}] Admin notification failed:`, {
+        status: adminNotificationResponse.status,
+        response: responseText
+      });
+      throw new Error(`Admin notification failed: ${adminNotificationResponse.status} - ${responseText}`);
+    }
+  } catch (error) {
+    console.error(`[${requestId}] Error in sendAdminNotification:`, error.message);
+    throw error;
+  }
+}
+
 async function continueProcessing(supabase, reportId, sampleNumber, requestId, testResults, kitOrderCode = 'UNKNOWN', kitInfo = {}) {
   try {
     console.log(`[${requestId}] Processing ${testResults.length} test results for report generation`);
@@ -1771,5 +1836,6 @@ module.exports = {
   generateHTMLReport,
   generateHTMLToPDF,
   processReportData,
-  calculateCCMEWQI
+  calculateCCMEWQI,
+  sendAdminNotification
 };

@@ -534,19 +534,46 @@ async function processTestResultsFile({
       }
       // Add custom info for unregistered reports
       if (customCustomerInfo) {
-        reportRecord.custom_customer_info = customCustomerInfo;
+        // For unregistered kits, customCustomerInfo may only contain location
+        // Don't override with empty values if they exist in the kit registration
+        const customerInfoToStore = {};
+        
+        // Always store location if provided (this is the main use case for unregistered kits)
+        if (customCustomerInfo.location) {
+          customerInfoToStore.location = customCustomerInfo.location;
+        }
+        
+        // Only store other fields if they have values (for backward compatibility)
+        if (customCustomerInfo.firstName) {
+          customerInfoToStore.firstName = customCustomerInfo.firstName;
+        }
+        if (customCustomerInfo.lastName) {
+          customerInfoToStore.lastName = customCustomerInfo.lastName;
+        }
+        if (customCustomerInfo.email) {
+          customerInfoToStore.email = customCustomerInfo.email;
+        }
+        if (customCustomerInfo.address) {
+          customerInfoToStore.address = customCustomerInfo.address;
+        }
+        if (customCustomerInfo.city) {
+          customerInfoToStore.city = customCustomerInfo.city;
+        }
+        if (customCustomerInfo.province) {
+          customerInfoToStore.province = customCustomerInfo.province;
+        }
+        if (customCustomerInfo.postalCode) {
+          customerInfoToStore.postalCode = customCustomerInfo.postalCode;
+        }
+        
+        // Only store if we have meaningful data
+        if (Object.keys(customerInfoToStore).length > 0) {
+          reportRecord.custom_customer_info = customerInfoToStore;
+        }
       }
+      
       if (customKitInfo) {
         reportRecord.custom_kit_info = customKitInfo;
-      }
-    } else if (reportType === 'one_off') {
-      // One-off reports don't have kit registrations but store custom info
-      reportRecord.custom_customer_info = customCustomerInfo;
-      reportRecord.custom_kit_info = customKitInfo;
-      reportRecord.user_id = user.id; // Set to admin user for one-off reports
-      // Set test_kit_id if available
-      if (customKitInfo?.testKitId) {
-        reportRecord.test_kit_id = customKitInfo.testKitId;
       }
     }
 
@@ -854,6 +881,60 @@ async function processTestResultsFile({
             .eq('id', kitUpdateResult.kitRegistrationId);
         }
       }
+
+      // NEW: Send admin notification email with attachments
+      try {
+        log('info', 'Initiating admin notification', { reportId, requestId });
+        
+        const baseUrl = process.env.VITE_APP_URL || 'https://mywaterqualityca.netlify.app';
+        const adminEmail = 'david.phillips@bookerhq.ca';
+        
+        const adminNotificationResponse = await fetch(`${baseUrl}/.netlify/functions/send-admin-report-notification`, {
+          method: 'POST',
+          headers: {
+            'Content-Type': 'application/json',
+          },
+          body: JSON.stringify({
+            reportId: reportId,
+            kitInfo: {
+              kitCode: kitInfo.kitCode || kitInfo.displayId || kitOrderCode,
+              displayId: kitInfo.displayId || kitInfo.kitCode || kitOrderCode,
+              testKitName: kitInfo.testKitName || 'Water Test Kit',
+              testKitId: kitInfo.testKitId || null,
+              customerName: kitInfo.customerName || 'Customer',
+              customerEmail: kitInfo.customerEmail || 'unknown@example.com',
+              customerLocation: kitInfo.customerLocation || 'Not specified'
+            },
+            adminEmail: adminEmail
+          })
+        });
+
+        if (adminNotificationResponse.ok) {
+          const notificationResult = await adminNotificationResponse.json();
+          log('info', 'Admin notification sent successfully', { 
+            reportId, 
+            token: notificationResult.token?.substring(0, 8) + '...',
+            requestId 
+          });
+        } else {
+          const errorData = await adminNotificationResponse.json();
+          log('warn', 'Failed to send admin notification', { 
+            reportId, 
+            error: errorData.message || 'Unknown error',
+            status: adminNotificationResponse.status,
+            requestId 
+          });
+        }
+      } catch (adminNotificationError) {
+        log('warn', 'Error sending admin notification', { 
+          reportId, 
+          error: adminNotificationError.message,
+          requestId 
+        });
+        // Don't fail the entire process if admin notification fails
+        // The report generation was successful, email notification is secondary
+      }
+
     } else {
       // Update with error status
       await supabase
