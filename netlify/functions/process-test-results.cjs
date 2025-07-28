@@ -714,145 +714,144 @@ async function processTestResultsFile({
     }
 
     // Prepare kit information for the report generation
-    let kitInfo = {
-      displayId: kitOrderCode,
-      kitCode: kitOrderCode,
-      testKitName: 'Water Test Kit',
-      testKitId: null,
-      customerFirstName: 'Valued Customer',
-      customerName: 'Customer',
-      customerLocation: 'Not specified'
-    };
+let kitInfo = {
+  displayId: kitOrderCode,
+  kitCode: kitOrderCode,
+  testKitName: 'Water Test Kit',
+  testKitId: null,
+  customerFirstName: 'Valued Customer',
+  customerName: 'Customer',
+  customerLocation: 'Not specified'
+};
 
-    // Get kit information based on report type
-    if (reportType === 'one_off') {
-      // Use custom info for one-off reports
-      if (customCustomerInfo) {
-        kitInfo.customerFirstName = customCustomerInfo.firstName || 'Valued Customer';
-        kitInfo.customerName = `${customCustomerInfo.firstName || ''} ${customCustomerInfo.lastName || ''}`.trim() || 'Customer';
-        kitInfo.customerEmail = customCustomerInfo.email || 'unknown@example.com';
-        
-        // Build location from address fields
-        const locationParts = [];
-        if (customCustomerInfo.address) locationParts.push(customCustomerInfo.address);
-        if (customCustomerInfo.city) locationParts.push(customCustomerInfo.city);
-        if (customCustomerInfo.province) locationParts.push(customCustomerInfo.province);
-        if (customCustomerInfo.postalCode) locationParts.push(customCustomerInfo.postalCode);
-        
-        kitInfo.customerLocation = locationParts.length > 0 ? locationParts.join(', ') : (customCustomerInfo.location || 'Not specified');
-      }
-      
-      if (customKitInfo) {
-        kitInfo.testKitName = customKitInfo.testKitName || 'Custom Water Test';
-        kitInfo.testKitId = customKitInfo.testKitId || null;
-        kitInfo.displayId = customKitInfo.kitCode || kitOrderCode;
-        kitInfo.kitCode = customKitInfo.kitCode || kitOrderCode;
-      }
-    } else if (reportType === 'unregistered') {
-      // For unregistered reports, prioritize custom info but fall back to kit registration
-      if (customCustomerInfo) {
-        kitInfo.customerFirstName = customCustomerInfo.firstName || kitInfo.customerFirstName;
-        kitInfo.customerName = `${customCustomerInfo.firstName || ''} ${customCustomerInfo.lastName || ''}`.trim() || kitInfo.customerName;
-        kitInfo.customerEmail = customCustomerInfo.email || kitInfo.customerEmail;
-        
-        // Build location from address fields if provided
-        if (customCustomerInfo.location || customCustomerInfo.address) {
-          const locationParts = [];
-          if (customCustomerInfo.address) locationParts.push(customCustomerInfo.address);
-          if (customCustomerInfo.city) locationParts.push(customCustomerInfo.city);
-          if (customCustomerInfo.province) locationParts.push(customCustomerInfo.province);
-          if (customCustomerInfo.postalCode) locationParts.push(customCustomerInfo.postalCode);
-          
-          kitInfo.customerLocation = locationParts.length > 0 ? locationParts.join(', ') : (customCustomerInfo.location || kitInfo.customerLocation);
-        }
-      }
-      
-      if (customKitInfo) {
-        kitInfo.testKitName = customKitInfo.testKitName || kitInfo.testKitName;
-        kitInfo.testKitId = customKitInfo.testKitId || kitInfo.testKitId;
-        if (customKitInfo.kitCode) {
-          kitInfo.displayId = customKitInfo.kitCode;
-          kitInfo.kitCode = customKitInfo.kitCode;
-        }
-      }
-      
-      // Try to get additional info from kit registration if available
-      const { data: kitAdminData, error: kitAdminError } = await supabase
-        .from('vw_test_kits_admin')
-        .select('*')
-        .or(`work_order_number.eq.${workOrderNumber},sample_number.eq.${sampleNumber}`)
-        .limit(1)
-        .single();
-
-      if (!kitAdminError && kitAdminData) {
-        // Only use kit admin data if custom info wasn't provided
-        if (!customCustomerInfo) {
-          kitInfo.customerFirstName = kitAdminData.customer_first_name || kitInfo.customerFirstName;
-          kitInfo.customerName = `${kitAdminData.customer_first_name || ''} ${kitAdminData.customer_last_name || ''}`.trim() || kitInfo.customerName;
-          kitInfo.customerEmail = kitAdminData.customer_email || kitInfo.customerEmail;
-          
-          const formatLocation = (data) => {
-            const parts = [];
-            if (data.customer_address) parts.push(data.customer_address);
-            if (data.customer_city) parts.push(data.customer_city);
-            if (data.customer_province) parts.push(data.customer_province);
-            if (data.customer_postal_code) parts.push(data.customer_postal_code);
-            
-            return parts.length > 0 ? parts.join(', ') : 'Not specified';
-          };
-          
-          kitInfo.customerLocation = formatLocation(kitAdminData);
-        }
-        
-        // Use kit admin data for kit info if custom info wasn't provided
-        if (!customKitInfo) {
-          kitInfo.displayId = kitAdminData.kit_code || kitInfo.displayId;
-          kitInfo.kitCode = kitAdminData.kit_code || kitInfo.kitCode;
-          kitInfo.testKitName = kitAdminData.test_kit_name || kitInfo.testKitName;
-          kitInfo.testKitId = kitAdminData.test_kit_id || kitInfo.testKitId;
-        }
-      }
-    } else {
-      // For registered reports, get info from admin view as before
-      const { data: kitAdminData, error: kitAdminError } = await supabase
-        .from('vw_test_kits_admin')
-        .select('*')
-        .or(`work_order_number.eq.${workOrderNumber},sample_number.eq.${sampleNumber}`)
-        .limit(1)
-        .single();
-
-      if (!kitAdminError && kitAdminData) {
-        const formatLocation = (data) => {
-          const parts = [];
-          if (data.customer_address) parts.push(data.customer_address);
-          if (data.customer_city) parts.push(data.customer_city);
-          if (data.customer_province) parts.push(data.customer_province);
-          if (data.customer_postal_code) parts.push(data.customer_postal_code);
-          
-          return parts.length > 0 ? parts.join(', ') : 'Not specified';
-        };
-      
-        kitInfo = {
-          displayId: kitAdminData.kit_code || kitOrderCode,
-          kitCode: kitAdminData.kit_code || kitOrderCode,
-          testKitName: kitAdminData.test_kit_name || 'Water Test Kit',
-          testKitId: kitAdminData.test_kit_id,
-          customerFirstName: kitAdminData.customer_first_name || 'Valued Customer',
-          customerName: `${kitAdminData.customer_first_name || ''} ${kitAdminData.customer_last_name || ''}`.trim() || 'Customer',
-          customerEmail: kitAdminData.customer_email,
-          customerLocation: formatLocation(kitAdminData)
-        };
-        
-        log('info', 'Kit info retrieved from admin view', { kitInfo, requestId });
-      } else {
-        log('warn', 'Could not retrieve kit info from admin view', { 
-          error: kitAdminError?.message, 
-          workOrderNumber, 
-          sampleNumber, 
-          requestId 
-        });
-      }
+// Get kit information based on report type
+if (reportType === 'one_off') {
+  // Use custom info for one-off reports
+  if (customCustomerInfo) {
+    kitInfo.customerFirstName = customCustomerInfo.firstName || 'Valued Customer';
+    kitInfo.customerName = `${customCustomerInfo.firstName || ''} ${customCustomerInfo.lastName || ''}`.trim() || 'Customer';
+    kitInfo.customerEmail = customCustomerInfo.email || 'unknown@example.com';
+    
+    // Build location from address fields
+    const locationParts = [];
+    if (customCustomerInfo.address) locationParts.push(customCustomerInfo.address);
+    if (customCustomerInfo.city) locationParts.push(customCustomerInfo.city);
+    if (customCustomerInfo.province) locationParts.push(customCustomerInfo.province);
+    if (customCustomerInfo.postalCode) locationParts.push(customCustomerInfo.postalCode);
+    
+    kitInfo.customerLocation = locationParts.length > 0 ? locationParts.join(', ') : (customCustomerInfo.location || 'Not specified');
+  }
+  
+  if (customKitInfo) {
+    kitInfo.testKitName = customKitInfo.testKitName || 'Custom Water Test';
+    kitInfo.testKitId = customKitInfo.testKitId || null;
+    kitInfo.displayId = customKitInfo.kitCode || kitOrderCode;
+    kitInfo.kitCode = customKitInfo.kitCode || kitOrderCode;
+  }
+} else if (reportType === 'unregistered') {
+  // For unregistered reports, first get kit info from the registration using the ID
+  let kitRegistrationData = null;
+  
+  if (kitRegistrationType === 'regular') {
+    const { data: kitReg, error: kitRegError } = await supabase
+      .from('vw_test_kits_admin_dev')
+      .select('*')
+      .eq('kit_id', kitRegistrationId)
+      .single();
+    
+    if (!kitRegError && kitReg) {
+      kitRegistrationData = kitReg;
     }
+  } else if (kitRegistrationType === 'legacy') {
+    const { data: legacyKitReg, error: legacyKitRegError } = await supabase
+      .from('vw_test_kits_admin')
+      .select('*')
+      .eq('kit_id', kitRegistrationId)
+      .single();
+    
+    if (!legacyKitRegError && legacyKitReg) {
+      kitRegistrationData = legacyKitReg;
+    }
+  }
+  
+  // Use registration data if available
+  if (kitRegistrationData) {
+    kitInfo.customerFirstName = kitRegistrationData.customer_first_name || 'Valued Customer';
+    kitInfo.customerName = `${kitRegistrationData.customer_first_name || ''} ${kitRegistrationData.customer_last_name || ''}`.trim() || 'Customer';
+    kitInfo.customerEmail = kitRegistrationData.customer_email || 'unknown@example.com';
+    kitInfo.testKitName = kitRegistrationData.test_kit_name || 'Water Test Kit';
+    kitInfo.testKitId = kitRegistrationData.test_kit_id || null;
+    kitInfo.displayId = kitRegistrationData.kit_code || kitOrderCode;
+    kitInfo.kitCode = kitRegistrationData.kit_code || kitOrderCode;
+    
+    // Build location from registration address fields, override with custom location if provided
+    const locationParts = [];
+    if (kitRegistrationData.customer_address) locationParts.push(kitRegistrationData.customer_address);
+    if (kitRegistrationData.customer_city) locationParts.push(kitRegistrationData.customer_city);
+    if (kitRegistrationData.customer_province) locationParts.push(kitRegistrationData.customer_province);
+    if (kitRegistrationData.customer_postal_code) locationParts.push(kitRegistrationData.customer_postal_code);
+    
+    kitInfo.customerLocation = locationParts.length > 0 ? locationParts.join(', ') : 'Not specified';
+    
+    // Override with admin-provided location if available
+    if (customCustomerInfo?.location) {
+      kitInfo.customerLocation = customCustomerInfo.location;
+    }
+    
+    log('info', 'Using kit registration data for unregistered report', { 
+      kitId: kitRegistrationId,
+      customerName: kitInfo.customerName,
+      kitCode: kitInfo.kitCode,
+      requestId 
+    });
+  } else {
+    log('warn', 'Could not retrieve kit registration data for unregistered report', { 
+      kitRegistrationId, 
+      kitRegistrationType,
+      requestId 
+    });
+  }
+} else {
+  // For registered reports, get info from admin view as before
+  const { data: kitAdminData, error: kitAdminError } = await supabase
+    .from('vw_test_kits_admin')
+    .select('*')
+    .or(`work_order_number.eq.${workOrderNumber},sample_number.eq.${sampleNumber}`)
+    .limit(1)
+    .single();
+
+  if (!kitAdminError && kitAdminData) {
+    const formatLocation = (data) => {
+      const parts = [];
+      if (data.customer_address) parts.push(data.customer_address);
+      if (data.customer_city) parts.push(data.customer_city);
+      if (data.customer_province) parts.push(data.customer_province);
+      if (data.customer_postal_code) parts.push(data.customer_postal_code);
+      
+      return parts.length > 0 ? parts.join(', ') : 'Not specified';
+    };
+  
+    kitInfo = {
+      displayId: kitAdminData.kit_code || kitOrderCode,
+      kitCode: kitAdminData.kit_code || kitOrderCode,
+      testKitName: kitAdminData.test_kit_name || 'Water Test Kit',
+      testKitId: kitAdminData.test_kit_id,
+      customerFirstName: kitAdminData.customer_first_name || 'Valued Customer',
+      customerName: `${kitAdminData.customer_first_name || ''} ${kitAdminData.customer_last_name || ''}`.trim() || 'Customer',
+      customerEmail: kitAdminData.customer_email,
+      customerLocation: formatLocation(kitAdminData)
+    };
+    
+    log('info', 'Kit info retrieved from admin view', { kitInfo, requestId });
+  } else {
+    log('warn', 'Could not retrieve kit info from admin view', { 
+      error: kitAdminError?.message, 
+      workOrderNumber, 
+      sampleNumber, 
+      requestId 
+    });
+  }
+}
 
     // Generate PDF report with kit information
     const pdfResult = await processReportGeneration(supabase, reportId, sampleNumber, requestId, kitOrderCode, kitInfo);
@@ -882,60 +881,138 @@ async function processTestResultsFile({
         }
       }
 
-      // NEW: Send admin notification email with attachments
+// Direct admin notification implementation (bypassing separate function)
+try {
+  log('info', 'Sending admin notification directly', { reportId, requestId });
+  
+  // Get report details for file downloads
+  const { data: report, error: reportError } = await supabase
+    .from('reports')
+    .select('csv_file_url, pdf_file_url')
+    .eq('report_id', reportId)
+    .single();
+  
+  if (reportError) {
+    log('error', 'Could not get report for admin notification', { error: reportError.message });
+  } else {
+    // Download and prepare attachments
+    const attachments = [];
+    
+    // Download CSV
+    if (report.csv_file_url) {
       try {
-        log('info', 'Initiating admin notification', { reportId, requestId });
+        const csvFileName = report.csv_file_url.split('/').pop();
+        log('info', 'Downloading CSV for admin email', { filename: csvFileName });
         
-        const baseUrl = process.env.VITE_APP_URL || 'https://mywaterqualityca.netlify.app';
-        const adminEmail = 'david.phillips@bookerhq.ca';
-        
-        const adminNotificationResponse = await fetch(`${baseUrl}/.netlify/functions/send-admin-report-notification`, {
-          method: 'POST',
-          headers: {
-            'Content-Type': 'application/json',
-          },
-          body: JSON.stringify({
-            reportId: reportId,
-            kitInfo: {
-              kitCode: kitInfo.kitCode || kitInfo.displayId || kitOrderCode,
-              displayId: kitInfo.displayId || kitInfo.kitCode || kitOrderCode,
-              testKitName: kitInfo.testKitName || 'Water Test Kit',
-              testKitId: kitInfo.testKitId || null,
-              customerName: kitInfo.customerName || 'Customer',
-              customerEmail: kitInfo.customerEmail || 'unknown@example.com',
-              customerLocation: kitInfo.customerLocation || 'Not specified'
-            },
-            adminEmail: adminEmail
-          })
-        });
-
-        if (adminNotificationResponse.ok) {
-          const notificationResult = await adminNotificationResponse.json();
-          log('info', 'Admin notification sent successfully', { 
-            reportId, 
-            token: notificationResult.token?.substring(0, 8) + '...',
-            requestId 
+        const { data: csvData, error: csvError } = await supabase.storage
+          .from('test-results-csv')
+          .download(csvFileName);
+          
+        if (!csvError && csvData) {
+          const csvContent = await csvData.text();
+          const csvBase64 = Buffer.from(csvContent, 'utf8').toString('base64');
+          
+          attachments.push({
+            filename: `${kitInfo.kitCode || 'UNKNOWN'}_test_results.csv`,
+            data: csvBase64,
+            contentType: 'text/csv'
+          });
+          
+          log('info', 'CSV attachment prepared', { 
+            filename: csvFileName,
+            sizeKB: Math.round(csvBase64.length / 1024) 
           });
         } else {
-          const errorData = await adminNotificationResponse.json();
-          log('warn', 'Failed to send admin notification', { 
-            reportId, 
-            error: errorData.message || 'Unknown error',
-            status: adminNotificationResponse.status,
-            requestId 
-          });
+          log('warn', 'CSV download failed', { error: csvError?.message });
         }
-      } catch (adminNotificationError) {
-        log('warn', 'Error sending admin notification', { 
+      } catch (csvErr) {
+        log('warn', 'CSV processing error', { error: csvErr.message });
+      }
+    }
+    
+    // Download PDF
+    if (report.pdf_file_url) {
+      try {
+        const pdfFileName = report.pdf_file_url.split('/').pop();
+        log('info', 'Downloading PDF for admin email', { filename: pdfFileName });
+        
+        const { data: pdfData, error: pdfError } = await supabase.storage
+          .from('generated-reports')
+          .download(pdfFileName);
+          
+        if (!pdfError && pdfData) {
+          const pdfArrayBuffer = await pdfData.arrayBuffer();
+          const pdfBase64 = Buffer.from(pdfArrayBuffer).toString('base64');
+          
+          attachments.push({
+            filename: `${kitInfo.kitCode || 'UNKNOWN'}_report.pdf`,
+            data: pdfBase64,
+            contentType: 'application/pdf'
+          });
+          
+          log('info', 'PDF attachment prepared', { 
+            filename: pdfFileName,
+            sizeKB: Math.round(pdfBase64.length / 1024) 
+          });
+        } else {
+          log('warn', 'PDF download failed', { error: pdfError?.message });
+        }
+      } catch (pdfErr) {
+        log('warn', 'PDF processing error', { error: pdfErr.message });
+      }
+    }
+    
+    log('info', 'Attachments prepared for admin email', { count: attachments.length });
+    
+    // Send email via Loops directly
+    const requestBody = {
+      transactionalId: 'cmdj4w1u62ku8zc0jqy6rfekn',
+      email: 'david.phillips@bookerhq.ca',
+      dataVariables: {
+        customerName: kitInfo.customerName || 'Customer',
+        kitCode: kitInfo.kitCode || 'UNKNOWN',
+        sendtoCustomerUrl: `${process.env.VITE_APP_URL || 'https://mywaterqualityca.netlify.app'}/admin-dashboard`
+      },
+      attachments: attachments
+    };
+
+    if (attachments.length > 0) {
+      const loopsResponse = await fetch('https://app.loops.so/api/v1/transactional', {
+        method: 'POST',
+        headers: {
+          'Authorization': `Bearer ${process.env.VITE_LOOPS_API_KEY}`,
+          'Content-Type': 'application/json',
+        },
+        body: JSON.stringify(requestBody)
+      });
+
+      if (loopsResponse.ok) {
+        log('info', 'Admin notification sent successfully (direct)', { 
           reportId, 
-          error: adminNotificationError.message,
+          attachmentsCount: attachments.length,
           requestId 
         });
-        // Don't fail the entire process if admin notification fails
-        // The report generation was successful, email notification is secondary
+      } else {
+        const errorText = await loopsResponse.text();
+        log('error', 'Failed to send admin notification (direct)', { 
+          status: loopsResponse.status, 
+          error: errorText,
+          requestId 
+        });
       }
-
     } else {
+      log('warn', 'No attachments available, skipping admin notification', { requestId });
+    }
+  }
+} catch (adminNotificationError) {
+  log('error', 'Exception in direct admin notification', { 
+    error: adminNotificationError.message,
+    stack: adminNotificationError.stack,
+    requestId 
+  });
+  // Don't fail the entire process if admin notification fails
+} 
+} else {
       // Update with error status
       await supabase
         .from('reports')

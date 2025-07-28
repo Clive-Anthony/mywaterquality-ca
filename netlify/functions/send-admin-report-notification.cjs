@@ -86,41 +86,6 @@ exports.handler = async function(event, context) {
     // Calculate summary statistics
     const summaryStats = calculateReportSummary(testResults || []);
 
-    // Download CSV file
-    let csvContent = null;
-    if (report.csv_file_url) {
-      try {
-        const csvFileName = report.csv_file_url.split('/').pop();
-        const { data: csvData, error: csvError } = await supabase.storage
-          .from('test-results-csv')
-          .download(csvFileName);
-
-        if (!csvError && csvData) {
-          csvContent = await csvData.text();
-        }
-      } catch (csvDownloadError) {
-        log('warn', 'Could not download CSV file', { error: csvDownloadError.message });
-      }
-    }
-
-    // Download PDF file
-    let pdfContent = null;
-    if (report.pdf_file_url) {
-      try {
-        const pdfFileName = report.pdf_file_url.split('/').pop();
-        const { data: pdfData, error: pdfError } = await supabase.storage
-          .from('generated-reports')
-          .download(pdfFileName);
-
-        if (!pdfError && pdfData) {
-          const pdfArrayBuffer = await pdfData.arrayBuffer();
-          pdfContent = Buffer.from(pdfArrayBuffer).toString('base64');
-        }
-      } catch (pdfDownloadError) {
-        log('warn', 'Could not download PDF file', { error: pdfDownloadError.message });
-      }
-    }
-
     // Generate secure token for email actions
     const token = uuidv4();
     const expiresAt = new Date();
@@ -157,129 +122,220 @@ exports.handler = async function(event, context) {
     }
 
     // Generate admin email content
-    const reportSummaryHtml = generateAdminReportSummary(report, kitInfo, summaryStats);
     const baseUrl = process.env.VITE_APP_URL || 'https://mywaterqualityca.netlify.app';
     const sendToCustomerUrl = `${baseUrl}/.netlify/functions/handle-admin-email-action?token=${token}&action=send-to-customer`;
-    const viewReportUrl = `${baseUrl}/admin-dashboard`;
 
-    // Prepare attachments
+    // Download and prepare attachments with comprehensive validation
     const attachments = [];
-    
-    if (csvContent) {
-      attachments.push({
-        filename: `${kitInfo.kitCode || 'UNKNOWN'}_test_results.csv`,
-        content: Buffer.from(csvContent).toString('base64'),
-        contentType: 'text/csv'
-      });
+
+    // Download CSV file with validation
+    let csvContent = null;
+    if (report.csv_file_url) {
+      try {
+        const csvFileName = report.csv_file_url.split('/').pop();
+        log('info', 'Attempting to download CSV file', { filename: csvFileName });
+        
+        const { data: csvData, error: csvError } = await supabase.storage
+          .from('test-results-csv')
+          .download(csvFileName);
+
+        if (csvError) {
+          log('error', 'CSV download error from Supabase', { error: csvError.message });
+        } else if (!csvData) {
+          log('error', 'No CSV data received from Supabase');
+        } else {
+          csvContent = await csvData.text();
+          log('info', 'CSV downloaded successfully', { 
+            filename: csvFileName,
+            contentLength: csvContent?.length || 0 
+          });
+        }
+      } catch (csvDownloadError) {
+        log('error', 'CSV download exception', { error: csvDownloadError.message });
+      }
     }
 
-    if (pdfContent) {
+    // Download PDF file with validation
+    let pdfContent = null;
+    if (report.pdf_file_url) {
+      try {
+        const pdfFileName = report.pdf_file_url.split('/').pop();
+        log('info', 'Attempting to download PDF file', { filename: pdfFileName });
+        
+        const { data: pdfData, error: pdfError } = await supabase.storage
+          .from('generated-reports')
+          .download(pdfFileName);
+
+        if (pdfError) {
+          log('error', 'PDF download error from Supabase', { error: pdfError.message });
+        } else if (!pdfData) {
+          log('error', 'No PDF data received from Supabase');
+        } else {
+          const pdfArrayBuffer = await pdfData.arrayBuffer();
+          pdfContent = Buffer.from(pdfArrayBuffer).toString('base64');
+          log('info', 'PDF downloaded successfully', { 
+            filename: pdfFileName,
+            base64Length: pdfContent?.length || 0,
+            sizeKB: Math.round((pdfContent?.length || 0) / 1024)
+          });
+        }
+      } catch (pdfDownloadError) {
+        log('error', 'PDF download exception', { error: pdfDownloadError.message });
+      }
+    }
+
+    // Add CSV attachment if valid
+    if (csvContent && csvContent.trim().length > 0) {
+      try {
+        const csvBase64 = Buffer.from(csvContent, 'utf8').toString('base64');
+        if (csvBase64 && csvBase64.length > 0) {
+          attachments.push({
+            filename: `${kitInfo.kitCode || 'UNKNOWN'}_test_results.csv`,
+            data: csvBase64,
+            contentType: 'text/csv'
+          });
+          log('info', 'CSV attachment added', { 
+            filename: `${kitInfo.kitCode || 'UNKNOWN'}_test_results.csv`,
+            sizeKB: Math.round(csvBase64.length / 1024)
+          });
+        }
+      } catch (csvError) {
+        log('error', 'Failed to prepare CSV attachment', { error: csvError.message });
+      }
+    }
+
+    // Add PDF attachment if valid
+    if (pdfContent && pdfContent.length > 0) {
       attachments.push({
         filename: `${kitInfo.kitCode || 'UNKNOWN'}_report.pdf`,
-        content: pdfContent,
+        data: pdfContent,
         contentType: 'application/pdf'
+      });
+      log('info', 'PDF attachment added', { 
+        filename: `${kitInfo.kitCode || 'UNKNOWN'}_report.pdf`,
+        sizeKB: Math.round(pdfContent.length / 1024)
       });
     }
 
-    // Enhanced debugging for send-admin-report-notification.cjs
-// Replace the Loops API call section with this enhanced version:
+    log('info', 'Final attachments prepared', { 
+      count: attachments.length,
+      attachmentInfo: attachments.map(att => ({
+        filename: att.filename,
+        hasData: !!att.data,
+        dataLength: att.data?.length || 0
+      }))
+    });
 
-log('info', 'Preparing to send admin notification', {
-  reportId,
-  adminEmail,
-  attachmentsCount: attachments.length,
-  kitInfo: {
-    kitCode: kitInfo.kitCode,
-    customerName: kitInfo.customerName,
-    customerEmail: kitInfo.customerEmail
-  }
-});
+    // Only proceed if we have attachments
+    if (attachments.length === 0) {
+      log('warn', 'No valid attachments found, skipping admin notification');
+      return {
+        statusCode: 200,
+        headers,
+        body: JSON.stringify({
+          success: false,
+          message: 'No attachments available - admin notification skipped',
+          reportId: reportId
+        })
+      };
+    }
 
-// Send email via Loops
-const requestBody = {
-  transactionalId: 'cmdj4w1u62ku8zc0jqy6rfekn',
-  email: adminEmail,
-  dataVariables: {
-    customerName: kitInfo.customerName || 'Customer',
-    kitCode: kitInfo.kitCode || 'UNKNOWN',
-    sendToCustomerUrl: sendToCustomerUrl
-  },
-  attachments: attachments
-};
+    log('info', 'Preparing to send admin notification', {
+      reportId,
+      adminEmail,
+      attachmentsCount: attachments.length,
+      kitInfo: {
+        kitCode: kitInfo.kitCode,
+        customerName: kitInfo.customerName,
+        customerEmail: kitInfo.customerEmail
+      }
+    });
 
-log('info', 'Loops API request body', {
-  transactionalId: requestBody.transactionalId,
-  email: requestBody.email,
-  dataVariables: requestBody.dataVariables,
-  attachmentsCount: requestBody.attachments.length,
-  attachmentSizes: requestBody.attachments.map(att => ({
-    filename: att.filename,
-    contentType: att.contentType,
-    sizeKB: Math.round(att.content.length / 1024)
-  }))
-});
+    // Send email via Loops
+    const requestBody = {
+      transactionalId: 'cmdj4w1u62ku8zc0jqy6rfekn',
+      email: adminEmail,
+      dataVariables: {
+        customerName: kitInfo.customerName || 'Customer',
+        kitCode: kitInfo.kitCode || 'UNKNOWN',
+        sendToCustomerUrl: sendToCustomerUrl
+      },
+      attachments: attachments
+    };
 
-const loopsResponse = await fetch('https://app.loops.so/api/v1/transactional', {
-  method: 'POST',
-  headers: {
-    'Authorization': `Bearer ${process.env.VITE_LOOPS_API_KEY}`,
-    'Content-Type': 'application/json',
-  },
-  body: JSON.stringify(requestBody)
-});
+    log('info', 'Loops API request body', {
+      transactionalId: requestBody.transactionalId,
+      email: requestBody.email,
+      dataVariables: requestBody.dataVariables,
+      attachmentsCount: requestBody.attachments.length,
+      attachmentSizes: requestBody.attachments.map(att => ({
+        filename: att.filename,
+        contentType: att.contentType,
+        sizeKB: Math.round(att.data.length / 1024)
+      }))
+    });
 
-log('info', 'Loops API response received', {
-  status: loopsResponse.status,
-  statusText: loopsResponse.statusText,
-  contentType: loopsResponse.headers.get('content-type'),
-  contentLength: loopsResponse.headers.get('content-length')
-});
+    const loopsResponse = await fetch('https://app.loops.so/api/v1/transactional', {
+      method: 'POST',
+      headers: {
+        'Authorization': `Bearer ${process.env.VITE_LOOPS_API_KEY}`,
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify(requestBody)
+    });
 
-let responseText;
-try {
-  responseText = await loopsResponse.text();
-  log('info', 'Loops response body', {
-    responseLength: responseText.length,
-    responsePreview: responseText.substring(0, 200)
-  });
-} catch (textError) {
-  log('error', 'Failed to read response text', { error: textError.message });
-  responseText = '';
-}
+    log('info', 'Loops API response received', {
+      status: loopsResponse.status,
+      statusText: loopsResponse.statusText,
+      contentType: loopsResponse.headers.get('content-type'),
+      contentLength: loopsResponse.headers.get('content-length')
+    });
 
-if (!loopsResponse.ok) {
-  log('error', 'Loops API error', {
-    status: loopsResponse.status,
-    statusText: loopsResponse.statusText,
-    response: responseText
-  });
-  throw new Error(`Loops API error: ${loopsResponse.status} - ${responseText || 'No response body'}`);
-}
+    let responseText;
+    try {
+      responseText = await loopsResponse.text();
+      log('info', 'Loops response body', {
+        responseLength: responseText.length,
+        responsePreview: responseText.substring(0, 200)
+      });
+    } catch (textError) {
+      log('error', 'Failed to read response text', { error: textError.message });
+      responseText = '';
+    }
 
-// Try to parse as JSON for additional info, but don't fail if it's not JSON
-try {
-  if (responseText) {
-    const responseData = JSON.parse(responseText);
-    log('info', 'Loops response parsed', responseData);
-  }
-} catch (parseError) {
-  log('info', 'Loops response not JSON (this is normal)', {
-    parseError: parseError.message,
-    response: responseText
-  });
-}
+    if (!loopsResponse.ok) {
+      log('error', 'Loops API error', {
+        status: loopsResponse.status,
+        statusText: loopsResponse.statusText,
+        response: responseText
+      });
+      throw new Error(`Loops API error: ${loopsResponse.status} - ${responseText || 'No response body'}`);
+    }
 
-log('info', 'Admin notification sent successfully', { reportId, attachmentsCount: attachments.length });
+    // Try to parse as JSON for additional info, but don't fail if it's not JSON
+    try {
+      if (responseText) {
+        const responseData = JSON.parse(responseText);
+        log('info', 'Loops response parsed', responseData);
+      }
+    } catch (parseError) {
+      log('info', 'Loops response not JSON (this is normal)', {
+        parseError: parseError.message,
+        response: responseText
+      });
+    }
 
-return {
-  statusCode: 200,
-  headers,
-  body: JSON.stringify({
-    success: true,
-    message: 'Admin notification sent successfully',
-    token: token
-  })
-};
+    log('info', 'Admin notification sent successfully', { reportId, attachmentsCount: attachments.length });
+
+    return {
+      statusCode: 200,
+      headers,
+      body: JSON.stringify({
+        success: true,
+        message: 'Admin notification sent successfully',
+        token: token
+      })
+    };
 
   } catch (error) {
     log('error', 'Error sending admin notification', { error: error.message });
@@ -312,7 +368,8 @@ function calculateReportSummary(testResults) {
 
   const aoParameters = testResults.filter(r => 
     (r.parameter_type === 'AO' || r.parameter_type === 'Hybrid') &&
-    (r.ao_value !== null || r.ao_display !== null)
+    (r.ao_value !== null && r.ao_value !== undefined && r.ao_value !== '' ||
+     r.ao_display !== null && r.ao_display !== undefined && r.ao_display !== '')
   );
 
   const healthConcerns = healthParameters.filter(r => 
@@ -348,71 +405,4 @@ function calculateReportSummary(testResults) {
     aestheticConcerns,
     bacteriologicalResult
   };
-}
-
-function generateAdminReportSummary(report, kitInfo, summaryStats) {
-  const formatDate = (dateString) => {
-    if (!dateString) return 'N/A';
-    return new Date(dateString).toLocaleDateString('en-CA', {
-      year: 'numeric',
-      month: 'long',
-      day: 'numeric'
-    });
-  };
-
-  const getReportTypeDisplay = (reportType) => {
-    switch(reportType) {
-      case 'registered': return 'Registered Kit Report';
-      case 'unregistered': return 'Unregistered Kit Report';  
-      case 'one_off': return 'One-off Report';
-      default: return 'Standard Report';
-    }
-  };
-
-  return `
-    <div style="font-family: Arial, sans-serif; max-width: 600px; margin: 0 auto;">
-      <div style="background: #f8f9fa; padding: 20px; border-radius: 8px;">
-        <h2 style="color: #1f2937; margin-bottom: 20px;">New Report Generated</h2>
-        
-        <div style="background: white; padding: 15px; border-radius: 8px; margin-bottom: 15px; border-left: 4px solid #3b82f6;">
-          <h3 style="color: #1f2937; margin-bottom: 10px; font-size: 16px;">Kit Information</h3>
-          <p style="margin: 5px 0;"><strong>Kit Code:</strong> ${kitInfo.kitCode || 'UNKNOWN'}</p>
-          <p style="margin: 5px 0;"><strong>Order Number:</strong> ${kitInfo.displayId || 'N/A'}</p>
-          <p style="margin: 5px 0;"><strong>Customer:</strong> ${kitInfo.customerName || 'Customer'} (${kitInfo.customerEmail || 'No email'})</p>
-          <p style="margin: 5px 0;"><strong>Test Kit:</strong> ${kitInfo.testKitName || 'Water Test Kit'}</p>
-          <p style="margin: 5px 0;"><strong>Report Type:</strong> ${getReportTypeDisplay(report.report_type)}</p>
-          <p style="margin: 5px 0;"><strong>Customer Location:</strong> ${kitInfo.customerLocation || 'Not specified'}</p>
-        </div>
-        
-        <div style="background: white; padding: 15px; border-radius: 8px; margin-bottom: 15px; border-left: 4px solid #10b981;">
-          <h3 style="color: #1f2937; margin-bottom: 10px; font-size: 16px;">Test Results Summary</h3>
-          <p style="margin: 5px 0;"><strong>Sample #:</strong> ${report.sample_number || 'N/A'}</p>
-          <p style="margin: 5px 0;"><strong>Work Order #:</strong> ${report.work_order_number || 'N/A'}</p>
-          <p style="margin: 5px 0;"><strong>Parameters Tested:</strong> ${summaryStats.totalParameters}</p>
-          <p style="margin: 5px 0;"><strong>Health Concerns:</strong> ${summaryStats.healthConcerns} parameters exceed limits</p>
-          <p style="margin: 5px 0;"><strong>Aesthetic Concerns:</strong> ${summaryStats.aestheticConcerns} parameters exceed limits</p>
-          <p style="margin: 5px 0;"><strong>Bacteriological:</strong> ${summaryStats.bacteriologicalResult}</p>
-          <p style="margin: 5px 0;"><strong>Generated:</strong> ${formatDate(report.created_at)}</p>
-        </div>
-
-        <div style="background: white; padding: 15px; border-radius: 8px; margin-bottom: 20px; border-left: 4px solid #f59e0b;">
-          <h3 style="color: #1f2937; margin-bottom: 10px; font-size: 16px;">Files Attached</h3>
-          <p style="margin: 5px 0;">✓ Test Results CSV</p>
-          <p style="margin: 5px 0;">✓ Generated PDF Report</p>
-        </div>
-
-        <div style="background: white; padding: 20px; border-radius: 8px; text-align: center;">
-          <h3 style="color: #1f2937; margin-bottom: 15px; font-size: 16px;">Admin Actions</h3>
-          <a href="{{sendToCustomerUrl}}" 
-             style="display: inline-block; background: #3b82f6; color: white; padding: 12px 24px; text-decoration: none; border-radius: 6px; font-weight: bold; margin: 0 10px 10px 0;">
-            Send Report to Customer
-          </a>
-          <a href="{{viewReportUrl}}" 
-             style="display: inline-block; background: #6b7280; color: white; padding: 12px 24px; text-decoration: none; border-radius: 6px; font-weight: bold; margin: 0 10px 10px 0;">
-            View Admin Dashboard
-          </a>
-        </div>
-      </div>
-    </div>
-  `;
 }
