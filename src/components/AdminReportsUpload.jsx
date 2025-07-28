@@ -34,6 +34,7 @@ export default function AdminReportsUpload() {
   });
 
   const [selectedFile, setSelectedFile] = useState(null);
+  const [selectedCoCFile, setSelectedCoCFile] = useState(null);
   const [availableKits, setAvailableKits] = useState({
     registered: [],
     unregistered: []
@@ -93,10 +94,13 @@ export default function AdminReportsUpload() {
     setSuccess(null);
     setKitSearchQuery('');
     setShowDropdown(false);
+    setSelectedCoCFile(null);
     
     // Reset file input
     const fileInput = document.getElementById('file-upload');
+    const cocInput = document.getElementById('coc-upload');
     if (fileInput) fileInput.value = '';
+    if (cocInput) cocInput.value = '';
   };
 
   const loadKitsData = async () => {
@@ -276,6 +280,25 @@ export default function AdminReportsUpload() {
     }
   };
 
+  const handleCoCFileChange = (e) => {
+    const file = e.target.files[0];
+    
+    if (file) {
+      if (file.type !== 'application/pdf') {
+        setError('Please select a valid PDF file for Chain of Custody');
+        return;
+      }
+      
+      if (file.size > 10 * 1024 * 1024) {
+        setError('Chain of Custody file size must be less than 10MB');
+        return;
+      }
+      
+      setSelectedCoCFile(file);
+      setError(null);
+    }
+  };
+
   const validateForm = () => {
     if (!selectedFile) {
       setError('Please select a file to upload');
@@ -322,19 +345,24 @@ export default function AdminReportsUpload() {
     setProcessing(true);
     setError(null);
     setSuccess(null);
-
+  
     try {
       const { data: { session } } = await supabase.auth.getSession();
       if (!session) {
         throw new Error('Authentication required');
       }
-
+  
       const uploadFormData = new FormData();
       uploadFormData.append('file', selectedFile);
       uploadFormData.append('reportType', reportType);
       
       uploadFormData.append('workOrderNumber', formData.sampleNumber || '');
       uploadFormData.append('sampleNumber', formData.workOrderNumber || '');
+      
+      // Add Chain of Custody file if selected
+      if (selectedCoCFile) {
+        uploadFormData.append('cocFile', selectedCoCFile);
+      }
       
       if (reportType === 'kit') {
         uploadFormData.append('kitRegistrationId', formData.kitRegistrationId);
@@ -360,7 +388,7 @@ export default function AdminReportsUpload() {
         uploadFormData.append('kitRegistrationType', 'one_off');
         uploadFormData.append('reportType', 'one_off');
       }
-
+  
       const response = await fetch('/.netlify/functions/process-test-results', {
         method: 'POST',
         headers: {
@@ -368,12 +396,12 @@ export default function AdminReportsUpload() {
         },
         body: uploadFormData
       });
-
+  
       if (!response.ok) {
         const errorData = await response.json();
         throw new Error(errorData.error || 'Failed to process test results');
       }
-
+  
       const result = await response.json();
       
       setSuccess(`Test results uploaded successfully! Report ID: ${result.reportId}`);
@@ -1053,6 +1081,79 @@ export default function AdminReportsUpload() {
                       document.getElementById('file-upload').value = '';
                     }}
                     className="text-blue-600 hover:text-blue-800"
+                  >
+                    <svg className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M6 18L18 6M6 6l12 12" />
+                    </svg>
+                  </button>
+                </div>
+              </div>
+            )}
+          </div>
+
+          {/* Chain of Custody Upload */}
+          <div className="border-t border-gray-200 pt-6">
+            <label htmlFor="coc-upload" className="block text-sm font-medium text-gray-700 mb-2">
+              Chain of Custody PDF (Optional)
+            </label>
+            <div className="mt-1 flex justify-center px-6 pt-5 pb-6 border-2 border-gray-300 border-dashed rounded-md hover:border-gray-400 transition-colors">
+              <div className="space-y-1 text-center">
+                <svg
+                  className="mx-auto h-12 w-12 text-gray-400"
+                  stroke="currentColor"
+                  fill="none"
+                  viewBox="0 0 48 48"
+                  aria-hidden="true"
+                >
+                  <path
+                    d="M28 8H12a4 4 0 00-4 4v20m32-12v8m0 0v8a4 4 0 01-4 4H12a4 4 0 01-4-4v-4m32-4l-3.172-3.172a4 4 0 00-5.656 0L28 28M8 32l9.172-9.172a4 4 0 015.656 0L28 28m0 0l4 4m4-24h8m-4-4v8m-12 4h.02"
+                    strokeWidth={2}
+                    strokeLinecap="round"
+                    strokeLinejoin="round"
+                  />
+                </svg>
+                <div className="flex text-sm text-gray-600">
+                  <label
+                    htmlFor="coc-upload"
+                    className="relative cursor-pointer bg-white rounded-md font-medium text-blue-600 hover:text-blue-500 focus-within:outline-none focus-within:ring-2 focus-within:ring-offset-2 focus-within:ring-blue-500"
+                  >
+                    <span>Upload Chain of Custody</span>
+                    <input
+                      id="coc-upload"
+                      name="coc-upload"
+                      type="file"
+                      className="sr-only"
+                      accept=".pdf"
+                      onChange={handleCoCFileChange}
+                    />
+                  </label>
+                  <p className="pl-1">or drag and drop</p>
+                </div>
+                <p className="text-xs text-gray-500">
+                  PDF files up to 10MB
+                </p>
+              </div>
+            </div>
+            
+            {selectedCoCFile && (
+              <div className="mt-3 p-3 bg-green-50 border border-green-200 rounded-md">
+                <div className="flex items-center justify-between">
+                  <div className="flex items-center">
+                    <svg className="h-5 w-5 text-green-600 mr-2" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
+                    </svg>
+                    <span className="text-sm font-medium text-green-900">{selectedCoCFile.name}</span>
+                    <span className="text-xs text-green-600 ml-2">
+                      ({(selectedCoCFile.size / 1024 / 1024).toFixed(2)} MB)
+                    </span>
+                  </div>
+                  <button
+                    type="button"
+                    onClick={() => {
+                      setSelectedCoCFile(null);
+                      document.getElementById('coc-upload').value = '';
+                    }}
+                    className="text-green-600 hover:text-green-800"
                   >
                     <svg className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                       <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M6 18L18 6M6 6l12 12" />

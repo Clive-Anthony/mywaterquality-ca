@@ -167,6 +167,8 @@ exports.handler = async function(event, context) {
         user,
         fileBuffer,
         fileName,
+        cocFileBuffer: result.cocFileBuffer, 
+        cocFileName: result.cocFileName,   
         kitRegistrationId,
         kitRegistrationType,
         reportType: reportType || 'registered', // Default to registered for backward compatibility
@@ -240,29 +242,24 @@ function parseMultipartWithBusboy(body, contentType, isBase64Encoded) {
         headers: { 'content-type': contentType },
         limits: {
           fileSize: 10 * 1024 * 1024, // 10MB limit
-          files: 1, // Only allow 1 file
+          files: 2, // Allow 2 files (main file + CoC)
           fields: 20 // Allow more fields for custom data
         }
       });
 
       const fields = {};
       const files = {};
-      let fileCount = 0;
 
       // Handle form fields
       busboy.on('field', (fieldname, value) => {
         fields[fieldname] = value;
+        console.log(`[BUSBOY] Field received: ${fieldname} = ${typeof value === 'string' ? value.substring(0, 50) : value}`);
       });
 
       // Handle file uploads
       busboy.on('file', (fieldname, file, filename, encoding, mimetype) => {
-        fileCount++;
+        console.log(`[BUSBOY] File upload started: fieldname=${fieldname}, filename=${filename}, mimetype=${mimetype}`);
         
-        if (fileCount > 1) {
-          reject(new Error('Only one file upload allowed'));
-          return;
-        }
-
         const chunks = [];
         let totalSize = 0;
         
@@ -288,21 +285,26 @@ function parseMultipartWithBusboy(body, contentType, isBase64Encoded) {
             mimetype: mimetype,
             size: fileBuffer.length
           };
+          
+          console.log(`[BUSBOY] File upload completed: fieldname=${fieldname}, filename=${actualFilename}, size=${fileBuffer.length} bytes`);
         });
 
         file.on('error', (err) => {
-          console.error('File processing error:', err);
+          console.error(`[BUSBOY] File processing error for ${fieldname}:`, err);
           reject(err);
         });
       });
 
       // Handle completion
       busboy.on('finish', () => {
-        // Extract the data
+        console.log(`[BUSBOY] Parsing completed. Files received:`, Object.keys(files));
+        console.log(`[BUSBOY] Fields received:`, Object.keys(fields));
+        
+        // Extract the main test results file
         const fileData = files.file;
         
         if (!fileData) {
-          reject(new Error('No file data received'));
+          reject(new Error('No main test results file received'));
           return;
         }
 
@@ -331,15 +333,25 @@ function parseMultipartWithBusboy(body, contentType, isBase64Encoded) {
           sampleNumber: String(fields.sampleNumber || ''),
           reportType: String(fields.reportType || 'registered'),
           customCustomerInfo,
-          customKitInfo
+          customKitInfo,
+          cocFileBuffer: files.cocFile?.data || null,
+          cocFileName: files.cocFile?.filename || null
         };
+
+        console.log(`[BUSBOY] Final result prepared:`, {
+          hasMainFile: !!result.fileBuffer,
+          mainFileSize: result.fileBuffer?.length || 0,
+          hasCoCFile: !!result.cocFileBuffer,
+          cocFileSize: result.cocFileBuffer?.length || 0,
+          cocFileName: result.cocFileName
+        });
 
         resolve(result);
       });
 
       // Handle errors
       busboy.on('error', (err) => {
-        console.error('Busboy error:', err);
+        console.error('[BUSBOY] Parser error:', err);
         reject(err);
       });
 
@@ -348,7 +360,7 @@ function parseMultipartWithBusboy(body, contentType, isBase64Encoded) {
       busboy.end();
 
     } catch (error) {
-      console.error('Error setting up busboy:', error);
+      console.error('[BUSBOY] Setup error:', error);
       reject(error);
     }
   });
@@ -391,6 +403,8 @@ async function processTestResultsFile({
   fileName,
   kitRegistrationId,
   kitRegistrationType,
+  cocFileBuffer = null,
+  cocFileName = null,
   reportType = 'registered',
   customCustomerInfo = null,
   customKitInfo = null,
@@ -609,6 +623,58 @@ async function processTestResultsFile({
 
     log('info', 'CSV file uploaded', { csvFileName, requestId });
 
+    // Upload Chain of Custody if provided and update database
+let cocFileUrl = null;
+if (cocFileBuffer && workOrderNumber) {
+  try {
+    const cocFileName = `LAB_COC_${kitOrderCode}.pdf`; // Use consistent naming
+    log('info', 'Uploading Chain of Custody', { 
+      filename: cocFileName, 
+      fileSize: cocFileBuffer.length,
+      kitOrderCode: kitOrderCode,
+      requestId 
+    });
+    
+    const { data: cocUpload, error: cocUploadError } = await supabase.storage
+      .from('lab-chain-of-custody')
+      .upload(cocFileName, cocFileBuffer, {
+        contentType: 'application/pdf',
+        upsert: true
+      });
+
+    if (cocUploadError) {
+      log('error', 'Chain of Custody upload failed', { 
+        error: cocUploadError.message, 
+        filename: cocFileName,
+        requestId 
+      });
+    } else {
+      const { data: cocUrl } = supabase.storage
+        .from('lab-chain-of-custody')
+        .getPublicUrl(cocFileName);
+      
+      cocFileUrl = cocUrl.publicUrl;
+      log('info', 'Chain of Custody uploaded successfully', { 
+        filename: cocFileName, 
+        url: cocFileUrl,
+        requestId 
+      });
+    }
+  } catch (cocError) {
+    log('error', 'Chain of Custody upload exception', { 
+      error: cocError.message, 
+      stack: cocError.stack,
+      requestId 
+    });
+  }
+} else {
+  log('info', 'Chain of Custody upload skipped', { 
+    hasCocFile: !!cocFileBuffer,
+    hasWorkOrder: !!workOrderNumber,
+    requestId 
+  });
+}
+
     // Parse and insert/update test results
     const processingResult = await processCSVData(supabase, csvContent, sampleNumber, workOrderNumber, requestId);
 
@@ -712,6 +778,76 @@ async function processTestResultsFile({
         })
         .eq('report_id', reportId);
     }
+
+    // Update kit registration with Chain of Custody URL if available
+if (cocFileUrl && kitUpdateResult.success) {
+  try {
+    log('info', 'Updating kit registration with Chain of Custody URL', { 
+      kitId: kitUpdateResult.kitRegistrationId,
+      kitType: kitUpdateResult.type,
+      cocUrl: cocFileUrl,
+      requestId 
+    });
+
+    if (kitUpdateResult.type === 'regular') {
+      const { error: cocUpdateError } = await supabase
+        .from('kit_registrations')
+        .update({ 
+          lab_chain_of_custody_url: cocFileUrl,
+          updated_at: new Date().toISOString()
+        })
+        .eq('kit_registration_id', kitUpdateResult.kitRegistrationId);
+
+      if (cocUpdateError) {
+        log('error', 'Failed to update regular kit registration with CoC URL', { 
+          error: cocUpdateError.message,
+          kitId: kitUpdateResult.kitRegistrationId,
+          requestId 
+        });
+      } else {
+        log('info', 'Regular kit registration updated with CoC URL', { 
+          kitId: kitUpdateResult.kitRegistrationId,
+          requestId 
+        });
+      }
+    } else if (kitUpdateResult.type === 'legacy') {
+      const { error: cocUpdateError } = await supabase
+        .from('legacy_kit_registrations')
+        .update({ 
+          lab_chain_of_custody_url: cocFileUrl,
+          updated_at: new Date().toISOString()
+        })
+        .eq('id', kitUpdateResult.kitRegistrationId);
+
+      if (cocUpdateError) {
+        log('error', 'Failed to update legacy kit registration with CoC URL', { 
+          error: cocUpdateError.message,
+          kitId: kitUpdateResult.kitRegistrationId,
+          requestId 
+        });
+      } else {
+        log('info', 'Legacy kit registration updated with CoC URL', { 
+          kitId: kitUpdateResult.kitRegistrationId,
+          requestId 
+        });
+      }
+    }
+  } catch (updateError) {
+    log('error', 'Exception updating kit registration with CoC URL', { 
+      error: updateError.message,
+      stack: updateError.stack,
+      requestId 
+    });
+  }
+} else if (cocFileUrl && !kitUpdateResult.success) {
+  log('warn', 'Chain of Custody uploaded but kit registration update failed', { 
+    cocUrl: cocFileUrl,
+    kitUpdateError: kitUpdateResult.error,
+    requestId 
+  });
+} else if (!cocFileUrl) {
+  log('info', 'No Chain of Custody file provided for this report', { requestId });
+}
 
     // Prepare kit information for the report generation
 let kitInfo = {
@@ -913,7 +1049,7 @@ try {
           const csvBase64 = Buffer.from(csvContent, 'utf8').toString('base64');
           
           attachments.push({
-            filename: `${kitInfo.kitCode || 'UNKNOWN'}_test_results.csv`,
+            filename: csvFileName, // Use original filename from storage
             data: csvBase64,
             contentType: 'text/csv'
           });
@@ -930,11 +1066,11 @@ try {
       }
     }
     
-    // Download PDF
+    // Download PDF Report
     if (report.pdf_file_url) {
       try {
         const pdfFileName = report.pdf_file_url.split('/').pop();
-        log('info', 'Downloading PDF for admin email', { filename: pdfFileName });
+        log('info', 'Downloading PDF report for admin email', { filename: pdfFileName });
         
         const { data: pdfData, error: pdfError } = await supabase.storage
           .from('generated-reports')
@@ -945,24 +1081,64 @@ try {
           const pdfBase64 = Buffer.from(pdfArrayBuffer).toString('base64');
           
           attachments.push({
-            filename: `${kitInfo.kitCode || 'UNKNOWN'}_report.pdf`,
+            filename: pdfFileName, // Use actual filename from storage
             data: pdfBase64,
             contentType: 'application/pdf'
           });
           
-          log('info', 'PDF attachment prepared', { 
+          log('info', 'PDF report attachment prepared', { 
             filename: pdfFileName,
             sizeKB: Math.round(pdfBase64.length / 1024) 
           });
         } else {
-          log('warn', 'PDF download failed', { error: pdfError?.message });
+          log('warn', 'PDF report download failed', { error: pdfError?.message });
         }
       } catch (pdfErr) {
-        log('warn', 'PDF processing error', { error: pdfErr.message });
+        log('warn', 'PDF report processing error', { error: pdfErr.message });
       }
     }
     
-    log('info', 'Attachments prepared for admin email', { count: attachments.length });
+    // Download Chain of Custody if available
+if (cocFileUrl) {
+  try {
+    const cocFileName = `LAB_COC_${kitInfo.kitCode || kitInfo.displayId || 'UNKNOWN'}.pdf`;
+    
+    log('info', 'Downloading Chain of Custody for admin email', { 
+      filename: cocFileName 
+    });
+    
+    const { data: cocData, error: cocError } = await supabase.storage
+      .from('lab-chain-of-custody')
+      .download(cocFileName);
+      
+    if (!cocError && cocData) {
+      const cocArrayBuffer = await cocData.arrayBuffer();
+      const cocBase64 = Buffer.from(cocArrayBuffer).toString('base64');
+      
+      attachments.push({
+        filename: cocFileName, // Same filename for storage and email
+        data: cocBase64,
+        contentType: 'application/pdf'
+      });
+      
+      log('info', 'Chain of Custody attachment prepared', { 
+        filename: cocFileName,
+        sizeKB: Math.round(cocBase64.length / 1024) 
+      });
+    } else {
+      log('warn', 'Chain of Custody download failed', { error: cocError?.message });
+    }
+  } catch (cocErr) {
+    log('warn', 'Chain of Custody processing error', { error: cocErr.message });
+  }
+} else {
+  log('info', 'No Chain of Custody file available for this report', { requestId });
+}
+    
+    log('info', 'All attachments prepared for admin email', { 
+      count: attachments.length,
+      filenames: attachments.map(att => att.filename)
+    });
     
     // Send email via Loops directly
     const requestBody = {
@@ -990,6 +1166,10 @@ try {
         log('info', 'Admin notification sent successfully (direct)', { 
           reportId, 
           attachmentsCount: attachments.length,
+          attachmentTypes: attachments.map(att => ({ 
+            filename: att.filename, 
+            type: att.contentType 
+          })),
           requestId 
         });
       } else {
@@ -1114,7 +1294,8 @@ async function processCSVData(supabase, csvContent, sampleNumber, workOrderNumbe
       }
     });
 
-    let processedCount = 0;
+    // Prepare batch data
+    const batchData = [];
     let skippedCount = 0;
 
     // Process each data row
@@ -1132,7 +1313,6 @@ async function processCSVData(supabase, csvContent, sampleNumber, workOrderNumbe
       };
 
       let hasParameter = false;
-      let parameterValue = null;
 
       // Map each CSV column to the appropriate database column
       headers.forEach((header, index) => {
@@ -1160,7 +1340,6 @@ async function processCSVData(supabase, csvContent, sampleNumber, workOrderNumbe
               // Check if this is the Parameter column
               if (dbColumn === 'Parameter') {
                 hasParameter = true;
-                parameterValue = value;
               }
             }
           }
@@ -1181,53 +1360,52 @@ async function processCSVData(supabase, csvContent, sampleNumber, workOrderNumbe
         continue;
       }
 
+      // Validate required fields
+      const requiredFields = ['Work Order #', 'Sample #', 'Parameter'];
+      const missingFields = requiredFields.filter(field => !cleanRowData[field]);
+      
+      if (missingFields.length === 0) {
+        batchData.push(cleanRowData);
+      } else {
+        skippedCount++;
+      }
+    }
+
+    // Insert data in batches to avoid timeout
+    const batchSize = 100;
+    let processedCount = 0;
+    let errorCount = 0;
+    
+    for (let i = 0; i < batchData.length; i += batchSize) {
+      const batch = batchData.slice(i, i + batchSize);
+      
       try {
-        // Validate cleanRowData before insertion
-        const requiredFields = ['Work Order #', 'Sample #', 'Parameter'];
-        const missingFields = requiredFields.filter(field => !cleanRowData[field]);
-        
-        if (missingFields.length > 0) {
-          skippedCount++;
-          continue;
-        }
-        
-        // Convert keys to quoted format for Supabase operation
-        const dbRowData = {};
-        Object.keys(cleanRowData).forEach(key => {
-          if (key && key.trim() !== '') { // Extra safety check
-            dbRowData[key] = cleanRowData[key];
-          }
-        });
-
-        // Insert new record
-        const { error: insertError } = await supabase
+        const { error: batchError } = await supabase
           .from('test_results_raw')
-          .insert([dbRowData]);
+          .insert(batch);
 
-        if (insertError) {
-          console.error(`Row ${i} insert error:`, {
-            error: insertError.message,
-            code: insertError.code,
-            details: insertError.details,
-            hint: insertError.hint
-          });
-        } else {
-          processedCount++;
-          if (processedCount <= 3) {
-            log('info', 'Inserted test result', { 
-              workOrder: cleanRowData['Work Order #'], 
-              sample: cleanRowData['Sample #'], 
-              parameter: cleanRowData['Parameter'] 
+        if (batchError) {
+          errorCount += batch.length;
+          // Only log first few batch errors to avoid spam
+          if (errorCount <= 300) { // Only log first 3 batches of errors
+            log('warn', 'Batch insert error (likely duplicates)', { 
+              batchStart: i,
+              batchSize: batch.length,
+              requestId
             });
           }
+        } else {
+          processedCount += batch.length;
         }
-      } catch (rowError) {
-        console.error(`Row ${i} processing error:`, {
-          error: rowError.message,
-          stack: rowError.stack,
-          cleanRowData: cleanRowData
-        });
-        skippedCount++;
+      } catch (batchInsertError) {
+        errorCount += batch.length;
+        // Minimal error logging
+        if (errorCount <= 300) {
+          log('warn', 'Batch insert exception (likely duplicates)', { 
+            batchStart: i,
+            requestId
+          });
+        }
       }
     }
 
@@ -1236,6 +1414,7 @@ async function processCSVData(supabase, csvContent, sampleNumber, workOrderNumbe
       workOrderNumber,
       rowsProcessed: processedCount,
       rowsSkipped: skippedCount,
+      rowsWithErrors: errorCount,
       totalRows: lines.length - 1, 
       requestId 
     });
