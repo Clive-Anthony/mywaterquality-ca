@@ -47,7 +47,7 @@ exports.handler = async function(event, context) {
       process.env.VITE_SUPABASE_SERVICE_KEY
     );
 
-    // Authenticate admin user
+    // Authenticate admin user or service key
     const authHeader = event.headers.authorization;
     if (!authHeader?.startsWith('Bearer ')) {
       return {
@@ -58,27 +58,39 @@ exports.handler = async function(event, context) {
     }
 
     const token = authHeader.substring(7);
-    const { data: userData, error: userError } = await supabase.auth.getUser(token);
-    
-    if (userError || !userData?.user) {
-      return {
-        statusCode: 401,
-        headers,
-        body: JSON.stringify({ error: 'Authentication failed' })
-      };
-    }
+    let userData = null;
+    let isServiceKeyCall = false;
 
-    // Check if user is admin
-    const { data: userRole, error: adminError } = await supabase.rpc('get_user_role', {
-      user_uuid: userData.user.id
-    });
+    // Check if this is a service key call (from admin email action)
+    if (token === process.env.VITE_SUPABASE_SERVICE_KEY) {
+      isServiceKeyCall = true;
+      log('info', 'Service key authentication detected for admin email action');
+    } else {
+      // Regular user authentication
+      const { data: authData, error: userError } = await supabase.auth.getUser(token);
+      
+      if (userError || !authData?.user) {
+        return {
+          statusCode: 401,
+          headers,
+          body: JSON.stringify({ error: 'Authentication failed' })
+        };
+      }
 
-    if (adminError || !userRole || (userRole !== 'admin' && userRole !== 'super_admin')) {
-      return {
-        statusCode: 403,
-        headers,
-        body: JSON.stringify({ error: 'Admin access required' })
-      };
+      userData = authData;
+
+      // Check if user is admin
+      const { data: userRole, error: adminError } = await supabase.rpc('get_user_role', {
+        user_uuid: userData.user.id
+      });
+
+      if (adminError || !userRole || (userRole !== 'admin' && userRole !== 'super_admin')) {
+        return {
+          statusCode: 403,
+          headers,
+          body: JSON.stringify({ error: 'Admin access required' })
+        };
+      }
     }
 
     const requestData = JSON.parse(event.body);
@@ -345,12 +357,45 @@ log('info', 'Attachment prepared for customer email', {
         sent_at: new Date().toISOString(),
         metadata: {
           customer_name: customerInfo.fullName,
-          kit_code: customerInfo.kitCode
+          kit_code: customerInfo.kitCode,
+          sent_via: isServiceKeyCall ? 'admin_email_action' : 'admin_dashboard'
         }
       }]);
 
     if (logError) {
       log('warn', 'Could not log email delivery', { error: logError.message });
+    }
+
+    // NEW: Update kit status to "report_delivered" after successful email
+    try {
+      if (report.kit_registration_id) {
+        // Regular kit registration
+        const { error: statusError } = await supabase
+          .from('kit_registrations')
+          .update({ status: 'report_delivered' })
+          .eq('kit_registration_id', report.kit_registration_id);
+        
+        if (statusError) {
+          log('warn', 'Could not update kit registration status', { error: statusError.message, kitId: report.kit_registration_id });
+        } else {
+          log('info', 'Updated kit registration status to report_delivered', { kitId: report.kit_registration_id });
+        }
+      } else if (report.legacy_kit_registration_id) {
+        // Legacy kit registration
+        const { error: statusError } = await supabase
+          .from('legacy_kit_registrations')
+          .update({ status: 'report_delivered' })
+          .eq('id', report.legacy_kit_registration_id);
+        
+        if (statusError) {
+          log('warn', 'Could not update legacy kit registration status', { error: statusError.message, kitId: report.legacy_kit_registration_id });
+        } else {
+          log('info', 'Updated legacy kit registration status to report_delivered', { kitId: report.legacy_kit_registration_id });
+        }
+      }
+      // Note: No status update needed for one_off reports as they don't have associated kit registrations
+    } catch (statusUpdateError) {
+      log('warn', 'Error updating kit status', { error: statusUpdateError.message, reportId });
     }
 
     log('info', 'Customer report email sent successfully', { 

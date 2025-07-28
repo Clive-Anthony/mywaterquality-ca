@@ -1034,9 +1034,9 @@ if (reportType === 'one_off') {
         }
       }
 
-// Direct admin notification implementation (bypassing separate function)
+// Direct admin notification implementation (simplified)
 try {
-  log('info', 'Sending admin notification directly', { reportId, requestId });
+  log('info', 'Sending admin notification', { reportId, requestId });
   
   // Get report details for file downloads
   const { data: report, error: reportError } = await supabase
@@ -1066,7 +1066,7 @@ try {
           const csvBase64 = Buffer.from(csvContent, 'utf8').toString('base64');
           
           attachments.push({
-            filename: csvFileName, // Use original filename from storage
+            filename: csvFileName,
             data: csvBase64,
             contentType: 'text/csv'
           });
@@ -1098,7 +1098,7 @@ try {
           const pdfBase64 = Buffer.from(pdfArrayBuffer).toString('base64');
           
           attachments.push({
-            filename: pdfFileName, // Use actual filename from storage
+            filename: pdfFileName,
             data: pdfBase64,
             contentType: 'application/pdf'
           });
@@ -1116,41 +1116,41 @@ try {
     }
     
     // Download Chain of Custody if available
-if (cocFileUrl) {
-  try {
-    const cocFileName = `LAB_COC_${kitInfo.kitCode || kitInfo.displayId || 'UNKNOWN'}.pdf`;
-    
-    log('info', 'Downloading Chain of Custody for admin email', { 
-      filename: cocFileName 
-    });
-    
-    const { data: cocData, error: cocError } = await supabase.storage
-      .from('lab-chain-of-custody')
-      .download(cocFileName);
-      
-    if (!cocError && cocData) {
-      const cocArrayBuffer = await cocData.arrayBuffer();
-      const cocBase64 = Buffer.from(cocArrayBuffer).toString('base64');
-      
-      attachments.push({
-        filename: cocFileName, // Same filename for storage and email
-        data: cocBase64,
-        contentType: 'application/pdf'
-      });
-      
-      log('info', 'Chain of Custody attachment prepared', { 
-        filename: cocFileName,
-        sizeKB: Math.round(cocBase64.length / 1024) 
-      });
+    if (cocFileUrl) {
+      try {
+        const cocFileName = `LAB_COC_${kitInfo.kitCode || kitInfo.displayId || 'UNKNOWN'}.pdf`;
+        
+        log('info', 'Downloading Chain of Custody for admin email', { 
+          filename: cocFileName 
+        });
+        
+        const { data: cocData, error: cocError } = await supabase.storage
+          .from('lab-chain-of-custody')
+          .download(cocFileName);
+          
+        if (!cocError && cocData) {
+          const cocArrayBuffer = await cocData.arrayBuffer();
+          const cocBase64 = Buffer.from(cocArrayBuffer).toString('base64');
+          
+          attachments.push({
+            filename: cocFileName,
+            data: cocBase64,
+            contentType: 'application/pdf'
+          });
+          
+          log('info', 'Chain of Custody attachment prepared', { 
+            filename: cocFileName,
+            sizeKB: Math.round(cocBase64.length / 1024) 
+          });
+        } else {
+          log('warn', 'Chain of Custody download failed', { error: cocError?.message });
+        }
+      } catch (cocErr) {
+        log('warn', 'Chain of Custody processing error', { error: cocErr.message });
+      }
     } else {
-      log('warn', 'Chain of Custody download failed', { error: cocError?.message });
+      log('info', 'No Chain of Custody file available for this report', { requestId });
     }
-  } catch (cocErr) {
-    log('warn', 'Chain of Custody processing error', { error: cocErr.message });
-  }
-} else {
-  log('info', 'No Chain of Custody file available for this report', { requestId });
-}
     
     log('info', 'All attachments prepared for admin email', { 
       count: attachments.length,
@@ -1163,8 +1163,9 @@ if (cocFileUrl) {
       email: 'david.phillips@bookerhq.ca',
       dataVariables: {
         customerName: kitInfo.customerName || 'Customer',
-        kitCode: kitInfo.kitCode || 'UNKNOWN',
-        sendtoCustomerUrl: `${process.env.VITE_APP_URL || 'https://mywaterqualityca.netlify.app'}/admin-dashboard`
+        kitCode: kitInfo.kitCode || kitInfo.displayId || 'UNKNOWN',
+        orderNumber: kitInfo.orderNumber || 'N/A',
+        manageReportsUrl: `${process.env.VITE_APP_URL || 'https://mywaterqualityca.netlify.app'}/admin-dashboard`
       },
       attachments: attachments
     };
@@ -1180,18 +1181,16 @@ if (cocFileUrl) {
       });
 
       if (loopsResponse.ok) {
-        log('info', 'Admin notification sent successfully (direct)', { 
+        log('info', 'Admin notification sent successfully', { 
           reportId, 
           attachmentsCount: attachments.length,
-          attachmentTypes: attachments.map(att => ({ 
-            filename: att.filename, 
-            type: att.contentType 
-          })),
+          kitCode: kitInfo.kitCode || kitInfo.displayId,
+          orderNumber: kitInfo.orderNumber,
           requestId 
         });
       } else {
         const errorText = await loopsResponse.text();
-        log('error', 'Failed to send admin notification (direct)', { 
+        log('error', 'Failed to send admin notification', { 
           status: loopsResponse.status, 
           error: errorText,
           requestId 
@@ -1202,13 +1201,13 @@ if (cocFileUrl) {
     }
   }
 } catch (adminNotificationError) {
-  log('error', 'Exception in direct admin notification', { 
+  log('error', 'Exception in admin notification', { 
     error: adminNotificationError.message,
     stack: adminNotificationError.stack,
     requestId 
   });
   // Don't fail the entire process if admin notification fails
-} 
+}
 } else {
       // Update with error status
       await supabase
