@@ -950,7 +950,8 @@ function generateHTMLReport(reportData, sampleNumber, kitInfo = {}) {
   // Dynamic kit information based on registration type
   const customer_first = kitInfo.customerFirstName || "Valued Customer";
   const customer_name = kitInfo.customerName || "Customer";
-  const order_number = kitInfo.displayId || kitInfo.kitCode || 'N/A'; // Use display_id for regular, kit_code for legacy
+  const order_number = kitInfo.orderNumber || 'N/A'; // Use actual order number
+  const kit_display_id = kitInfo.displayId || kitInfo.kitCode || 'N/A'; // Kit identifier
   const sample_description = sampleInfo?.sample_description || "Water Sample";
   const TEST_KIT = kitInfo.testKitName || "Water Test Kit";
   const test_kit_display = kitInfo.testKitName || "Water Test Kit";

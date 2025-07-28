@@ -850,6 +850,7 @@ if (cocFileUrl && kitUpdateResult.success) {
 }
 
     // Prepare kit information for the report generation
+// Prepare kit information for the report generation
 let kitInfo = {
   displayId: kitOrderCode,
   kitCode: kitOrderCode,
@@ -857,7 +858,8 @@ let kitInfo = {
   testKitId: null,
   customerFirstName: 'Valued Customer',
   customerName: 'Customer',
-  customerLocation: 'Not specified'
+  customerLocation: 'Not specified',
+  orderNumber: 'N/A' // Add separate order number field
 };
 
 // Get kit information based on report type
@@ -884,6 +886,10 @@ if (reportType === 'one_off') {
     kitInfo.displayId = customKitInfo.kitCode || kitOrderCode;
     kitInfo.kitCode = customKitInfo.kitCode || kitOrderCode;
   }
+  
+  // For one-off reports, use the kit code as order number
+  kitInfo.orderNumber = `ONEOFF-${kitInfo.kitCode}`;
+  
 } else if (reportType === 'unregistered') {
   // For unregistered reports, first get kit info from the registration using the ID
   let kitRegistrationData = null;
@@ -917,8 +923,9 @@ if (reportType === 'one_off') {
     kitInfo.customerEmail = kitRegistrationData.customer_email || 'unknown@example.com';
     kitInfo.testKitName = kitRegistrationData.test_kit_name || 'Water Test Kit';
     kitInfo.testKitId = kitRegistrationData.test_kit_id || null;
-    kitInfo.displayId = kitRegistrationData.kit_code || kitOrderCode;
+    kitInfo.displayId = kitRegistrationData.kit_code || kitOrderCode; // Kit identifier
     kitInfo.kitCode = kitRegistrationData.kit_code || kitOrderCode;
+    kitInfo.orderNumber = kitRegistrationData.order_number || 'N/A'; // Actual order number
     
     // Build location from registration address fields, override with custom location if provided
     const locationParts = [];
@@ -938,6 +945,8 @@ if (reportType === 'one_off') {
       kitId: kitRegistrationId,
       customerName: kitInfo.customerName,
       kitCode: kitInfo.kitCode,
+      displayId: kitInfo.displayId,
+      orderNumber: kitInfo.orderNumber,
       requestId 
     });
   } else {
@@ -968,8 +977,9 @@ if (reportType === 'one_off') {
     };
   
     kitInfo = {
-      displayId: kitAdminData.kit_code || kitOrderCode,
+      displayId: kitAdminData.kit_code || kitOrderCode, // Kit identifier
       kitCode: kitAdminData.kit_code || kitOrderCode,
+      orderNumber: kitAdminData.order_number || 'N/A', // Actual order number
       testKitName: kitAdminData.test_kit_name || 'Water Test Kit',
       testKitId: kitAdminData.test_kit_id,
       customerFirstName: kitAdminData.customer_first_name || 'Valued Customer',
@@ -978,7 +988,14 @@ if (reportType === 'one_off') {
       customerLocation: formatLocation(kitAdminData)
     };
     
-    log('info', 'Kit info retrieved from admin view', { kitInfo, requestId });
+    log('info', 'Kit info retrieved from admin view', { 
+      kitInfo: {
+        displayId: kitInfo.displayId,
+        orderNumber: kitInfo.orderNumber,
+        customerName: kitInfo.customerName
+      }, 
+      requestId 
+    });
   } else {
     log('warn', 'Could not retrieve kit info from admin view', { 
       error: kitAdminError?.message, 

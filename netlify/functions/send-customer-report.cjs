@@ -256,38 +256,59 @@ exports.handler = async function(event, context) {
       };
     }
 
-    // Download PDF file
-    let pdfContent = null;
-    if (report.pdf_file_url) {
-      try {
-        const pdfFileName = report.pdf_file_url.split('/').pop();
-        const { data: pdfData, error: pdfError } = await supabase.storage
-          .from('generated-reports')
-          .download(pdfFileName);
+    // Download PDF file with validation
+let pdfContent = null;
+if (report.pdf_file_url) {
+  try {
+    const pdfFileName = report.pdf_file_url.split('/').pop();
+    log('info', 'Downloading PDF for customer email', { filename: pdfFileName });
+    
+    const { data: pdfData, error: pdfError } = await supabase.storage
+      .from('generated-reports')
+      .download(pdfFileName);
 
-        if (!pdfError && pdfData) {
-          const pdfArrayBuffer = await pdfData.arrayBuffer();
-          pdfContent = Buffer.from(pdfArrayBuffer).toString('base64');
-        }
-      } catch (pdfDownloadError) {
-        log('warn', 'Could not download PDF file', { error: pdfDownloadError.message });
-      }
+    if (pdfError) {
+      throw new Error(`PDF download error: ${pdfError.message}`);
     }
 
-    if (!pdfContent) {
-      return {
-        statusCode: 400,
-        headers,
-        body: JSON.stringify({ error: 'Report PDF not available' })
-      };
+    if (!pdfData) {
+      throw new Error('No PDF data received from Supabase');
     }
 
-    // Prepare attachment
-    const attachments = [{
-      filename: `My-Water-Quality-Report-${customerInfo.kitCode}.pdf`,
-      content: pdfContent,
-      contentType: 'application/pdf'
-    }];
+    const pdfArrayBuffer = await pdfData.arrayBuffer();
+    pdfContent = Buffer.from(pdfArrayBuffer).toString('base64');
+    
+    log('info', 'PDF downloaded and converted successfully', { 
+      filename: pdfFileName,
+      base64Length: pdfContent.length,
+      sizeKB: Math.round(pdfContent.length / 1024)
+    });
+    
+  } catch (pdfDownloadError) {
+    log('error', 'Could not download PDF file', { error: pdfDownloadError.message });
+  }
+}
+
+if (!pdfContent || pdfContent.length === 0) {
+  return {
+    statusCode: 400,
+    headers,
+    body: JSON.stringify({ error: 'Report PDF not available or empty' })
+  };
+}
+
+// Prepare attachment with validation
+const attachments = [{
+  filename: `My-Water-Quality-Report-${customerInfo.kitCode}.pdf`,
+  data: pdfContent,
+  contentType: 'application/pdf'
+}];
+
+log('info', 'Attachment prepared for customer email', {
+  filename: attachments[0].filename,
+  hasData: !!attachments[0].data,
+  dataLength: attachments[0].data.length
+});
 
     // Send email via Loops
     const loopsResponse = await fetch('https://app.loops.so/api/v1/transactional', {
