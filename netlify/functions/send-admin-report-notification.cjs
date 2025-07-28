@@ -181,41 +181,105 @@ exports.handler = async function(event, context) {
       });
     }
 
-    // Send email via Loops
-    const loopsResponse = await fetch('https://app.loops.so/api/v1/transactional', {
-      method: 'POST',
-      headers: {
-        'Authorization': `Bearer ${process.env.VITE_LOOPS_API_KEY}`,
-        'Content-Type': 'application/json',
-      },
-      body: JSON.stringify({
-        transactionalId: 'cmdj4w1u62ku8zc0jqy6rfekn',
-        email: adminEmail,
-        dataVariables: {
-          customerName: kitInfo.customerName || 'Customer',
-          kitCode: kitInfo.kitCode || 'UNKNOWN',
-          sendToCustomerUrl: sendToCustomerUrl,
-        },
-        attachments: attachments
-      })
-    });
+    // Enhanced debugging for send-admin-report-notification.cjs
+// Replace the Loops API call section with this enhanced version:
 
-    if (!loopsResponse.ok) {
-      const errorData = await loopsResponse.text();
-      throw new Error(`Loops API error: ${loopsResponse.status} - ${errorData}`);
-    }
+log('info', 'Preparing to send admin notification', {
+  reportId,
+  adminEmail,
+  attachmentsCount: attachments.length,
+  kitInfo: {
+    kitCode: kitInfo.kitCode,
+    customerName: kitInfo.customerName,
+    customerEmail: kitInfo.customerEmail
+  }
+});
 
-    log('info', 'Admin notification sent successfully', { reportId, attachmentsCount: attachments.length });
+// Send email via Loops
+const requestBody = {
+  transactionalId: 'cmdj4w1u62ku8zc0jqy6rfekn',
+  email: adminEmail,
+  dataVariables: {
+    customerName: kitInfo.customerName || 'Customer',
+    kitCode: kitInfo.kitCode || 'UNKNOWN',
+    sendToCustomerUrl: sendToCustomerUrl
+  },
+  attachments: attachments
+};
 
-    return {
-      statusCode: 200,
-      headers,
-      body: JSON.stringify({
-        success: true,
-        message: 'Admin notification sent successfully',
-        token: token
-      })
-    };
+log('info', 'Loops API request body', {
+  transactionalId: requestBody.transactionalId,
+  email: requestBody.email,
+  dataVariables: requestBody.dataVariables,
+  attachmentsCount: requestBody.attachments.length,
+  attachmentSizes: requestBody.attachments.map(att => ({
+    filename: att.filename,
+    contentType: att.contentType,
+    sizeKB: Math.round(att.content.length / 1024)
+  }))
+});
+
+const loopsResponse = await fetch('https://app.loops.so/api/v1/transactional', {
+  method: 'POST',
+  headers: {
+    'Authorization': `Bearer ${process.env.VITE_LOOPS_API_KEY}`,
+    'Content-Type': 'application/json',
+  },
+  body: JSON.stringify(requestBody)
+});
+
+log('info', 'Loops API response received', {
+  status: loopsResponse.status,
+  statusText: loopsResponse.statusText,
+  contentType: loopsResponse.headers.get('content-type'),
+  contentLength: loopsResponse.headers.get('content-length')
+});
+
+let responseText;
+try {
+  responseText = await loopsResponse.text();
+  log('info', 'Loops response body', {
+    responseLength: responseText.length,
+    responsePreview: responseText.substring(0, 200)
+  });
+} catch (textError) {
+  log('error', 'Failed to read response text', { error: textError.message });
+  responseText = '';
+}
+
+if (!loopsResponse.ok) {
+  log('error', 'Loops API error', {
+    status: loopsResponse.status,
+    statusText: loopsResponse.statusText,
+    response: responseText
+  });
+  throw new Error(`Loops API error: ${loopsResponse.status} - ${responseText || 'No response body'}`);
+}
+
+// Try to parse as JSON for additional info, but don't fail if it's not JSON
+try {
+  if (responseText) {
+    const responseData = JSON.parse(responseText);
+    log('info', 'Loops response parsed', responseData);
+  }
+} catch (parseError) {
+  log('info', 'Loops response not JSON (this is normal)', {
+    parseError: parseError.message,
+    response: responseText
+  });
+}
+
+log('info', 'Admin notification sent successfully', { reportId, attachmentsCount: attachments.length });
+
+return {
+  statusCode: 200,
+  headers,
+  body: JSON.stringify({
+    success: true,
+    message: 'Admin notification sent successfully',
+    token: token
+  })
+};
 
   } catch (error) {
     log('error', 'Error sending admin notification', { error: error.message });
