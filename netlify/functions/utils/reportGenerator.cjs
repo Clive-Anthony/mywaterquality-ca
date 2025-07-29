@@ -1586,6 +1586,25 @@ async function sendAdminNotification(supabase, reportId, kitInfo, requestId) {
   }
 }
 
+// Fallback PDF generation using a simpler method
+async function generateFallbackPDF(reportData, sampleNumber, kitInfo = {}) {
+  console.log('Using fallback PDF generation method');
+  
+  try {
+    // Generate a simple text-based report as fallback
+    const htmlContent = generateHTMLReport(reportData, sampleNumber, kitInfo);
+    
+    // For now, return the HTML as a "PDF" (this is a temporary fallback)
+    // In production, you might want to use a different PDF library like @react-pdf/renderer
+    const Buffer = require('buffer').Buffer;
+    return Buffer.from(htmlContent, 'utf-8');
+    
+  } catch (error) {
+    console.error('Fallback PDF generation also failed:', error);
+    throw error;
+  }
+}
+
 async function continueProcessing(supabase, reportId, sampleNumber, requestId, testResults, kitOrderCode = 'UNKNOWN', kitInfo = {}) {
   try {
     console.log(`[${requestId}] Processing ${testResults.length} test results for report generation`);
@@ -1609,7 +1628,7 @@ return {
 };
 
 // COMMENTED OUT - PDF generation section
-/*
+
 let pdfBuffer;
 try {
   console.log(`[${requestId}] Attempting primary PDF generation`);
@@ -1655,7 +1674,6 @@ return {
   pdfUrl: pdfUrl.publicUrl,
   fileName: pdfFileName
 };
-*/
     
   } catch (error) {
     console.error(`[${requestId}] Error in continueProcessing:`, error);
