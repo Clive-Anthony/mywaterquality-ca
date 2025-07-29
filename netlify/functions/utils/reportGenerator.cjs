@@ -1345,48 +1345,50 @@ function generateHTMLReport(reportData, sampleNumber, kitInfo = {}) {
 }
 
 
-// Browser configuration for different environments
-async function getBrowserConfig() {
-  if (process.env.NETLIFY || process.env.AWS_LAMBDA_FUNCTION_NAME) {
-    // Serverless environment (Netlify/AWS Lambda)
-    return {
-      args: [
-        ...chromium.args,
-        '--no-sandbox',
-        '--disable-setuid-sandbox',
-        '--disable-dev-shm-usage',
-        '--disable-web-security',
-        '--disable-features=VizDisplayCompositor'
-      ],
-      defaultViewport: chromium.defaultViewport,
-      executablePath: await chromium.executablePath(),
-      headless: chromium.headless,
-      ignoreHTTPSErrors: true,
-    };
-  } else {
-    // Local development environment
-    return {
-      headless: 'new', // Use new headless mode to avoid deprecation warning
-      args: [
-        '--no-sandbox', 
-        '--disable-setuid-sandbox', 
-        '--disable-dev-shm-usage',
-        '--disable-web-security'
-      ]
-    };
-  }
-}
-
 // Enhanced HTML to PDF function using Puppeteer with serverless Chrome
 async function generateHTMLToPDF(reportData, sampleNumber, kitInfo = {}) {
-  const puppeteer = require('puppeteer-core');
-  const chromium = require('@sparticuz/chromium');
-  
   let browser;
   try {
-    // Configure for serverless environment
-    const browserConfig = await getBrowserConfig();
-    browser = await puppeteer.launch(browserConfig);
+    // Configure for different environments
+    let browserConfig;
+    
+    if (process.env.NETLIFY || process.env.AWS_LAMBDA_FUNCTION_NAME) {
+      // Serverless environment (Netlify/AWS Lambda)
+      const puppeteer = require('puppeteer-core');
+      const chromium = require('@sparticuz/chromium');
+      
+      browserConfig = {
+        args: [
+          ...chromium.args,
+          '--no-sandbox',
+          '--disable-setuid-sandbox',
+          '--disable-dev-shm-usage',
+          '--disable-web-security',
+          '--disable-features=VizDisplayCompositor'
+        ],
+        defaultViewport: chromium.defaultViewport,
+        executablePath: await chromium.executablePath(),
+        headless: chromium.headless,
+        ignoreHTTPSErrors: true,
+      };
+      
+      browser = await puppeteer.launch(browserConfig);
+    } else {
+      // Local development environment
+      const puppeteer = require('puppeteer');
+      
+      browserConfig = {
+        headless: 'new', // Use new headless mode to avoid deprecation warning
+        args: [
+          '--no-sandbox', 
+          '--disable-setuid-sandbox', 
+          '--disable-dev-shm-usage',
+          '--disable-web-security'
+        ]
+      };
+      
+      browser = await puppeteer.launch(browserConfig);
+    }
     
     const page = await browser.newPage();
     
@@ -1418,81 +1420,6 @@ async function generateHTMLToPDF(reportData, sampleNumber, kitInfo = {}) {
     if (browser) {
       await browser.close();
     }
-  }
-}
-
-async function processReportGeneration(supabase, reportId, sampleNumber, requestId, kitOrderCode = 'UNKNOWN', kitInfo = {}) {
-  try {
-    console.log(`[${requestId}] Starting PDF report generation for sample ${sampleNumber}`);
-
-    // First, let's check what sample numbers are actually in the database for this report
-    const { data: reportInfo, error: reportError } = await supabase
-      .from('reports')
-      .select('sample_number, work_order_number')
-      .eq('report_id', reportId)
-      .single();
-
-    if (reportError) {
-      console.log(`[${requestId}] Could not get report info:`, reportError.message);
-    } else {
-      console.log(`[${requestId}] Report info:`, reportInfo);
-    }
-
-    // Try to find what sample numbers exist in the raw table
-    const { data: availableSamples, error: samplesError } = await supabase
-      .from('test_results_raw')
-      .select('*')
-      .limit(5);
-
-    if (!samplesError && availableSamples) {
-      console.log(`[${requestId}] Available samples in DB:`, availableSamples.map(s => ({ 
-        sample: s['Sample #'],
-        workOrder: s['Work Order #'],
-        parameter: s['Parameter']
-      })));
-    } else {
-      console.log(`[${requestId}] Error fetching available samples:`, samplesError?.message);
-    }
-
-    // Try the view query with the sample number
-    const { data: testResults, error: dataError } = await supabase
-      .from('vw_test_results_with_parameters')
-      .select('*')
-      .eq('sample_number', sampleNumber)
-      .order('parameter_name');
-
-    if (dataError) {
-      console.log(`[${requestId}] View query error:`, dataError.message);
-    }
-
-    console.log(`[${requestId}] View query returned ${testResults?.length || 0} results for sample ${sampleNumber}`);
-
-    if (!testResults || testResults.length === 0) {
-      // Try with work order number
-      if (reportInfo?.work_order_number) {
-        const { data: results2, error: error2 } = await supabase
-          .from('vw_test_results_with_parameters')
-          .select('*')
-          .eq('sample_number', reportInfo.work_order_number)
-          .order('parameter_name');
-
-        if (results2 && results2.length > 0) {
-          console.log(`[${requestId}] Found ${results2.length} results using work order ${reportInfo.work_order_number}`);
-          return await continueProcessing(supabase, reportId, reportInfo.work_order_number, requestId, results2, kitOrderCode, kitInfo);
-        }
-      }
-
-      throw new Error(`No test results found. Tried sample: ${sampleNumber}, work order: ${reportInfo?.work_order_number}. Available samples: ${availableSamples?.map(s => s['Sample #']).join(', ') || 'none'}`);
-    }
-
-    return await continueProcessing(supabase, reportId, sampleNumber, requestId, testResults, kitOrderCode, kitInfo);
-
-  } catch (error) {
-    console.error(`[${requestId}] Error generating PDF report:`, error);
-    return {
-      success: false,
-      error: error.message
-    };
   }
 }
 
