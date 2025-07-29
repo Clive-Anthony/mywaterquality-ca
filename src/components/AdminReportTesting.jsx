@@ -2,6 +2,7 @@
 import { useState, useEffect } from 'react';
 import { useAuth } from '../contexts/AuthContext';
 import { supabase } from '../lib/supabaseClient';
+import { getAvailableSampleNumbers } from '../lib/reportDataService';
 
 export default function AdminReportTesting() {
   const { user } = useAuth();
@@ -22,6 +23,10 @@ export default function AdminReportTesting() {
   const [error, setError] = useState(null);
   const [success, setSuccess] = useState(null);
   const [testKits, setTestKits] = useState([]);
+  const [dataMode, setDataMode] = useState('mock'); // 'real' | 'mock'
+  const [realDataSamples, setRealDataSamples] = useState([]); 
+  const [selectedSampleNumber, setSelectedSampleNumber] = useState('');
+  const [loadingSamples, setLoadingSamples] = useState(false);
 
   // Load available sample numbers on component mount
   useEffect(() => {
@@ -29,24 +34,47 @@ export default function AdminReportTesting() {
     loadTestKits();
   }, []);
 
-  const loadAvailableSamples = async () => {
-    try {
-      const { data, error } = await supabase
-        .from('vw_test_results_with_parameters')
-        .select('sample_number')
-        .not('sample_number', 'is', null)
-        .order('sample_number');
 
-      if (error) throw error;
+  // NEW useEffect for real data
+useEffect(() => {
+  if (dataMode === 'real') {
+    loadRealDataSamples();
+  }
+}, [dataMode]);
 
-      // Get unique sample numbers
-      const uniqueSamples = [...new Set(data.map(row => row.sample_number))];
-      setAvailableSamples(uniqueSamples);
-    } catch (err) {
-      console.error('Error loading available samples:', err);
-      setError('Failed to load available sample numbers');
-    }
-  };
+// NEW function for real data samples
+const loadRealDataSamples = async () => {
+  try {
+    setLoadingSamples(true);
+    const samples = await getAvailableSampleNumbers();
+    setRealDataSamples(samples);
+  } catch (err) {
+    console.error('Error loading real data samples:', err);
+    setError('Failed to load available sample numbers');
+  } finally {
+    setLoadingSamples(false);
+  }
+};
+
+// Keep the existing loadAvailableSamples function unchanged - it's for mock data
+const loadAvailableSamples = async () => {
+  try {
+    const { data, error } = await supabase
+      .from('vw_test_results_with_parameters')
+      .select('sample_number')
+      .not('sample_number', 'is', null)
+      .order('sample_number');
+
+    if (error) throw error;
+
+    // Get unique sample numbers
+    const uniqueSamples = [...new Set(data.map(row => row.sample_number))];
+    setAvailableSamples(uniqueSamples);
+  } catch (err) {
+    console.error('Error loading available samples:', err);
+    setError('Failed to load available sample numbers');
+  }
+};
 
   const loadTestKits = async () => {
     try {
@@ -99,24 +127,32 @@ export default function AdminReportTesting() {
   };
 
   const validateForm = () => {
-    if (!formData.sampleNumber.trim()) {
-      setError('Please select or enter a sample number');
-      return false;
-    }
-    
-    if (!formData.customerInfo.firstName.trim()) {
-      setError('Please enter customer first name');
-      return false;
-    }
-    
-    if (!formData.customerInfo.lastName.trim()) {
-      setError('Please enter customer last name');
-      return false;
-    }
-    
-    if (!formData.customerInfo.kitCode.trim()) {
-      setError('Please enter kit code');
-      return false;
+    if (dataMode === 'real') {
+      if (!selectedSampleNumber.trim()) {
+        setError('Please select a sample number');
+        return false;
+      }
+    } else {
+      // Existing mock data validation
+      if (!formData.sampleNumber.trim()) {
+        setError('Please select or enter a sample number');
+        return false;
+      }
+      
+      if (!formData.customerInfo.firstName.trim()) {
+        setError('Please enter customer first name');
+        return false;
+      }
+      
+      if (!formData.customerInfo.lastName.trim()) {
+        setError('Please enter customer last name');
+        return false;
+      }
+      
+      if (!formData.customerInfo.kitCode.trim()) {
+        setError('Please enter kit code');
+        return false;
+      }
     }
     
     return true;
@@ -146,9 +182,10 @@ export default function AdminReportTesting() {
           'Authorization': `Bearer ${session.access_token}`
         },
         body: JSON.stringify({
-          sampleNumber: formData.sampleNumber,
-          customerInfo: formData.customerInfo,
-          testKitInfo: formData.testKitInfo
+          dataMode,
+          sampleNumber: dataMode === 'real' ? selectedSampleNumber : formData.sampleNumber,
+          customerInfo: dataMode === 'mock' ? formData.customerInfo : null,
+          testKitInfo: dataMode === 'mock' ? formData.testKitInfo : null
         })
       });
 
@@ -210,40 +247,118 @@ export default function AdminReportTesting() {
 
         {/* Test Form */}
         <form onSubmit={handleSubmit} className="p-4 sm:p-6 space-y-6">
-          {/* Sample Number Selection */}
-          <div>
-            <label htmlFor="sampleNumber" className="block text-sm font-medium text-gray-700 mb-2">
-              Sample Number <span className="text-red-500">*</span>
-            </label>
-            <div className="space-y-2">
-              <select
-                id="sampleNumber"
-                name="sampleNumber"
-                value={formData.sampleNumber}
-                onChange={handleInputChange}
-                className="w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 sm:text-sm"
-                required
-              >
-                <option value="">Select an available sample number...</option>
-                {availableSamples.map((sample, index) => (
-                  <option key={index} value={sample}>
-                    {sample}
-                  </option>
-                ))}
-              </select>
-              <p className="text-xs text-gray-500">
-                Or enter a custom sample number in the field below
-              </p>
-              <input
-                type="text"
-                name="sampleNumber"
-                value={formData.sampleNumber}
-                onChange={handleInputChange}
-                className="w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 sm:text-sm"
-                placeholder="Enter sample number manually"
-              />
-            </div>
-          </div>
+
+          {/* Data Mode Selection */}
+<div className="space-y-4 border-b border-gray-200 pb-6">
+  <h4 className="text-md font-medium text-gray-900">Data Source</h4>
+  <div className="flex flex-col sm:flex-row gap-3">
+    <label className="flex items-center">
+      <input
+        type="radio"
+        name="dataMode"
+        value="mock"
+        checked={dataMode === 'mock'}
+        onChange={(e) => {
+          setDataMode(e.target.value);
+          setError(null);
+          setSuccess(null);
+        }}
+        className="h-4 w-4 text-blue-600 focus:ring-blue-500 border-gray-300"
+      />
+      <span className="ml-2 text-sm text-gray-700">Mock Data</span>
+      <span className="ml-2 text-xs text-gray-500">(Test with custom scenarios)</span>
+    </label>
+    
+    <label className="flex items-center">
+      <input
+        type="radio"
+        name="dataMode"
+        value="real"
+        checked={dataMode === 'real'}
+        onChange={(e) => {
+          setDataMode(e.target.value);
+          setError(null);
+          setSuccess(null);
+        }}
+        className="h-4 w-4 text-blue-600 focus:ring-blue-500 border-gray-300"
+      />
+      <span className="ml-2 text-sm text-gray-700">Real Data</span>
+      <span className="ml-2 text-xs text-gray-500">(Test with actual Supabase data)</span>
+    </label>
+  </div>
+</div>
+
+{/* Real Data Selection */}
+{dataMode === 'real' && (
+  <div className="space-y-4">
+    <h4 className="text-md font-medium text-gray-900">Select Sample Data</h4>
+    
+    <div>
+      <label htmlFor="realSampleNumber" className="block text-sm font-medium text-gray-700 mb-2">
+        Sample Number <span className="text-red-500">*</span>
+      </label>
+      <select
+        id="realSampleNumber"
+        value={selectedSampleNumber}
+        onChange={(e) => setSelectedSampleNumber(e.target.value)}
+        className="w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 sm:text-sm"
+        required={dataMode === 'real'}
+        disabled={loadingSamples}
+      >
+        <option value="">
+          {loadingSamples ? 'Loading samples...' : 'Select a sample number...'}
+        </option>
+        {realDataSamples.map((sample, index) => (
+          <option key={index} value={sample.sample_number}>
+            {sample.sample_number} - {sample.work_order_number || 'N/A'} ({sample.sample_date ? new Date(sample.sample_date).toLocaleDateString() : 'No date'})
+          </option>
+        ))}
+      </select>
+      <p className="mt-1 text-xs text-gray-500">
+        Select an existing sample to test report generation with real data
+      </p>
+    </div>
+  </div>
+)}
+          {/* Mock Data Configuration */}
+          {dataMode === 'mock' && (
+            <>
+              {/* Sample Number Selection for Mock Data */}
+              <div>
+                <label htmlFor="mockSampleNumber" className="block text-sm font-medium text-gray-700 mb-2">
+                  Sample Number <span className="text-red-500">*</span>
+                </label>
+                <div className="space-y-2">
+                  <select
+                    id="mockSampleNumber"
+                    name="sampleNumber"
+                    value={formData.sampleNumber}
+                    onChange={handleInputChange}
+                    className="w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 sm:text-sm"
+                    required={dataMode === 'mock'}
+                  >
+                    <option value="">Select an available sample number...</option>
+                    {availableSamples.map((sample, index) => (
+                      <option key={index} value={sample}>
+                        {sample}
+                      </option>
+                    ))}
+                  </select>
+                  <p className="text-xs text-gray-500">
+                    Or enter a custom sample number in the field below
+                  </p>
+                  <input
+                    type="text"
+                    name="sampleNumber"
+                    value={formData.sampleNumber}
+                    onChange={handleInputChange}
+                    className="w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500 sm:text-sm"
+                    placeholder="Enter sample number manually"
+                  />
+                </div>
+              </div>
+
+    {/* Rest of mock data form... */}
 
           {/* Customer Information */}
           <div className="space-y-4">
@@ -333,6 +448,8 @@ export default function AdminReportTesting() {
               </p>
             </div>
           </div>
+          </>
+          )}
 
           {/* Current Values Display */}
           <div className="bg-gray-50 border border-gray-200 rounded-md p-4">

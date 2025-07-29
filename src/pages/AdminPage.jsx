@@ -5,6 +5,7 @@ import PageLayout from '../components/PageLayout';
 import AdminOrdersList from '../components/AdminOrdersList';
 import AdminReportsUpload from '../components/AdminReportsUpload';
 import AdminInventoryManagement from '../components/AdminInventoryManagement';
+import AdminReportTesting from '../components/AdminReportTesting';
 
 export default function AdminPage() {
   const { user } = useAuth();
@@ -119,7 +120,7 @@ export default function AdminPage() {
                   </li>
 
                   {/* Reports Upload */}
-                  {/* <li>
+                  <li>
                     <button
                       onClick={() => setActiveTab('reports')}
                       className={`w-full text-left px-4 sm:px-6 py-3 flex items-center text-sm sm:text-base ${
@@ -146,7 +147,37 @@ export default function AdminPage() {
                       </svg>
                       <span className="truncate">Reports Upload</span>
                     </button>
-                  </li> */}
+                  </li>
+
+                  {/* Report Testing */}
+                  <li>
+                    <button
+                      onClick={() => setActiveTab('report-testing')}
+                      className={`w-full text-left px-4 sm:px-6 py-3 flex items-center text-sm sm:text-base ${
+                        activeTab === 'report-testing'
+                          ? 'bg-blue-50 text-blue-600 border-l-4 border-blue-600'
+                          : 'text-gray-600 hover:bg-gray-50'
+                      }`}
+                    >
+                      <svg
+                        className={`mr-2 sm:mr-3 h-4 w-4 sm:h-5 sm:w-5 flex-shrink-0 ${
+                          activeTab === 'report-testing' ? 'text-blue-600' : 'text-gray-400'
+                        }`}
+                        xmlns="http://www.w3.org/2000/svg"
+                        fill="none"
+                        viewBox="0 0 24 24"
+                        stroke="currentColor"
+                      >
+                        <path
+                          strokeLinecap="round"
+                          strokeLinejoin="round"
+                          strokeWidth="2"
+                          d="M9 12h6m-6 4h6m2 5H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z"
+                        />
+                      </svg>
+                      <span className="truncate">Test Reports</span>
+                    </button>
+                  </li>
 
 
                   {/* Inventory */}

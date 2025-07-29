@@ -83,21 +83,21 @@ exports.handler = async function(event, context) {
     }
 
     // Parse request body
-    const requestBody = JSON.parse(event.body);
-    const { sampleNumber, customerInfo, testKitInfo } = requestBody;
+const requestBody = JSON.parse(event.body);
+const { dataMode = 'mock', sampleNumber, customerInfo, testKitInfo } = requestBody;
 
-    if (!sampleNumber) {
-      return {
-        statusCode: 400,
-        headers,
-        body: JSON.stringify({ error: 'Sample number is required' })
-      };
-    }
+if (!sampleNumber) {
+  return {
+    statusCode: 400,
+    headers,
+    body: JSON.stringify({ error: 'Sample number is required' })
+  };
+}
 
-    log('info', 'Testing report generation', { sampleNumber, customerInfo });
+log('info', 'Testing report generation', { dataMode, sampleNumber });
 
-    // Generate the test report
-    const result = await generateTestReport(supabase, sampleNumber, customerInfo, testKitInfo);
+// Generate the test report
+const result = await generateTestReport(supabase, dataMode, sampleNumber, customerInfo, testKitInfo);
 
     if (!result.success) {
       return {
@@ -202,73 +202,77 @@ const formatLabResult = (param) => {
     });
   };
 
-async function generateTestReport(supabase, sampleNumber, customerInfo, testKitInfo) {
-  const requestId = Math.random().toString(36).substring(2, 8);
-
-  try {
-    log('info', 'Starting test report generation', { requestId, sampleNumber });
-
-    // Get test results from the view
-    const { data: testResults, error: dataError } = await supabase
-      .from('vw_test_results_with_parameters')
-      .select('*')
-      .eq('sample_number', sampleNumber)
-      .order('parameter_name');
-
-    if (dataError) {
-      throw new Error(`Database error: ${dataError.message}`);
+  async function generateTestReport(supabase, dataMode, sampleNumber, customerInfo, testKitInfo) {
+    const requestId = Math.random().toString(36).substring(2, 8);
+  
+    try {
+      log('info', 'Starting test report generation', { requestId, dataMode, sampleNumber });
+  
+      let testResults;
+      let kitInfo;
+  
+      if (dataMode === 'real') {
+        // Use shared data service to fetch real data
+        const { fetchReportDataBySampleNumber, createMockDataFromReal } = await import('./utils/reportDataService.mjs');
+        
+        const realData = await fetchReportDataBySampleNumber(supabase, sampleNumber);
+        
+        // Create mock version with anonymized customer data
+        const mockData = await createMockDataFromReal(supabase, sampleNumber);
+        testResults = mockData.rawData;
+        kitInfo = mockData.kitInfo;
+        
+        log('info', 'Using real data (anonymized)', { count: testResults.length, requestId });
+      } else {
+        // Use existing mock data logic
+        const { data: mockResults, error: dataError } = await supabase
+          .from('vw_test_results_with_parameters')
+          .select('*')
+          .eq('sample_number', sampleNumber)
+          .order('parameter_name');
+  
+        if (dataError) {
+          throw new Error(`Database error: ${dataError.message}`);
+        }
+  
+        if (!mockResults || mockResults.length === 0) {
+          throw new Error(`No test results found for sample number: ${sampleNumber}`);
+        }
+  
+        testResults = mockResults;
+        
+        // Prepare kit info with defaults for mock data
+        kitInfo = {
+          customerFirstName: customerInfo?.firstName || 'Valued Customer',
+          customerName: `${customerInfo?.firstName || ''} ${customerInfo?.lastName || ''}`.trim() || 'Customer',
+          displayId: customerInfo?.kitCode || 'TEST-001',
+          kitCode: customerInfo?.kitCode || 'TEST-001',
+          testKitName: testKitInfo?.name || 'Water Test Kit',
+          testKitId: testKitInfo?.id || null
+        };
+        
+        log('info', 'Using mock data', { count: testResults.length, requestId });
+      }
+  
+      // Process the data into report format (existing logic)
+      const reportData = processReportData(testResults);
+      
+      if (!reportData) {
+        throw new Error('Failed to process test results data');
+      }
+  
+      // Generate PDF using the processed data and kit info (existing logic)
+      const pdfBuffer = await generateHTMLToPDF(reportData, sampleNumber, kitInfo);
+      
+      // ... rest of existing function
+    } catch (error) {
+      log('error', 'Error in generateTestReport', { error: error.message, requestId });
+      return {
+        success: false,
+        error: error.message
+      };
     }
-
-    if (!testResults || testResults.length === 0) {
-      throw new Error(`No test results found for sample number: ${sampleNumber}`);
-    }
-
-    log('info', 'Found test results', { count: testResults.length, requestId });
-
-    // Process the data into report format
-    const reportData = processReportData(testResults);
-    
-    if (!reportData) {
-      throw new Error('Failed to process test results data');
-    }
-
-    // Prepare kit info with defaults
-    const kitInfo = {
-      customerFirstName: customerInfo?.firstName || 'Valued Customer',
-      customerName: `${customerInfo?.firstName || ''} ${customerInfo?.lastName || ''}`.trim() || 'Customer',
-      displayId: customerInfo?.kitCode || 'TEST-001',
-      kitCode: customerInfo?.kitCode || 'TEST-001',
-      testKitName: testKitInfo?.name || 'Water Test Kit',
-      testKitId: testKitInfo?.id || null
-    };
-
-    // Generate PDF using the same process as production
-    const pdfBuffer = await generateHTMLToPDF(reportData, sampleNumber, kitInfo);
-    
-    if (!pdfBuffer) {
-      throw new Error('Failed to generate PDF buffer');
-    }
-
-    // Convert to base64 for return
-    const pdfBase64 = pdfBuffer.toString('base64');
-    const filename = `Test-Report-${kitInfo.kitCode}-${sampleNumber}.pdf`;
-
-    log('info', 'Test report generated successfully', { filename, requestId });
-
-    return {
-      success: true,
-      pdfBase64,
-      filename
-    };
-
-  } catch (error) {
-    log('error', 'Error in generateTestReport', { error: error.message, requestId });
-    return {
-      success: false,
-      error: error.message
-    };
   }
-}
 
 // Copy the HTML generation and PDF processing functions from the main reportGenerator
 function generateHTMLReport(reportData, sampleNumber, kitInfo = {}) {
