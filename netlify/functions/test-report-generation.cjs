@@ -1,6 +1,6 @@
 // netlify/functions/test-report-generation.cjs
 const { createClient } = require('@supabase/supabase-js');
-const puppeteer = require('puppeteer');
+// const puppeteer = require('puppeteer');
 
 function log(level, message, data = null) {
   const timestamp = new Date().toISOString();

@@ -1345,7 +1345,7 @@ function generateHTMLReport(reportData, sampleNumber, kitInfo = {}) {
 }
 
 
-// Enhanced HTML to PDF function using Puppeteer with chrome-aws-lambda
+// Enhanced HTML to PDF function using Puppeteer with @sparticuz/chromium
 async function generateHTMLToPDF(reportData, sampleNumber, kitInfo = {}) {
   let browser;
   try {
@@ -1358,9 +1358,12 @@ async function generateHTMLToPDF(reportData, sampleNumber, kitInfo = {}) {
       console.log('Using serverless environment configuration');
       // Serverless environment (Netlify/AWS Lambda)
       try {
-        const chromium = require('chrome-aws-lambda');
+        const chromium = require('@sparticuz/chromium');
         puppeteer = require('puppeteer-core');
-        console.log('Chrome-aws-lambda and puppeteer-core loaded successfully');
+        console.log('@sparticuz/chromium and puppeteer-core loaded successfully');
+        
+        // Configure chromium for serverless
+        await chromium.font('https://raw.githubusercontent.com/googlefonts/roboto/main/src/hinted/Roboto-Regular.ttf');
         
         browserConfig = {
           args: [
@@ -1375,10 +1378,14 @@ async function generateHTMLToPDF(reportData, sampleNumber, kitInfo = {}) {
             '--no-first-run',
             '--disable-background-timer-throttling',
             '--disable-backgrounding-occluded-windows',
-            '--disable-renderer-backgrounding'
+            '--disable-renderer-backgrounding',
+            '--disable-extensions',
+            '--disable-plugins',
+            '--run-all-compositor-stages-before-draw',
+            '--disable-ipc-flooding-protection'
           ],
           defaultViewport: chromium.defaultViewport,
-          executablePath: await chromium.executablePath,
+          executablePath: await chromium.executablePath(),
           headless: chromium.headless,
           ignoreHTTPSErrors: true,
         };
