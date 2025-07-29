@@ -54,8 +54,6 @@
 [build.environment]
   # Override the NODE_ENV=production setting to ensure devDependencies are installed
   NPM_FLAGS = "--production=false"
-
-[build.environment]
   PUPPETEER_SKIP_CHROMIUM_DOWNLOAD = "true"
   PUPPETEER_EXECUTABLE_PATH = "/usr/bin/chromium-browser"
 
