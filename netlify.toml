@@ -59,7 +59,6 @@
 [functions]
   directory = "netlify/functions"
   node_bundler = "esbuild"
-  timeout = 30
 
 # Configure function-specific environment variables
 [functions.environment]

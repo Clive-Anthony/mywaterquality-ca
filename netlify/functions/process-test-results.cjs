@@ -16,6 +16,11 @@ function log(level, message, data = null) {
   }
 }
 
+// Set function timeout to 30 seconds
+exports.config = {
+  timeout: 30
+};
+
 exports.handler = async function(event, context) {
   const headers = {
     'Access-Control-Allow-Origin': '*',
