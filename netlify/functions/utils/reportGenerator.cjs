@@ -1358,8 +1358,8 @@ async function generateHTMLToPDF(reportData, sampleNumber, kitInfo = {}) {
       console.log('Using serverless environment configuration');
       // Serverless environment (Netlify/AWS Lambda)
       try {
-        puppeteer = require('puppeteer-core');
         const chromium = require('chrome-aws-lambda');
+        puppeteer = require('puppeteer-core');
         console.log('Chrome-aws-lambda and puppeteer-core loaded successfully');
         
         browserConfig = {
@@ -1390,18 +1390,23 @@ async function generateHTMLToPDF(reportData, sampleNumber, kitInfo = {}) {
     } else {
       console.log('Using local development configuration');
       // Local development environment - use regular puppeteer
-      puppeteer = require('puppeteer');
-      
-      browserConfig = {
-        headless: 'new',
-        args: [
-          '--no-sandbox', 
-          '--disable-setuid-sandbox', 
-          '--disable-dev-shm-usage',
-          '--disable-web-security'
-        ]
-      };
-      console.log('Browser config created for local environment');
+      try {
+        puppeteer = require('puppeteer');
+        
+        browserConfig = {
+          headless: 'new',
+          args: [
+            '--no-sandbox', 
+            '--disable-setuid-sandbox', 
+            '--disable-dev-shm-usage',
+            '--disable-web-security'
+          ]
+        };
+        console.log('Browser config created for local environment');
+      } catch (localError) {
+        console.error('Error loading local puppeteer:', localError);
+        throw new Error(`Failed to load puppeteer for local development: ${localError.message}`);
+      }
     }
     
     console.log('Launching browser...');
