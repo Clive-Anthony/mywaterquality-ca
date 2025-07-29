@@ -1446,22 +1446,78 @@ async function generateHTMLToPDF(reportData, sampleNumber, kitInfo = {}) {
   }
 }
 
-// Fallback PDF generation using a simpler method
-async function generateFallbackPDF(reportData, sampleNumber, kitInfo = {}) {
-  console.log('Using fallback PDF generation method');
-  
+async function processReportGeneration(supabase, reportId, sampleNumber, requestId, kitOrderCode = 'UNKNOWN', kitInfo = {}) {
   try {
-    // Generate a simple text-based report as fallback
-    const htmlContent = generateHTMLReport(reportData, sampleNumber, kitInfo);
-    
-    // For now, return the HTML as a "PDF" (this is a temporary fallback)
-    // In production, you might want to use a different PDF library like @react-pdf/renderer
-    const Buffer = require('buffer').Buffer;
-    return Buffer.from(htmlContent, 'utf-8');
-    
+    console.log(`[${requestId}] Starting PDF report generation for sample ${sampleNumber}`);
+
+    // First, let's check what sample numbers are actually in the database for this report
+    const { data: reportInfo, error: reportError } = await supabase
+      .from('reports')
+      .select('sample_number, work_order_number')
+      .eq('report_id', reportId)
+      .single();
+
+    if (reportError) {
+      console.log(`[${requestId}] Could not get report info:`, reportError.message);
+    } else {
+      console.log(`[${requestId}] Report info:`, reportInfo);
+    }
+
+    // Try to find what sample numbers exist in the raw table
+    const { data: availableSamples, error: samplesError } = await supabase
+      .from('test_results_raw')
+      .select('*')
+      .limit(5);
+
+    if (!samplesError && availableSamples) {
+      console.log(`[${requestId}] Available samples in DB:`, availableSamples.map(s => ({ 
+        sample: s['Sample #'],
+        workOrder: s['Work Order #'],
+        parameter: s['Parameter']
+      })));
+    } else {
+      console.log(`[${requestId}] Error fetching available samples:`, samplesError?.message);
+    }
+
+    // Try the view query with the sample number
+    const { data: testResults, error: dataError } = await supabase
+      .from('vw_test_results_with_parameters')
+      .select('*')
+      .eq('sample_number', sampleNumber)
+      .order('parameter_name');
+
+    if (dataError) {
+      console.log(`[${requestId}] View query error:`, dataError.message);
+    }
+
+    console.log(`[${requestId}] View query returned ${testResults?.length || 0} results for sample ${sampleNumber}`);
+
+    if (!testResults || testResults.length === 0) {
+      // Try with work order number
+      if (reportInfo?.work_order_number) {
+        const { data: results2, error: error2 } = await supabase
+          .from('vw_test_results_with_parameters')
+          .select('*')
+          .eq('sample_number', reportInfo.work_order_number)
+          .order('parameter_name');
+
+        if (results2 && results2.length > 0) {
+          console.log(`[${requestId}] Found ${results2.length} results using work order ${reportInfo.work_order_number}`);
+          return await continueProcessing(supabase, reportId, reportInfo.work_order_number, requestId, results2, kitOrderCode, kitInfo);
+        }
+      }
+
+      throw new Error(`No test results found. Tried sample: ${sampleNumber}, work order: ${reportInfo?.work_order_number}. Available samples: ${availableSamples?.map(s => s['Sample #']).join(', ') || 'none'}`);
+    }
+
+    return await continueProcessing(supabase, reportId, sampleNumber, requestId, testResults, kitOrderCode, kitInfo);
+
   } catch (error) {
-    console.error('Fallback PDF generation also failed:', error);
-    throw error;
+    console.error(`[${requestId}] Error generating PDF report:`, error);
+    return {
+      success: false,
+      error: error.message
+    };
   }
 }
 
