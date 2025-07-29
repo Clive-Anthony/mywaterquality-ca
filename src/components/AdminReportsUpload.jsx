@@ -15,6 +15,9 @@ export default function AdminReportsUpload() {
   const [kitSearchQuery, setKitSearchQuery] = useState('');
   const [showDropdown, setShowDropdown] = useState(false);
 
+  const [showSuccessModal, setShowSuccessModal] = useState(false);
+  const [successModalMessage, setSuccessModalMessage] = useState('');
+
   // Customer and Kit info for unregistered/one-off reports
   const [customCustomerInfo, setCustomCustomerInfo] = useState({
     firstName: '',
@@ -65,6 +68,18 @@ export default function AdminReportsUpload() {
   useEffect(() => {
     resetForm();
   }, [reportType]);
+
+  // NEW: Auto-dismiss success modal after 5 seconds
+  useEffect(() => {
+    if (showSuccessModal) {
+      const timer = setTimeout(() => {
+        setShowSuccessModal(false);
+        setSuccessModalMessage('');
+      }, 5000); // 5 seconds
+
+      return () => clearTimeout(timer);
+    }
+  }, [showSuccessModal]);
 
   const resetForm = () => {
     setFormData({
@@ -404,8 +419,10 @@ export default function AdminReportsUpload() {
   
       const result = await response.json();
       
-      setSuccess(`Test results uploaded successfully! Report ID: ${result.reportId}`);
+      setSuccessModalMessage(`Test results uploaded successfully! Report ID: ${result.reportId}`);
+      setShowSuccessModal(true);
       resetForm();
+      setSuccess(null);
       
       loadKitsData();
       loadAllTestKits();
@@ -474,10 +491,12 @@ export default function AdminReportsUpload() {
 
       const result = await response.json();
       
-      setSuccess(`Report sent successfully to ${result.customerEmail}`);
+      setSuccessModalMessage(`Report sent successfully to ${result.customerEmail}!`);
+      setShowSuccessModal(true);
       setShowCustomerEmailModal(false);
       setSelectedReportForEmail(null);
       setCustomerEmailAddress('');
+      setSuccess(null);
       
     } catch (err) {
       console.error('Error sending report to customer:', err);
@@ -1181,22 +1200,6 @@ export default function AdminReportsUpload() {
             </div>
           )}
 
-          {success && (
-            <div className="bg-green-50 border border-green-200 rounded-md p-4">
-              <div className="flex">
-                <div className="flex-shrink-0">
-                  <svg className="h-5 w-5 text-green-400" viewBox="0 0 20 20" fill="currentColor">
-                    <path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.293a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z" clipRule="evenodd" />
-                  </svg>
-                </div>
-                <div className="ml-3">
-                  <h3 className="text-sm font-medium text-green-800">Success</h3>
-                  <div className="mt-1 text-sm text-green-700">{success}</div>
-                </div>
-              </div>
-            </div>
-          )}
-
           {processing && (
             <div className="bg-blue-50 border border-blue-200 rounded-md p-4">
               <div className="flex">
@@ -1512,6 +1515,89 @@ export default function AdminReportsUpload() {
           </div>
         </div>
       )}
+
+      {/* Success Modal */}
+      {showSuccessModal && (
+        <div className="fixed inset-0 bg-gray-600 bg-opacity-75 overflow-y-auto h-full w-full z-50 flex items-center justify-center">
+          <div className="relative bg-white rounded-lg shadow-xl max-w-md w-full mx-4 transform transition-all">
+            {/* Modal Header */}
+            <div className="bg-green-50 px-6 py-4 border-b border-green-200 rounded-t-lg">
+              <div className="flex items-center justify-between">
+                <div className="flex items-center">
+                  <div className="flex-shrink-0">
+                    <div className="w-10 h-10 bg-green-100 rounded-full flex items-center justify-center">
+                      <svg className="h-6 w-6 text-green-600" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M5 13l4 4L19 7" />
+                      </svg>
+                    </div>
+                  </div>
+                  <h3 className="ml-3 text-lg font-semibold text-green-800">Success!</h3>
+                </div>
+                <button
+                  onClick={() => {
+                    setShowSuccessModal(false);
+                    setSuccessModalMessage('');
+                  }}
+                  className="text-green-400 hover:text-green-600 transition-colors"
+                >
+                  <svg className="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M6 18L18 6M6 6l12 12" />
+                  </svg>
+                </button>
+              </div>
+            </div>
+            
+            {/* Modal Body */}
+            <div className="px-6 py-4">
+              <div className="flex items-start">
+                <div className="flex-shrink-0">
+                  <svg className="h-8 w-8 text-green-500" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M3 8l7.89 7.89a2 2 0 002.22 0L21 8M5 19h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z" />
+                  </svg>
+                </div>
+                <div className="ml-3 flex-1">
+                  <p className="text-base text-gray-900 font-medium mb-2">
+                    {successModalMessage}
+                  </p>
+                  <p className="text-sm text-gray-600">
+                    The operation completed successfully. The customer will receive their report via email.
+                  </p>
+                </div>
+              </div>
+            </div>
+            
+            {/* Modal Footer */}
+            <div className="bg-gray-50 px-6 py-3 border-t border-gray-200 rounded-b-lg">
+              <div className="flex items-center justify-between">
+                <div className="text-xs text-gray-500">
+                  This dialog will close automatically in 5 seconds
+                </div>
+                <button
+                  onClick={() => {
+                    setShowSuccessModal(false);
+                    setSuccessModalMessage('');
+                  }}
+                  className="bg-green-600 text-white px-4 py-2 rounded-md text-sm font-medium hover:bg-green-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-green-500 transition-colors"
+                >
+                  Got it
+                </button>
+              </div>
+            </div>
+            
+            {/* Progress bar for auto-dismiss */}
+            <div className="absolute bottom-0 left-0 right-0 h-1 bg-gray-200 rounded-b-lg overflow-hidden">
+              <div 
+                className="h-full bg-green-500 transition-all duration-5000 ease-linear"
+                style={{
+                  animation: showSuccessModal ? 'progress 5s linear' : 'none',
+                  animationFillMode: 'forwards'
+                }}
+              ></div>
+            </div>
+          </div>
+        </div>
+      )}
+
     </div>
   );
 }

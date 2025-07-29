@@ -20,6 +20,15 @@
     }
   }
 
+  @keyframes progress {
+    from {
+      width: 100%;
+    }
+    to {
+      width: 0%;
+    }
+  }
+
 /* Target the dropdown options specifically */
 .admin-status-select option {
     font-size: 16px !important;
