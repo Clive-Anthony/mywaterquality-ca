@@ -1344,16 +1344,49 @@ function generateHTMLReport(reportData, sampleNumber, kitInfo = {}) {
   `;
 }
 
-// Enhanced HTML to PDF function using Puppeteer
+
+// Browser configuration for different environments
+async function getBrowserConfig() {
+  if (process.env.NETLIFY || process.env.AWS_LAMBDA_FUNCTION_NAME) {
+    // Serverless environment (Netlify/AWS Lambda)
+    return {
+      args: [
+        ...chromium.args,
+        '--no-sandbox',
+        '--disable-setuid-sandbox',
+        '--disable-dev-shm-usage',
+        '--disable-web-security',
+        '--disable-features=VizDisplayCompositor'
+      ],
+      defaultViewport: chromium.defaultViewport,
+      executablePath: await chromium.executablePath(),
+      headless: chromium.headless,
+      ignoreHTTPSErrors: true,
+    };
+  } else {
+    // Local development environment
+    return {
+      headless: 'new', // Use new headless mode to avoid deprecation warning
+      args: [
+        '--no-sandbox', 
+        '--disable-setuid-sandbox', 
+        '--disable-dev-shm-usage',
+        '--disable-web-security'
+      ]
+    };
+  }
+}
+
+// Enhanced HTML to PDF function using Puppeteer with serverless Chrome
 async function generateHTMLToPDF(reportData, sampleNumber, kitInfo = {}) {
-  const puppeteer = require('puppeteer');
+  const puppeteer = require('puppeteer-core');
+  const chromium = require('@sparticuz/chromium');
   
   let browser;
   try {
-    browser = await puppeteer.launch({
-      headless: true,
-      args: ['--no-sandbox', '--disable-setuid-sandbox', '--disable-dev-shm-usage']
-    });
+    // Configure for serverless environment
+    const browserConfig = await getBrowserConfig();
+    browser = await puppeteer.launch(browserConfig);
     
     const page = await browser.newPage();
     
