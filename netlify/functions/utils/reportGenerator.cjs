@@ -1362,29 +1362,11 @@ async function generateHTMLToPDF(reportData, sampleNumber, kitInfo = {}) {
         puppeteer = require('puppeteer-core');
         console.log('@sparticuz/chromium and puppeteer-core loaded successfully');
         
-        // Configure chromium for serverless - simplified approach
+        // Configure chromium for serverless - correct approach
         browserConfig = {
-          args: [
-            ...chromium.args,
-            '--no-sandbox',
-            '--disable-setuid-sandbox',
-            '--disable-dev-shm-usage',
-            '--disable-web-security',
-            '--disable-features=VizDisplayCompositor',
-            '--disable-gpu',
-            '--single-process',
-            '--no-first-run',
-            '--disable-background-timer-throttling',
-            '--disable-backgrounding-occluded-windows',
-            '--disable-renderer-backgrounding',
-            '--disable-extensions',
-            '--disable-plugins'
-          ],
+          args: chromium.args,
           defaultViewport: chromium.defaultViewport,
-          executablePath: await chromium.executablePath({
-            // Force download if not available
-            forcePuppeteerVersion: false
-          }),
+          executablePath: await chromium.executablePath(), // No parameters!
           headless: chromium.headless,
           ignoreHTTPSErrors: true,
         };
