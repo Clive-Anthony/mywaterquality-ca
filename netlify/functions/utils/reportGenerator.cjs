@@ -1362,9 +1362,7 @@ async function generateHTMLToPDF(reportData, sampleNumber, kitInfo = {}) {
         puppeteer = require('puppeteer-core');
         console.log('@sparticuz/chromium and puppeteer-core loaded successfully');
         
-        // Configure chromium for serverless
-        await chromium.font('https://raw.githubusercontent.com/googlefonts/roboto/main/src/hinted/Roboto-Regular.ttf');
-        
+        // Configure chromium for serverless - simplified approach
         browserConfig = {
           args: [
             ...chromium.args,
@@ -1380,12 +1378,13 @@ async function generateHTMLToPDF(reportData, sampleNumber, kitInfo = {}) {
             '--disable-backgrounding-occluded-windows',
             '--disable-renderer-backgrounding',
             '--disable-extensions',
-            '--disable-plugins',
-            '--run-all-compositor-stages-before-draw',
-            '--disable-ipc-flooding-protection'
+            '--disable-plugins'
           ],
           defaultViewport: chromium.defaultViewport,
-          executablePath: await chromium.executablePath(),
+          executablePath: await chromium.executablePath({
+            // Force download if not available
+            forcePuppeteerVersion: false
+          }),
           headless: chromium.headless,
           ignoreHTTPSErrors: true,
         };
