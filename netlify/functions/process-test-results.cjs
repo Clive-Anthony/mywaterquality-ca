@@ -22,6 +22,10 @@ exports.config = {
 };
 
 exports.handler = async function(event, context) {
+  console.log('🚀 FUNCTION STARTED');
+  console.log('Event method:', event.httpMethod);
+  console.log('Content-Type:', event.headers['content-type'] || event.headers['Content-Type']);
+  
   const headers = {
     'Access-Control-Allow-Origin': '*',
     'Access-Control-Allow-Headers': 'Content-Type, Authorization',
@@ -30,11 +34,15 @@ exports.handler = async function(event, context) {
   };
 
   try {
+    console.log('✅ Starting OPTIONS check');
     if (event.httpMethod === 'OPTIONS') {
+      console.log('✅ OPTIONS request handled');
       return { statusCode: 200, headers, body: '' };
     }
 
+    console.log('✅ Starting method check');
     if (event.httpMethod !== 'POST') {
+      console.log('❌ Invalid method:', event.httpMethod);
       return {
         statusCode: 405,
         headers,
@@ -42,8 +50,9 @@ exports.handler = async function(event, context) {
       };
     }
 
-    // Environment validation
+    console.log('✅ Starting environment validation');
     if (!process.env.VITE_SUPABASE_URL || !process.env.VITE_SUPABASE_SERVICE_KEY) {
+      console.log('❌ Missing environment variables');
       return {
         statusCode: 500,
         headers,
@@ -51,15 +60,16 @@ exports.handler = async function(event, context) {
       };
     }
 
-    // Create Supabase client
+    console.log('✅ Creating Supabase client');
     const supabase = createClient(
       process.env.VITE_SUPABASE_URL,
       process.env.VITE_SUPABASE_SERVICE_KEY
     );
 
-    // Authenticate user
+    console.log('✅ Starting authentication');
     const authHeader = event.headers.authorization;
     if (!authHeader?.startsWith('Bearer ')) {
+      console.log('❌ No auth header');
       return {
         statusCode: 401,
         headers,
@@ -68,9 +78,12 @@ exports.handler = async function(event, context) {
     }
 
     const token = authHeader.substring(7);
+    console.log('✅ Got auth token, getting user...');
+    
     const { data: userData, error: userError } = await supabase.auth.getUser(token);
     
     if (userError || !userData?.user) {
+      console.log('❌ Auth failed:', userError?.message);
       return {
         statusCode: 401,
         headers,
@@ -78,14 +91,16 @@ exports.handler = async function(event, context) {
       };
     }
 
+    console.log('✅ User authenticated:', userData.user.email);
     const user = userData.user;
 
-    // Check if user is admin using the existing get_user_role function
+    console.log('✅ Checking admin role...');
     const { data: userRole, error: adminError } = await supabase.rpc('get_user_role', {
       user_uuid: user.id
     });
 
     if (adminError || !userRole || (userRole !== 'admin' && userRole !== 'super_admin')) {
+      console.log('❌ Not admin:', userRole, adminError?.message);
       return {
         statusCode: 403,
         headers,
@@ -93,10 +108,28 @@ exports.handler = async function(event, context) {
       };
     }
 
-    // Parse multipart form data using busboy
+    console.log('✅ Admin check passed, role:', userRole);
+
+    // EARLY EXIT TEST - COMMENT OUT this section after testing
+    console.log('🎯 EARLY EXIT TEST - returning success before file parsing');
+    return {
+      statusCode: 200,
+      headers,
+      body: JSON.stringify({
+        success: true,
+        message: 'Early exit test - function works up to auth',
+        userEmail: user.email,
+        userRole: userRole
+      })
+    };
+    // END EARLY EXIT TEST
+
+    /* UNCOMMENT THIS SECTION AFTER EARLY EXIT TEST WORKS
+    console.log('✅ Starting content type validation...');
     const contentType = event.headers['content-type'] || event.headers['Content-Type'];
 
     if (!contentType || !contentType.includes('multipart/form-data')) {
+      console.log('❌ Invalid content type:', contentType);
       return {
         statusCode: 400,
         headers,
@@ -105,6 +138,7 @@ exports.handler = async function(event, context) {
     }
 
     if (!event.body) {
+      console.log('❌ No request body');
       return {
         statusCode: 400,
         headers,
@@ -112,6 +146,7 @@ exports.handler = async function(event, context) {
       };
     }
 
+    console.log('✅ Starting file parsing...');
     // Parse multipart data with busboy
     try {
       const result = await parseMultipartWithBusboy(event.body, contentType, event.isBase64Encoded);
@@ -123,13 +158,23 @@ exports.handler = async function(event, context) {
         kitRegistrationType,
         workOrderNumber,
         sampleNumber,
-        reportType, // NEW: report type
-        customCustomerInfo, // NEW: custom customer info
-        customKitInfo // NEW: custom kit info
+        reportType,
+        customCustomerInfo,
+        customKitInfo
       } = result;
+
+      console.log('✅ File parsing completed');
+      console.log('File info:', {
+        hasFile: !!fileBuffer,
+        fileName: fileName,
+        fileSize: fileBuffer?.length,
+        kitRegistrationId,
+        reportType
+      });
 
       // Validate required fields
       if (!fileBuffer) {
+        console.log('❌ Missing file buffer');
         return {
           statusCode: 400,
           headers,
@@ -139,6 +184,7 @@ exports.handler = async function(event, context) {
 
       // Validate based on report type
       if (reportType === 'registered' && !kitRegistrationId) {
+        console.log('❌ Missing kit registration ID for registered report');
         return {
           statusCode: 400,
           headers,
@@ -147,12 +193,15 @@ exports.handler = async function(event, context) {
       }
 
       if (reportType === 'one_off' && (!customCustomerInfo || !customKitInfo)) {
+        console.log('❌ Missing customer/kit info for one-off report');
         return {
           statusCode: 400,
           headers,
           body: JSON.stringify({ error: 'Customer and kit info required for one-off reports' })
         };
       }
+
+      console.log('✅ Validation passed, starting file processing...');
 
       log('info', 'Processing test results upload', {
         reportType,
@@ -176,14 +225,17 @@ exports.handler = async function(event, context) {
         cocFileName: result.cocFileName,   
         kitRegistrationId,
         kitRegistrationType,
-        reportType: reportType || 'registered', // Default to registered for backward compatibility
+        reportType: reportType || 'registered',
         customCustomerInfo,
         customKitInfo,
         workOrderNumber,
         sampleNumber
       });
 
+      console.log('✅ Processing completed:', processResult.success);
+
       if (!processResult.success) {
+        console.log('❌ Processing failed:', processResult.error);
         return {
           statusCode: 400,
           headers,
@@ -191,6 +243,7 @@ exports.handler = async function(event, context) {
         };
       }
 
+      console.log('✅ Returning success response');
       return {
         statusCode: 200,
         headers,
@@ -202,8 +255,8 @@ exports.handler = async function(event, context) {
       };
 
     } catch (parseError) {
-      console.error('Error parsing multipart data:', parseError);
-      console.error('Parse error stack:', parseError.stack);
+      console.error('💥 Error parsing multipart data:', parseError);
+      console.error('💥 Parse error stack:', parseError.stack);
       
       return {
         statusCode: 400,
@@ -214,9 +267,11 @@ exports.handler = async function(event, context) {
         })
       };
     }
+    */ // END COMMENTED SECTION
 
   } catch (error) {
-    log('error', 'Unexpected function error', { error: error.message });
+    console.log('💥 FUNCTION ERROR:', error.message);
+    console.log('💥 ERROR STACK:', error.stack);
     
     return {
       statusCode: 500,
