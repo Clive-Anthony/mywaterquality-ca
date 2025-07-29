@@ -1,5 +1,7 @@
 // netlify/functions/utils/reportGenerator.js - Enhanced with all improvements from test-report-generation
 const { createClient } = require('@supabase/supabase-js');
+const ReactPDF = require('@react-pdf/renderer');
+const React = require('react');
 
 function log(level, message, data = null) {
   const timestamp = new Date().toISOString();
@@ -1345,49 +1347,189 @@ function generateHTMLReport(reportData, sampleNumber, kitInfo = {}) {
 }
 
 
+// PDF generation using React-PDF
 async function generateHTMLToPDF(reportData, sampleNumber, kitInfo = {}) {
-  let browser;
   try {
-    console.log('Starting PDF generation...');
+    console.log('Starting PDF generation with React-PDF...');
     
-    const puppeteer = require('puppeteer-core');
-    const chromium = require('@browserless/chromium');
+    // Create the PDF document
+    const MyDocument = createReactPDFDocument(reportData, sampleNumber, kitInfo);
     
-    console.log('Launching browser with @browserless/chromium...');
-    browser = await puppeteer.launch({
-      args: chromium.args,
-      defaultViewport: chromium.defaultViewport,
-      executablePath: await chromium.executablePath(),
-      headless: chromium.headless,
-    });
+    // Generate PDF buffer
+    const pdfBuffer = await ReactPDF.pdf(MyDocument).toBuffer();
     
-    const page = await browser.newPage();
-    await page.setViewport({ width: 1280, height: 720 });
-    
-    const htmlContent = generateHTMLReport(reportData, sampleNumber, kitInfo);
-    
-    await page.setContent(htmlContent, { 
-      waitUntil: 'networkidle0',
-      timeout: 30000 
-    });
-    
-    const pdfBuffer = await page.pdf({
-      format: 'A4',
-      printBackground: true,
-      margin: {
-        top: '20mm',
-        bottom: '20mm',
-        left: '15mm',
-        right: '15mm'
-      }
-    });
-    
-    console.log('PDF generated successfully, size:', pdfBuffer.length);
+    console.log('PDF generated successfully with React-PDF, size:', pdfBuffer.length);
     return pdfBuffer;
     
-  } finally {
-    if (browser) await browser.close();
+  } catch (error) {
+    console.error('Error generating PDF with React-PDF:', error);
+    throw new Error(`PDF generation failed: ${error.message}`);
   }
+}
+
+// React-PDF Document Creator
+function createReactPDFDocument(reportData, sampleNumber, kitInfo = {}) {
+  const { 
+    sampleInfo, 
+    healthParameters, 
+    aoParameters,
+    generalParameters, 
+    bacteriological, 
+    healthConcerns, 
+    aoConcerns, 
+    healthCWQI, 
+    aoCWQI 
+  } = reportData;
+
+  // Document data
+  const customer_first = kitInfo.customerFirstName || "Valued Customer";
+  const customer_name = kitInfo.customerName || "Customer";
+  const order_number = kitInfo.orderNumber || kitInfo.displayId || kitInfo.kitCode || 'N/A';
+  const test_kit_display = kitInfo.testKitName || "Water Test Kit";
+  const sample_description = sampleInfo?.sample_description || "Water Sample";
+  
+  // Check for coliform contamination
+  const hasColiformContamination = bacteriological.some(param => 
+    (param.parameter_name?.toLowerCase().includes('coliform') || 
+     param.parameter_name?.toLowerCase().includes('e. coli')) &&
+    (param.result_display_value?.includes('Detected') || 
+     param.compliance_status === 'EXCEEDS_MAC')
+  );
+
+  return React.createElement(ReactPDF.Document, null,
+    React.createElement(ReactPDF.Page, { size: 'A4', style: styles.page },
+      
+      // Header
+      React.createElement(ReactPDF.View, { style: styles.header },
+        React.createElement(ReactPDF.View, null,
+          React.createElement(ReactPDF.Text, { style: styles.headerTitle }, 
+            `${customer_first}'s Drinking Water Quality Report Card`
+          ),
+          React.createElement(ReactPDF.Text, { style: styles.headerSubtitle }, 
+            `Order No ${order_number}`
+          )
+        ),
+        React.createElement(ReactPDF.Text, { style: styles.logo }, 'My Water Quality')
+      ),
+
+      // Sample Information
+      React.createElement(ReactPDF.View, { style: styles.sampleInfoContainer },
+        React.createElement(ReactPDF.View, { style: styles.sampleInfoLeft },
+          React.createElement(ReactPDF.View, { style: styles.sampleRow },
+            React.createElement(ReactPDF.Text, { style: styles.sampleLabel }, 'Name'),
+            React.createElement(ReactPDF.Text, { style: styles.sampleValue }, customer_name)
+          ),
+          React.createElement(ReactPDF.View, { style: styles.sampleRow },
+            React.createElement(ReactPDF.Text, { style: styles.sampleLabel }, 'Collection Date'),
+            React.createElement(ReactPDF.Text, { style: styles.sampleValue }, formatDate(sampleInfo?.collectionDate))
+          ),
+          React.createElement(ReactPDF.View, { style: styles.sampleRow },
+            React.createElement(ReactPDF.Text, { style: styles.sampleLabel }, 'Received Date'),
+            React.createElement(ReactPDF.Text, { style: styles.sampleValue }, formatDate(sampleInfo?.receivedDate))
+          )
+        ),
+        React.createElement(ReactPDF.View, { style: styles.sampleInfoRight },
+          React.createElement(ReactPDF.View, { style: styles.sampleRow },
+            React.createElement(ReactPDF.Text, { style: styles.sampleLabel }, 'Test Kit'),
+            React.createElement(ReactPDF.Text, { style: styles.sampleValue }, test_kit_display)
+          ),
+          React.createElement(ReactPDF.View, { style: styles.sampleRow },
+            React.createElement(ReactPDF.Text, { style: styles.sampleLabel }, 'Location'),
+            React.createElement(ReactPDF.Text, { style: styles.sampleValue }, kitInfo.customerLocation || 'Not specified')
+          ),
+          React.createElement(ReactPDF.View, { style: styles.sampleRow },
+            React.createElement(ReactPDF.Text, { style: styles.sampleLabel }, 'Description'),
+            React.createElement(ReactPDF.Text, { style: styles.sampleValue }, sample_description)
+          )
+        )
+      ),
+
+      // Section Title
+      React.createElement(ReactPDF.View, { style: styles.sectionTitle },
+        React.createElement(ReactPDF.Text, { style: styles.sectionTitleText }, 'SNAPSHOTS OF RESULTS')
+      ),
+
+      // Summary Cards
+      createSummaryCards(healthConcerns, aoConcerns, hasColiformContamination),
+
+      // Coliform Warning (if applicable)
+      hasColiformContamination ? React.createElement(ReactPDF.View, { style: styles.alertBox },
+        React.createElement(ReactPDF.Text, { style: styles.alertTitle }, 
+          'Bacteriological Results - Important Notice: Coliform Bacteria Detected'
+        ),
+        React.createElement(ReactPDF.Text, { style: styles.alertText }, 
+          'Coliform bacteria have been detected in your drinking water sample. Immediate action is recommended.'
+        )
+      ) : null
+    ),
+
+    // Second page for detailed results
+    React.createElement(ReactPDF.Page, { size: 'A4', style: styles.page },
+      React.createElement(ReactPDF.View, { style: styles.sectionTitle },
+        React.createElement(ReactPDF.Text, { style: styles.sectionTitleText }, 'DRINKING WATER QUALITY: HEALTH-RELATED RESULTS')
+      ),
+      
+      // Health parameters table
+      healthParameters.length > 0 ? createParametersTable(healthParameters) : null
+    )
+  );
+}
+
+// Helper function to create summary cards
+function createSummaryCards(healthConcerns, aoConcerns, hasColiformContamination) {
+  return React.createElement(ReactPDF.View, { style: styles.summaryCardsContainer },
+    // Health card
+    React.createElement(ReactPDF.View, { 
+      style: [styles.summaryCard, healthConcerns.length > 0 ? styles.cardRed : styles.cardGreen] 
+    },
+      React.createElement(ReactPDF.Text, { style: styles.cardTitle }, 'Health-Related Results'),
+      React.createElement(ReactPDF.Text, { 
+        style: [styles.cardNumber, healthConcerns.length > 0 ? styles.numberRed : styles.numberGreen] 
+      }, healthConcerns.length.toString()),
+      React.createElement(ReactPDF.Text, { style: styles.cardText }, 'concerns present')
+    ),
+    
+    // AO card  
+    React.createElement(ReactPDF.View, { 
+      style: [styles.summaryCard, aoConcerns.length > 0 ? styles.cardRed : styles.cardGreen] 
+    },
+      React.createElement(ReactPDF.Text, { style: styles.cardTitle }, 'Aesthetic and Operational'),
+      React.createElement(ReactPDF.Text, { 
+        style: [styles.cardNumber, aoConcerns.length > 0 ? styles.numberRed : styles.numberGreen] 
+      }, aoConcerns.length.toString()),
+      React.createElement(ReactPDF.Text, { style: styles.cardText }, 'concerns present')
+    )
+  );
+}
+
+// Helper function to create parameters table
+function createParametersTable(parameters) {
+  return React.createElement(ReactPDF.View, { style: styles.table },
+    // Table header
+    React.createElement(ReactPDF.View, { style: styles.tableHeader },
+      React.createElement(ReactPDF.Text, { style: [styles.tableCell, styles.headerCell] }, 'Parameter'),
+      React.createElement(ReactPDF.Text, { style: [styles.tableCell, styles.headerCell] }, 'Unit'),
+      React.createElement(ReactPDF.Text, { style: [styles.tableCell, styles.headerCell] }, 'Objective'),
+      React.createElement(ReactPDF.Text, { style: [styles.tableCell, styles.headerCell] }, 'Result'),
+      React.createElement(ReactPDF.Text, { style: [styles.tableCell, styles.headerCell] }, 'Status')
+    ),
+    
+    // Table rows
+    ...parameters.map(param => {
+      const isExceeded = param.compliance_status === 'EXCEEDS_MAC';
+      return React.createElement(ReactPDF.View, { 
+        style: [styles.tableRow, isExceeded ? styles.exceededRow : null] 
+      },
+        React.createElement(ReactPDF.Text, { style: styles.tableCell }, param.parameter_name),
+        React.createElement(ReactPDF.Text, { style: styles.tableCell }, param.result_units || 'N/A'),
+        React.createElement(ReactPDF.Text, { style: styles.tableCell }, param.mac_display_value || 'No Standard'),
+        React.createElement(ReactPDF.Text, { style: styles.tableCell }, formatLabResult(param)),
+        React.createElement(ReactPDF.Text, { 
+          style: [styles.tableCell, isExceeded ? styles.statusFail : styles.statusPass] 
+        }, isExceeded ? 'Exceeds Limit' : 'Within Limit')
+      );
+    })
+  );
 }
 
 async function processReportGeneration(supabase, reportId, sampleNumber, requestId, kitOrderCode = 'UNKNOWN', kitInfo = {}) {
@@ -1714,6 +1856,193 @@ const isMinimumParameter = (parameterName) => {
   return minimumParameters.some(param => 
     parameterName.toLowerCase().includes(param)
   );
+};
+
+// React-PDF Styles
+const styles = {
+  page: {
+    flexDirection: 'column',
+    backgroundColor: '#FFFFFF',
+    padding: 30,
+    fontSize: 12,
+    fontFamily: 'Helvetica'
+  },
+  
+  // Header styles
+  header: {
+    flexDirection: 'row',
+    justifyContent: 'space-between',
+    alignItems: 'center',
+    marginBottom: 15,
+    paddingBottom: 15,
+    borderBottomWidth: 2,
+    borderBottomColor: '#e5e7eb'
+  },
+  headerTitle: {
+    fontSize: 18,
+    fontFamily: 'Helvetica-Bold',
+    color: '#000000'
+  },
+  headerSubtitle: {
+    fontSize: 12,
+    marginTop: 5,
+    color: '#000000'
+  },
+  logo: {
+    fontSize: 14,
+    fontFamily: 'Helvetica-Bold',
+    color: '#2563eb'
+  },
+
+  // Sample info styles
+  sampleInfoContainer: {
+    flexDirection: 'row',
+    marginBottom: 15,
+    marginTop: 20
+  },
+  sampleInfoLeft: {
+    width: '50%',
+    paddingRight: 15
+  },
+  sampleInfoRight: {
+    width: '50%',
+    paddingLeft: 15
+  },
+  sampleRow: {
+    flexDirection: 'row',
+    paddingVertical: 8
+  },
+  sampleLabel: {
+    width: '55%',
+    fontSize: 11,
+    fontFamily: 'Helvetica-Bold',
+    color: '#374151'
+  },
+  sampleValue: {
+    width: '45%',
+    fontSize: 12,
+    color: '#1F2937'
+  },
+
+  // Section styles
+  sectionTitle: {
+    backgroundColor: '#FFFFFF',
+    paddingVertical: 10,
+    marginVertical: 15,
+    borderTopWidth: 1,
+    borderTopColor: '#F97316',
+    borderBottomWidth: 1,
+    borderBottomColor: '#F97316'
+  },
+  sectionTitleText: {
+    fontSize: 18,
+    fontFamily: 'Helvetica-Bold',
+    color: '#F97316',
+    textAlign: 'center'
+  },
+
+  // Summary cards
+  summaryCardsContainer: {
+    flexDirection: 'row',
+    justifyContent: 'center',
+    marginVertical: 20,
+    gap: 20
+  },
+  summaryCard: {
+    width: 150,
+    height: 120,
+    borderRadius: 8,
+    padding: 20,
+    borderWidth: 2,
+    alignItems: 'center',
+    justifyContent: 'space-between'
+  },
+  cardGreen: {
+    borderColor: '#059669'
+  },
+  cardRed: {
+    borderColor: '#DC2626'
+  },
+  cardTitle: {
+    fontSize: 14,
+    fontFamily: 'Helvetica-Bold',
+    color: '#374151',
+    textAlign: 'center'
+  },
+  cardNumber: {
+    fontSize: 32,
+    fontFamily: 'Helvetica-Bold',
+    textAlign: 'center'
+  },
+  numberGreen: {
+    color: '#059669'
+  },
+  numberRed: {
+    color: '#DC2626'
+  },
+  cardText: {
+    fontSize: 12,
+    textAlign: 'center',
+    color: '#6B7280'
+  },
+
+  // Alert styles
+  alertBox: {
+    backgroundColor: '#FEF2F2',
+    borderWidth: 2,
+    borderColor: '#DC2626',
+    borderRadius: 5,
+    padding: 12,
+    marginBottom: 15
+  },
+  alertTitle: {
+    fontSize: 14,
+    fontFamily: 'Helvetica-Bold',
+    color: '#1F2937',
+    marginBottom: 6
+  },
+  alertText: {
+    fontSize: 12,
+    color: '#1F2937'
+  },
+
+  // Table styles
+  table: {
+    marginVertical: 15
+  },
+  tableHeader: {
+    flexDirection: 'row',
+    backgroundColor: '#FFFFFF',
+    borderTopWidth: 1,
+    borderBottomWidth: 1,
+    borderColor: '#e5e7eb'
+  },
+  tableRow: {
+    flexDirection: 'row',
+    borderBottomWidth: 1,
+    borderColor: '#e5e7eb'
+  },
+  exceededRow: {
+    backgroundColor: '#fef2f2'
+  },
+  tableCell: {
+    width: '20%',
+    padding: 8,
+    fontSize: 12,
+    textAlign: 'center'
+  },
+  headerCell: {
+    fontFamily: 'Helvetica-Bold',
+    color: '#000000'
+  },
+  statusPass: {
+    color: '#059669',
+    fontFamily: 'Helvetica-Bold'
+  },
+  statusFail: {
+    color: '#dc2626',
+    fontFamily: 'Helvetica-Bold'
+  }
 };
 
 /**
