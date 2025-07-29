@@ -1345,48 +1345,32 @@ function generateHTMLReport(reportData, sampleNumber, kitInfo = {}) {
 }
 
 
-// Simplified HTML to PDF function using Netlify's official puppeteer support
 async function generateHTMLToPDF(reportData, sampleNumber, kitInfo = {}) {
   let browser;
   try {
     console.log('Starting PDF generation...');
     
-    const puppeteer = require('puppeteer');
+    const puppeteer = require('puppeteer-core');
+    const chromium = require('@browserless/chromium');
     
-    // Unified configuration for both local and Netlify
-    const browserConfig = {
-      headless: true,
-      args: [
-        '--no-sandbox',
-        '--disable-setuid-sandbox',
-        '--disable-dev-shm-usage',
-        '--disable-web-security'
-      ]
-    };
-    
-    console.log('Launching browser...');
-    browser = await puppeteer.launch(browserConfig);
-    console.log('Browser launched successfully');
+    console.log('Launching browser with @browserless/chromium...');
+    browser = await puppeteer.launch({
+      args: chromium.args,
+      defaultViewport: chromium.defaultViewport,
+      executablePath: await chromium.executablePath(),
+      headless: chromium.headless,
+    });
     
     const page = await browser.newPage();
-    console.log('New page created');
-    
-    // Set viewport for consistent rendering
     await page.setViewport({ width: 1280, height: 720 });
     
-    // Generate HTML content using kit info
-    console.log('Generating HTML content...');
     const htmlContent = generateHTMLReport(reportData, sampleNumber, kitInfo);
-    console.log('HTML content generated, length:', htmlContent.length);
     
-    console.log('Setting page content...');
     await page.setContent(htmlContent, { 
       waitUntil: 'networkidle0',
       timeout: 30000 
     });
-    console.log('Page content set successfully');
     
-    console.log('Generating PDF...');
     const pdfBuffer = await page.pdf({
       format: 'A4',
       printBackground: true,
@@ -1395,23 +1379,14 @@ async function generateHTMLToPDF(reportData, sampleNumber, kitInfo = {}) {
         bottom: '20mm',
         left: '15mm',
         right: '15mm'
-      },
-      preferCSSPageSize: false
+      }
     });
-    console.log('PDF generated successfully, size:', pdfBuffer.length);
     
+    console.log('PDF generated successfully, size:', pdfBuffer.length);
     return pdfBuffer;
     
-  } catch (error) {
-    console.error('Error generating PDF:', error);
-    console.error('Error stack:', error.stack);
-    throw new Error(`PDF generation failed: ${error.message}`);
   } finally {
-    if (browser) {
-      console.log('Closing browser...');
-      await browser.close();
-      console.log('Browser closed');
-    }
+    if (browser) await browser.close();
   }
 }
 
