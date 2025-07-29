@@ -18,6 +18,9 @@ export default function AdminReportsUpload() {
   const [showSuccessModal, setShowSuccessModal] = useState(false);
   const [successModalMessage, setSuccessModalMessage] = useState('');
 
+  // Collapse/expand state
+  const [isExpanded, setIsExpanded] = useState(false);
+
   // Customer and Kit info for unregistered/one-off reports
   const [customCustomerInfo, setCustomCustomerInfo] = useState({
     firstName: '',
@@ -678,16 +681,60 @@ export default function AdminReportsUpload() {
 
   return (
     <div className="space-y-6">
-      {/* Header */}
-      <div className="bg-white shadow rounded-lg overflow-hidden">
-        <div className="px-4 sm:px-6 py-4 sm:py-5 border-b border-gray-200">
-          <h3 className="text-lg sm:text-xl leading-6 font-medium text-gray-900">
-            Upload Test Results
-          </h3>
-          <p className="mt-1 text-sm text-gray-500">
-            Upload laboratory test results and generate customer reports automatically.
-          </p>
+      {/* Collapsible Header */}
+<div className="bg-white shadow rounded-lg overflow-hidden">
+  <button
+    onClick={() => setIsExpanded(!isExpanded)}
+    className="w-full px-4 sm:px-6 py-4 sm:py-5 text-left hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-inset focus:ring-blue-500 transition-colors duration-200"
+  >
+    <div className="flex items-center justify-between">
+      <div className="flex-1">
+        <h3 className="text-lg sm:text-xl leading-6 font-medium text-gray-900 flex items-center">
+          <svg className="h-5 w-5 text-blue-600 mr-2" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M7 16a4 4 0 01-.88-7.903A5 5 0 1115.9 6L16 6a5 5 0 011 9.9M15 13l-3-3m0 0l-3 3m3-3v12" />
+          </svg>
+          Upload Test Results
+        </h3>
+        <p className="mt-1 text-sm text-gray-500">
+          Upload laboratory test results and generate customer reports automatically.
+        </p>
+      </div>
+      <div className="ml-4 flex-shrink-0">
+        <div className={`inline-flex items-center justify-center w-8 h-8 rounded-full transition-all duration-200 ${
+          isExpanded 
+            ? 'bg-blue-100 border-2 border-blue-300' 
+            : 'bg-blue-50 border-2 border-blue-200 hover:bg-blue-100 hover:border-blue-300'
+        }`}>
+          <svg 
+            className={`h-4 w-4 text-blue-600 transform transition-transform duration-200 ${isExpanded ? 'rotate-180' : ''}`}
+            fill="none" 
+            viewBox="0 0 24 24" 
+            stroke="currentColor"
+            strokeWidth="2.5"
+          >
+            <path strokeLinecap="round" strokeLinejoin="round" d="M19 9l-7 7-7-7" />
+          </svg>
         </div>
+      </div>
+    </div>
+  </button>
+
+  {/* Collapsed State Summary */}
+  {!isExpanded && (
+    <div className="px-4 sm:px-6 py-2 bg-gray-50 border-t border-gray-200">
+      <p className="text-xs text-gray-500 flex items-center">
+        <svg className="h-4 w-4 text-gray-400 mr-1" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+        </svg>
+        Click to expand and upload test results
+      </p>
+    </div>
+  )}
+
+  {/* Collapsible Content */}
+  <div className={`transition-all duration-300 ease-in-out ${isExpanded ? 'max-h-none opacity-100' : 'max-h-0 opacity-0 overflow-hidden'}`}>
+    {isExpanded && (
+      <>
 
         {/* Report Type Selection */}
         <div className="px-4 sm:px-6 py-4 border-b border-gray-200 bg-gray-50">
@@ -1244,8 +1291,12 @@ export default function AdminReportsUpload() {
               )}
             </button>
           </div>
-        </form>
-      </div>
+          </form>
+        </>
+      )}
+    </div>
+  </div>
+      
 
       {/* All Test Kits List */}
       <div className="bg-white shadow rounded-lg overflow-hidden">
