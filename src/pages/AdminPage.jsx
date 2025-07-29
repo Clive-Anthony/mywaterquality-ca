@@ -119,7 +119,7 @@ export default function AdminPage() {
                   </li>
 
                   {/* Reports Upload */}
-                  <li>
+                  {/* <li>
                     <button
                       onClick={() => setActiveTab('reports')}
                       className={`w-full text-left px-4 sm:px-6 py-3 flex items-center text-sm sm:text-base ${
@@ -146,7 +146,7 @@ export default function AdminPage() {
                       </svg>
                       <span className="truncate">Reports Upload</span>
                     </button>
-                  </li>
+                  </li> */}
 
 
                   {/* Inventory */}
