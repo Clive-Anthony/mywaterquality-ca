@@ -1345,27 +1345,83 @@ function generateHTMLReport(reportData, sampleNumber, kitInfo = {}) {
 }
 
 
-// Enhanced HTML to PDF function using Puppeteer
+// Enhanced HTML to PDF function using Puppeteer with serverless Chrome
 async function generateHTMLToPDF(reportData, sampleNumber, kitInfo = {}) {
-  const puppeteer = require('puppeteer');
-  
   let browser;
   try {
-    browser = await puppeteer.launch({
-      headless: true,
-      args: ['--no-sandbox', '--disable-setuid-sandbox', '--disable-dev-shm-usage']
-    });
+    console.log('Starting PDF generation...');
+    
+    // Configure for different environments
+    let browserConfig;
+    let puppeteer;
+    
+    if (process.env.NETLIFY || process.env.AWS_LAMBDA_FUNCTION_NAME) {
+      console.log('Using serverless environment configuration');
+      // Serverless environment (Netlify/AWS Lambda)
+      try {
+        puppeteer = require('puppeteer-core');
+        const chromium = require('@sparticuz/chromium');
+        console.log('Chromium and puppeteer-core loaded successfully');
+        
+        browserConfig = {
+          args: [
+            ...chromium.args,
+            '--no-sandbox',
+            '--disable-setuid-sandbox',
+            '--disable-dev-shm-usage',
+            '--disable-web-security',
+            '--disable-features=VizDisplayCompositor',
+            '--disable-gpu',
+            '--single-process',
+            '--no-first-run'
+          ],
+          defaultViewport: chromium.defaultViewport,
+          executablePath: await chromium.executablePath(),
+          headless: chromium.headless,
+          ignoreHTTPSErrors: true,
+        };
+        console.log('Browser config created for serverless environment');
+      } catch (importError) {
+        console.error('Error importing serverless dependencies:', importError);
+        throw new Error(`Failed to import serverless dependencies: ${importError.message}`);
+      }
+    } else {
+      console.log('Using local development configuration');
+      // Local development environment
+      puppeteer = require('puppeteer');
+      
+      browserConfig = {
+        headless: 'new',
+        args: [
+          '--no-sandbox', 
+          '--disable-setuid-sandbox', 
+          '--disable-dev-shm-usage',
+          '--disable-web-security'
+        ]
+      };
+      console.log('Browser config created for local environment');
+    }
+    
+    console.log('Launching browser...');
+    browser = await puppeteer.launch(browserConfig);
+    console.log('Browser launched successfully');
     
     const page = await browser.newPage();
+    console.log('New page created');
     
     // Generate HTML content using kit info
+    console.log('Generating HTML content...');
     const htmlContent = generateHTMLReport(reportData, sampleNumber, kitInfo);
+    console.log('HTML content generated, length:', htmlContent.length);
     
+    console.log('Setting page content...');
     await page.setContent(htmlContent, { 
       waitUntil: 'networkidle0',
       timeout: 30000 
     });
+    console.log('Page content set successfully');
     
+    console.log('Generating PDF...');
     const pdfBuffer = await page.pdf({
       format: 'A4',
       printBackground: true,
@@ -1376,15 +1432,19 @@ async function generateHTMLToPDF(reportData, sampleNumber, kitInfo = {}) {
         right: '15mm'
       }
     });
+    console.log('PDF generated successfully, size:', pdfBuffer.length);
     
     return pdfBuffer;
     
   } catch (error) {
     console.error('Error generating PDF:', error);
+    console.error('Error stack:', error.stack);
     throw new Error(`PDF generation failed: ${error.message}`);
   } finally {
     if (browser) {
+      console.log('Closing browser...');
       await browser.close();
+      console.log('Browser closed');
     }
   }
 }
