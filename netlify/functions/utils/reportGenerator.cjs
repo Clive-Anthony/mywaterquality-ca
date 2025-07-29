@@ -1345,80 +1345,24 @@ function generateHTMLReport(reportData, sampleNumber, kitInfo = {}) {
 }
 
 
-// Enhanced HTML to PDF function using Puppeteer with @sparticuz/chromium
+// Simplified HTML to PDF function using Netlify's official puppeteer support
 async function generateHTMLToPDF(reportData, sampleNumber, kitInfo = {}) {
   let browser;
   try {
     console.log('Starting PDF generation...');
     
-    let puppeteer;
-    let browserConfig;
+    const puppeteer = require('puppeteer');
     
-    if (process.env.NETLIFY || process.env.AWS_LAMBDA_FUNCTION_NAME) {
-      console.log('Using serverless environment configuration');
-      // Serverless environment (Netlify/AWS Lambda)
-      try {
-        const chromium = require('@sparticuz/chromium');
-        puppeteer = require('puppeteer-core');
-        console.log('@sparticuz/chromium and puppeteer-core loaded successfully');
-        
-        // Add debugging
-        console.log('Chromium args:', chromium.args);
-        console.log('Chromium headless:', chromium.headless);
-        console.log('Attempting to get executable path...');
-        
-        const executablePath = await chromium.executablePath();
-        console.log('Executable path returned:', executablePath);
-        
-        // Configure chromium for serverless
-        browserConfig = {
-          args: [
-            '--no-sandbox',
-            '--disable-setuid-sandbox',
-            '--disable-dev-shm-usage',
-            '--disable-gpu',
-            '--single-process',
-            '--no-zygote',
-            '--disable-web-security'
-          ],
-          defaultViewport: { width: 1280, height: 720 },
-          executablePath: executablePath,
-          headless: true,
-          ignoreHTTPSErrors: true,
-        };
-        console.log('Browser config created for serverless environment');
-      } catch (importError) {
-        console.error('Error importing serverless dependencies:', importError);
-        console.error('Error details:', {
-          message: importError.message,
-          stack: importError.stack,
-          name: importError.name
-        });
-        
-        // TEMPORARY FALLBACK: Create a simple HTML report instead of PDF
-        throw new Error(`PDF generation temporarily unavailable: ${importError.message}. Please contact support for assistance.`);
-      }
-    } else {
-      console.log('Using local development configuration');
-      // Local development environment - use regular puppeteer
-      try {
-        puppeteer = require('puppeteer');
-        
-        browserConfig = {
-          headless: 'new',
-          args: [
-            '--no-sandbox', 
-            '--disable-setuid-sandbox', 
-            '--disable-dev-shm-usage',
-            '--disable-web-security'
-          ]
-        };
-        console.log('Browser config created for local environment');
-      } catch (localError) {
-        console.error('Error loading local puppeteer:', localError);
-        throw new Error(`Failed to load puppeteer for local development: ${localError.message}`);
-      }
-    }
+    // Unified configuration for both local and Netlify
+    const browserConfig = {
+      headless: true,
+      args: [
+        '--no-sandbox',
+        '--disable-setuid-sandbox',
+        '--disable-dev-shm-usage',
+        '--disable-web-security'
+      ]
+    };
     
     console.log('Launching browser...');
     browser = await puppeteer.launch(browserConfig);
