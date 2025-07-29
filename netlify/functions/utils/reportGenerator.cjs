@@ -1,5 +1,18 @@
 // netlify/functions/utils/reportGenerator.js - Enhanced with all improvements from test-report-generation
 const { createClient } = require('@supabase/supabase-js');
+
+// Fix for Node.js fetch duplex issue - ADD THIS AT THE TOP
+const originalFetch = global.fetch;
+if (originalFetch) {
+  global.fetch = function(url, options = {}) {
+    if (options.body && !options.duplex) {
+      options.duplex = 'half';
+    }
+    return originalFetch(url, options);
+  };
+}
+
+// React-PDF imports
 const ReactPDF = require('@react-pdf/renderer');
 const React = require('react');
 
