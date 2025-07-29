@@ -1345,23 +1345,22 @@ function generateHTMLReport(reportData, sampleNumber, kitInfo = {}) {
 }
 
 
-// Enhanced HTML to PDF function using Puppeteer with serverless Chrome
+// Enhanced HTML to PDF function using Puppeteer with chrome-aws-lambda
 async function generateHTMLToPDF(reportData, sampleNumber, kitInfo = {}) {
   let browser;
   try {
     console.log('Starting PDF generation...');
     
-    // Configure for different environments
-    let browserConfig;
     let puppeteer;
+    let browserConfig;
     
     if (process.env.NETLIFY || process.env.AWS_LAMBDA_FUNCTION_NAME) {
       console.log('Using serverless environment configuration');
       // Serverless environment (Netlify/AWS Lambda)
       try {
         puppeteer = require('puppeteer-core');
-        const chromium = require('@sparticuz/chromium');
-        console.log('Chromium and puppeteer-core loaded successfully');
+        const chromium = require('chrome-aws-lambda');
+        console.log('Chrome-aws-lambda and puppeteer-core loaded successfully');
         
         browserConfig = {
           args: [
@@ -1373,10 +1372,13 @@ async function generateHTMLToPDF(reportData, sampleNumber, kitInfo = {}) {
             '--disable-features=VizDisplayCompositor',
             '--disable-gpu',
             '--single-process',
-            '--no-first-run'
+            '--no-first-run',
+            '--disable-background-timer-throttling',
+            '--disable-backgrounding-occluded-windows',
+            '--disable-renderer-backgrounding'
           ],
           defaultViewport: chromium.defaultViewport,
-          executablePath: await chromium.executablePath(),
+          executablePath: await chromium.executablePath,
           headless: chromium.headless,
           ignoreHTTPSErrors: true,
         };
@@ -1387,7 +1389,7 @@ async function generateHTMLToPDF(reportData, sampleNumber, kitInfo = {}) {
       }
     } else {
       console.log('Using local development configuration');
-      // Local development environment
+      // Local development environment - use regular puppeteer
       puppeteer = require('puppeteer');
       
       browserConfig = {
@@ -1408,6 +1410,9 @@ async function generateHTMLToPDF(reportData, sampleNumber, kitInfo = {}) {
     
     const page = await browser.newPage();
     console.log('New page created');
+    
+    // Set viewport for consistent rendering
+    await page.setViewport({ width: 1280, height: 720 });
     
     // Generate HTML content using kit info
     console.log('Generating HTML content...');
@@ -1430,7 +1435,8 @@ async function generateHTMLToPDF(reportData, sampleNumber, kitInfo = {}) {
         bottom: '20mm',
         left: '15mm',
         right: '15mm'
-      }
+      },
+      preferCSSPageSize: false
     });
     console.log('PDF generated successfully, size:', pdfBuffer.length);
     
