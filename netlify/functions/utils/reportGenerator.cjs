@@ -1362,18 +1362,41 @@ async function generateHTMLToPDF(reportData, sampleNumber, kitInfo = {}) {
         puppeteer = require('puppeteer-core');
         console.log('@sparticuz/chromium and puppeteer-core loaded successfully');
         
-        // Configure chromium for serverless - correct approach
+        // Add debugging
+        console.log('Chromium args:', chromium.args);
+        console.log('Chromium headless:', chromium.headless);
+        console.log('Attempting to get executable path...');
+        
+        const executablePath = await chromium.executablePath();
+        console.log('Executable path returned:', executablePath);
+        
+        // Configure chromium for serverless
         browserConfig = {
-          args: chromium.args,
-          defaultViewport: chromium.defaultViewport,
-          executablePath: await chromium.executablePath(), // No parameters!
-          headless: chromium.headless,
+          args: [
+            '--no-sandbox',
+            '--disable-setuid-sandbox',
+            '--disable-dev-shm-usage',
+            '--disable-gpu',
+            '--single-process',
+            '--no-zygote',
+            '--disable-web-security'
+          ],
+          defaultViewport: { width: 1280, height: 720 },
+          executablePath: executablePath,
+          headless: true,
           ignoreHTTPSErrors: true,
         };
         console.log('Browser config created for serverless environment');
       } catch (importError) {
         console.error('Error importing serverless dependencies:', importError);
-        throw new Error(`Failed to import serverless dependencies: ${importError.message}`);
+        console.error('Error details:', {
+          message: importError.message,
+          stack: importError.stack,
+          name: importError.name
+        });
+        
+        // TEMPORARY FALLBACK: Create a simple HTML report instead of PDF
+        throw new Error(`PDF generation temporarily unavailable: ${importError.message}. Please contact support for assistance.`);
       }
     } else {
       console.log('Using local development configuration');
