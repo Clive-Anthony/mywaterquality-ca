@@ -1616,64 +1616,52 @@ async function continueProcessing(supabase, reportId, sampleNumber, requestId, t
       throw new Error('Failed to process test results data');
     }
     
-    // TEMPORARY: Skip PDF generation to test the rest of the pipeline
-console.log(`[${requestId}] TEMPORARILY SKIPPING PDF generation for testing`);
-console.log(`[${requestId}] Report data processed successfully with ${testResults.length} results`);
+    // REMOVE THE TEMPORARY SKIP SECTION AND REPLACE WITH:
+    let pdfBuffer;
+    try {
+      console.log(`[${requestId}] Attempting primary PDF generation`);
+      pdfBuffer = await generateHTMLToPDF(reportData, sampleNumber, kitInfo);
+    } catch (pdfError) {
+      console.warn(`[${requestId}] Primary PDF generation failed, trying fallback:`, pdfError.message);
+      try {
+        pdfBuffer = await generateFallbackPDF(reportData, sampleNumber, kitInfo);
+        console.log(`[${requestId}] Fallback PDF generation succeeded`);
+      } catch (fallbackError) {
+        console.error(`[${requestId}] Both PDF generation methods failed:`, fallbackError.message);
+        throw new Error(`PDF generation failed: ${pdfError.message}. Fallback also failed: ${fallbackError.message}`);
+      }
+    }
 
-// Create a dummy "success" response without actual PDF
-return {
-  success: true,
-  pdfUrl: 'https://example.com/temp-placeholder.pdf', // Temporary placeholder
-  fileName: `temp-report-${sampleNumber}.pdf`
-};
+    if (!pdfBuffer) {
+      throw new Error('Failed to generate PDF buffer');
+    }
 
-// COMMENTED OUT - PDF generation section
+    // Upload PDF to Supabase storage - use the correct kit identifier
+    const orderNumber = kitInfo.displayId || kitInfo.kitCode || kitOrderCode;
+    const pdfFileName = `My-Water-Quality-Report-${orderNumber}.pdf`;
+    const { data: pdfUpload, error: pdfUploadError } = await supabase.storage
+      .from('generated-reports')
+      .upload(pdfFileName, pdfBuffer, {
+        contentType: 'application/pdf',
+        upsert: true
+      });
 
-let pdfBuffer;
-try {
-  console.log(`[${requestId}] Attempting primary PDF generation`);
-  pdfBuffer = await generateHTMLToPDF(reportData, sampleNumber, kitInfo);
-} catch (pdfError) {
-  console.warn(`[${requestId}] Primary PDF generation failed, trying fallback:`, pdfError.message);
-  try {
-    pdfBuffer = await generateFallbackPDF(reportData, sampleNumber, kitInfo);
-    console.log(`[${requestId}] Fallback PDF generation succeeded`);
-  } catch (fallbackError) {
-    console.error(`[${requestId}] Both PDF generation methods failed:`, fallbackError.message);
-    throw new Error(`PDF generation failed: ${pdfError.message}. Fallback also failed: ${fallbackError.message}`);
-  }
-}
+    if (pdfUploadError) {
+      throw new Error(`Failed to upload PDF: ${pdfUploadError.message}`);
+    }
 
-if (!pdfBuffer) {
-  throw new Error('Failed to generate PDF buffer');
-}
+    // Get public URL for the PDF
+    const { data: pdfUrl } = supabase.storage
+      .from('generated-reports')
+      .getPublicUrl(pdfFileName);
 
-// Upload PDF to Supabase storage - use the correct kit identifier
-const orderNumber = kitInfo.displayId || kitInfo.kitCode || kitOrderCode;
-const pdfFileName = `My-Water-Quality-Report-${orderNumber}.pdf`;
-const { data: pdfUpload, error: pdfUploadError } = await supabase.storage
-  .from('generated-reports')
-  .upload(pdfFileName, pdfBuffer, {
-    contentType: 'application/pdf',
-    upsert: true
-  });
+    console.log(`[${requestId}] PDF report generated successfully: ${pdfFileName}`);
 
-if (pdfUploadError) {
-  throw new Error(`Failed to upload PDF: ${pdfUploadError.message}`);
-}
-
-// Get public URL for the PDF
-const { data: pdfUrl } = supabase.storage
-  .from('generated-reports')
-  .getPublicUrl(pdfFileName);
-
-console.log(`[${requestId}] PDF report generated successfully: ${pdfFileName}`);
-
-return {
-  success: true,
-  pdfUrl: pdfUrl.publicUrl,
-  fileName: pdfFileName
-};
+    return {
+      success: true,
+      pdfUrl: pdfUrl.publicUrl,
+      fileName: pdfFileName
+    };
     
   } catch (error) {
     console.error(`[${requestId}] Error in continueProcessing:`, error);
