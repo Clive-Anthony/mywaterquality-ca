@@ -57,14 +57,11 @@
   PUPPETEER_SKIP_CHROMIUM_DOWNLOAD = "true"
   PUPPETEER_EXECUTABLE_PATH = "/usr/bin/chromium-browser"
 
-[functions]
-  external_node_modules = ["puppeteer"]
-  node_bundler = "esbuild"
-
 # Configure Netlify Functions
 [functions]
   directory = "netlify/functions"
   node_bundler = "esbuild"
+  external_node_modules = ["puppeteer"]
 
 # Configure function-specific environment variables
 [functions.environment]
