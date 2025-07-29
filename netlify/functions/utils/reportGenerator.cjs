@@ -1363,6 +1363,9 @@ async function generateHTMLToPDF(reportData, sampleNumber, kitInfo = {}) {
         const chromium = require('@sparticuz/chromium');
         console.log('Chromium and puppeteer-core loaded successfully');
         
+        // Ensure chromium is properly downloaded and available
+        await chromium.font('https://raw.githubsercontent.com/googlefonts/noto-emoji/main/fonts/NotoColorEmoji.ttf');
+        
         browserConfig = {
           args: [
             ...chromium.args,
@@ -1370,7 +1373,9 @@ async function generateHTMLToPDF(reportData, sampleNumber, kitInfo = {}) {
             '--disable-setuid-sandbox',
             '--disable-dev-shm-usage',
             '--disable-web-security',
-            '--disable-features=VizDisplayCompositor'
+            '--disable-features=VizDisplayCompositor',
+            '--disable-gpu',
+            '--single-process'
           ],
           defaultViewport: chromium.defaultViewport,
           executablePath: await chromium.executablePath(),
@@ -1586,25 +1591,6 @@ async function sendAdminNotification(supabase, reportId, kitInfo, requestId) {
   }
 }
 
-// Fallback PDF generation using a simpler method
-async function generateFallbackPDF(reportData, sampleNumber, kitInfo = {}) {
-  console.log('Using fallback PDF generation method');
-  
-  try {
-    // Generate a simple text-based report as fallback
-    const htmlContent = generateHTMLReport(reportData, sampleNumber, kitInfo);
-    
-    // For now, return the HTML as a "PDF" (this is a temporary fallback)
-    // In production, you might want to use a different PDF library like @react-pdf/renderer
-    const Buffer = require('buffer').Buffer;
-    return Buffer.from(htmlContent, 'utf-8');
-    
-  } catch (error) {
-    console.error('Fallback PDF generation also failed:', error);
-    throw error;
-  }
-}
-
 async function continueProcessing(supabase, reportId, sampleNumber, requestId, testResults, kitOrderCode = 'UNKNOWN', kitInfo = {}) {
   try {
     console.log(`[${requestId}] Processing ${testResults.length} test results for report generation`);
@@ -1616,26 +1602,13 @@ async function continueProcessing(supabase, reportId, sampleNumber, requestId, t
       throw new Error('Failed to process test results data');
     }
     
-    // REMOVE THE TEMPORARY SKIP SECTION AND REPLACE WITH:
-    let pdfBuffer;
-    try {
-      console.log(`[${requestId}] Attempting primary PDF generation`);
-      pdfBuffer = await generateHTMLToPDF(reportData, sampleNumber, kitInfo);
-    } catch (pdfError) {
-      console.warn(`[${requestId}] Primary PDF generation failed, trying fallback:`, pdfError.message);
-      try {
-        pdfBuffer = await generateFallbackPDF(reportData, sampleNumber, kitInfo);
-        console.log(`[${requestId}] Fallback PDF generation succeeded`);
-      } catch (fallbackError) {
-        console.error(`[${requestId}] Both PDF generation methods failed:`, fallbackError.message);
-        throw new Error(`PDF generation failed: ${pdfError.message}. Fallback also failed: ${fallbackError.message}`);
-      }
-    }
-
+    // Generate PDF using the processed data and kit info
+    const pdfBuffer = await generateHTMLToPDF(reportData, sampleNumber, kitInfo);
+    
     if (!pdfBuffer) {
       throw new Error('Failed to generate PDF buffer');
     }
-
+    
     // Upload PDF to Supabase storage - use the correct kit identifier
     const orderNumber = kitInfo.displayId || kitInfo.kitCode || kitOrderCode;
     const pdfFileName = `My-Water-Quality-Report-${orderNumber}.pdf`;
@@ -1645,18 +1618,18 @@ async function continueProcessing(supabase, reportId, sampleNumber, requestId, t
         contentType: 'application/pdf',
         upsert: true
       });
-
+    
     if (pdfUploadError) {
       throw new Error(`Failed to upload PDF: ${pdfUploadError.message}`);
     }
-
+    
     // Get public URL for the PDF
     const { data: pdfUrl } = supabase.storage
       .from('generated-reports')
       .getPublicUrl(pdfFileName);
-
+    
     console.log(`[${requestId}] PDF report generated successfully: ${pdfFileName}`);
-
+    
     return {
       success: true,
       pdfUrl: pdfUrl.publicUrl,
