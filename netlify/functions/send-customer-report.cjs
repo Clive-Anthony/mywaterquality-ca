@@ -1,6 +1,11 @@
 // netlify/functions/send-customer-report.cjs
 const { createClient } = require('@supabase/supabase-js');
 
+// Cache for static assets to avoid repeated downloads
+let cachedReadingGuide = null;
+let cacheTimestamp = 0;
+const CACHE_DURATION = 24 * 60 * 60 * 1000; // 24 hours in milliseconds
+
 function log(level, message, data = null) {
   const timestamp = new Date().toISOString();
   const logLine = `[${timestamp}] [${level.toUpperCase()}] ${message}`;
@@ -309,12 +314,48 @@ if (!pdfContent || pdfContent.length === 0) {
   };
 }
 
-// Prepare attachment with validation
+// Prepare attachments with validation
 const attachments = [{
   filename: `My-Water-Quality-Report-${customerInfo.kitCode}.pdf`,
   data: pdfContent,
   contentType: 'application/pdf'
 }];
+
+// Add the "How to Read Your Report" guide
+try {
+  log('info', 'Downloading reading guide for customer email');
+  
+  const { data: guideData, error: guideError } = await supabase.storage
+    .from('static-assets')
+    .download('Understanding-My-Water-Quality-Report-Card.pdf');
+
+  if (!guideError && guideData) {
+    const guideArrayBuffer = await guideData.arrayBuffer();
+    const guideBase64 = Buffer.from(guideArrayBuffer).toString('base64');
+    
+    attachments.push({
+      filename: 'Understanding-My-Water-Quality-Report-Card.pdf',
+      data: guideBase64,
+      contentType: 'application/pdf'
+    });
+    
+    log('info', 'Reading guide attachment prepared', {
+      sizeKB: Math.round(guideBase64.length / 1024)
+    });
+  } else {
+    log('warn', 'Could not download reading guide', { error: guideError?.message });
+  }
+} catch (guideDownloadError) {
+  log('warn', 'Exception downloading reading guide', { error: guideDownloadError.message });
+  // Don't fail the email if guide download fails
+}
+
+log('info', 'All attachments prepared for customer email', {
+  filename: attachments[0].filename,
+  hasMainReport: !!attachments[0].data,
+  totalAttachments: attachments.length,
+  attachmentNames: attachments.map(att => att.filename)
+});
 
 log('info', 'Attachment prepared for customer email', {
   filename: attachments[0].filename,
