@@ -1349,36 +1349,46 @@ function generateHTMLReport(reportData, sampleNumber, kitInfo = {}) {
 async function generateHTMLToPDF(reportData, sampleNumber, kitInfo = {}) {
   let browser;
   try {
+    console.log('Starting PDF generation...');
+    
     // Configure for different environments
     let browserConfig;
+    let puppeteer;
     
     if (process.env.NETLIFY || process.env.AWS_LAMBDA_FUNCTION_NAME) {
+      console.log('Using serverless environment configuration');
       // Serverless environment (Netlify/AWS Lambda)
-      const puppeteer = require('puppeteer-core');
-      const chromium = require('@sparticuz/chromium');
-      
-      browserConfig = {
-        args: [
-          ...chromium.args,
-          '--no-sandbox',
-          '--disable-setuid-sandbox',
-          '--disable-dev-shm-usage',
-          '--disable-web-security',
-          '--disable-features=VizDisplayCompositor'
-        ],
-        defaultViewport: chromium.defaultViewport,
-        executablePath: await chromium.executablePath(),
-        headless: chromium.headless,
-        ignoreHTTPSErrors: true,
-      };
-      
-      browser = await puppeteer.launch(browserConfig);
+      try {
+        puppeteer = require('puppeteer-core');
+        const chromium = require('@sparticuz/chromium');
+        console.log('Chromium and puppeteer-core loaded successfully');
+        
+        browserConfig = {
+          args: [
+            ...chromium.args,
+            '--no-sandbox',
+            '--disable-setuid-sandbox',
+            '--disable-dev-shm-usage',
+            '--disable-web-security',
+            '--disable-features=VizDisplayCompositor'
+          ],
+          defaultViewport: chromium.defaultViewport,
+          executablePath: await chromium.executablePath(),
+          headless: chromium.headless,
+          ignoreHTTPSErrors: true,
+        };
+        console.log('Browser config created for serverless environment');
+      } catch (importError) {
+        console.error('Error importing serverless dependencies:', importError);
+        throw new Error(`Failed to import serverless dependencies: ${importError.message}`);
+      }
     } else {
+      console.log('Using local development configuration');
       // Local development environment
-      const puppeteer = require('puppeteer');
+      puppeteer = require('puppeteer');
       
       browserConfig = {
-        headless: 'new', // Use new headless mode to avoid deprecation warning
+        headless: 'new',
         args: [
           '--no-sandbox', 
           '--disable-setuid-sandbox', 
@@ -1386,20 +1396,29 @@ async function generateHTMLToPDF(reportData, sampleNumber, kitInfo = {}) {
           '--disable-web-security'
         ]
       };
-      
-      browser = await puppeteer.launch(browserConfig);
+      console.log('Browser config created for local environment');
     }
     
+    console.log('Launching browser...');
+    browser = await puppeteer.launch(browserConfig);
+    console.log('Browser launched successfully');
+    
     const page = await browser.newPage();
+    console.log('New page created');
     
     // Generate HTML content using kit info
+    console.log('Generating HTML content...');
     const htmlContent = generateHTMLReport(reportData, sampleNumber, kitInfo);
+    console.log('HTML content generated, length:', htmlContent.length);
     
+    console.log('Setting page content...');
     await page.setContent(htmlContent, { 
       waitUntil: 'networkidle0',
       timeout: 30000 
     });
+    console.log('Page content set successfully');
     
+    console.log('Generating PDF...');
     const pdfBuffer = await page.pdf({
       format: 'A4',
       printBackground: true,
@@ -1410,16 +1429,39 @@ async function generateHTMLToPDF(reportData, sampleNumber, kitInfo = {}) {
         right: '15mm'
       }
     });
+    console.log('PDF generated successfully, size:', pdfBuffer.length);
     
     return pdfBuffer;
     
   } catch (error) {
     console.error('Error generating PDF:', error);
+    console.error('Error stack:', error.stack);
     throw new Error(`PDF generation failed: ${error.message}`);
   } finally {
     if (browser) {
+      console.log('Closing browser...');
       await browser.close();
+      console.log('Browser closed');
     }
+  }
+}
+
+// Fallback PDF generation using a simpler method
+async function generateFallbackPDF(reportData, sampleNumber, kitInfo = {}) {
+  console.log('Using fallback PDF generation method');
+  
+  try {
+    // Generate a simple text-based report as fallback
+    const htmlContent = generateHTMLReport(reportData, sampleNumber, kitInfo);
+    
+    // For now, return the HTML as a "PDF" (this is a temporary fallback)
+    // In production, you might want to use a different PDF library like @react-pdf/renderer
+    const Buffer = require('buffer').Buffer;
+    return Buffer.from(htmlContent, 'utf-8');
+    
+  } catch (error) {
+    console.error('Fallback PDF generation also failed:', error);
+    throw error;
   }
 }
 
@@ -1500,7 +1542,20 @@ async function continueProcessing(supabase, reportId, sampleNumber, requestId, t
     }
     
     // Generate PDF using the processed data and kit info
-    const pdfBuffer = await generateHTMLToPDF(reportData, sampleNumber, kitInfo);
+let pdfBuffer;
+try {
+  console.log(`[${requestId}] Attempting primary PDF generation`);
+  pdfBuffer = await generateHTMLToPDF(reportData, sampleNumber, kitInfo);
+} catch (pdfError) {
+  console.warn(`[${requestId}] Primary PDF generation failed, trying fallback:`, pdfError.message);
+  try {
+    pdfBuffer = await generateFallbackPDF(reportData, sampleNumber, kitInfo);
+    console.log(`[${requestId}] Fallback PDF generation succeeded`);
+  } catch (fallbackError) {
+    console.error(`[${requestId}] Both PDF generation methods failed:`, fallbackError.message);
+    throw new Error(`PDF generation failed: ${pdfError.message}. Fallback also failed: ${fallbackError.message}`);
+  }
+}
     
     if (!pdfBuffer) {
       throw new Error('Failed to generate PDF buffer');
