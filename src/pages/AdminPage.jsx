@@ -1,6 +1,7 @@
-// src/pages/AdminPage.jsx - Updated with Report Testing
-import { useState } from 'react';
+// src/pages/AdminPage.jsx - Updated with URL fragment support for direct tab navigation
+import { useState, useEffect } from 'react';
 import { useAuth } from '../contexts/AuthContext';
+import { useLocation } from 'react-router-dom';
 import PageLayout from '../components/PageLayout';
 import AdminOrdersList from '../components/AdminOrdersList';
 import AdminReportsUpload from '../components/AdminReportsUpload';
@@ -9,7 +10,23 @@ import AdminReportTesting from '../components/AdminReportTesting';
 
 export default function AdminPage() {
   const { user } = useAuth();
+  const location = useLocation();
   const [activeTab, setActiveTab] = useState('dashboard');
+  
+  // Handle URL fragments for direct tab navigation
+  useEffect(() => {
+    const hash = location.hash.replace('#', '');
+    if (hash && ['dashboard', 'orders', 'reports', 'report-testing', 'inventory', 'kit-registrations'].includes(hash)) {
+      setActiveTab(hash);
+    }
+  }, [location.hash]);
+
+  // Update URL hash when tab changes
+  const handleTabChange = (tabName) => {
+    setActiveTab(tabName);
+    // Update URL hash without triggering a page reload
+    window.history.replaceState(null, null, `${location.pathname}#${tabName}`);
+  };
   
   // Hero component for the admin dashboard
   const AdminHero = () => (
@@ -31,7 +48,7 @@ export default function AdminPage() {
   const renderContent = () => {
     switch (activeTab) {
       case 'dashboard':
-        return <AdminDashboardContent setActiveTab={setActiveTab} />;
+        return <AdminDashboardContent setActiveTab={handleTabChange} />;
       case 'orders':
         return <AdminOrdersList showTitle={false} maxHeight="max-h-full" />;
       case 'reports':
@@ -43,7 +60,7 @@ export default function AdminPage() {
       case 'kit-registrations':
         return <ComingSoonContent tabName={activeTab} />;
       default:
-        return <AdminDashboardContent setActiveTab={setActiveTab} />;
+        return <AdminDashboardContent setActiveTab={handleTabChange} />;
     }
   };
   
@@ -62,7 +79,7 @@ export default function AdminPage() {
                   {/* Dashboard */}
                   <li>
                     <button
-                      onClick={() => setActiveTab('dashboard')}
+                      onClick={() => handleTabChange('dashboard')}
                       className={`w-full text-left px-4 sm:px-6 py-3 flex items-center text-sm sm:text-base ${
                         activeTab === 'dashboard'
                           ? 'bg-blue-50 text-blue-600 border-l-4 border-blue-600'
@@ -92,7 +109,7 @@ export default function AdminPage() {
                   {/* Orders */}
                   <li>
                     <button
-                      onClick={() => setActiveTab('orders')}
+                      onClick={() => handleTabChange('orders')}
                       className={`w-full text-left px-4 sm:px-6 py-3 flex items-center text-sm sm:text-base ${
                         activeTab === 'orders'
                           ? 'bg-blue-50 text-blue-600 border-l-4 border-blue-600'
@@ -122,7 +139,7 @@ export default function AdminPage() {
                   {/* Reports Upload */}
                   <li>
                     <button
-                      onClick={() => setActiveTab('reports')}
+                      onClick={() => handleTabChange('reports')}
                       className={`w-full text-left px-4 sm:px-6 py-3 flex items-center text-sm sm:text-base ${
                         activeTab === 'reports'
                           ? 'bg-blue-50 text-blue-600 border-l-4 border-blue-600'
@@ -152,7 +169,7 @@ export default function AdminPage() {
                   {/* Report Testing */}
                   <li>
                     <button
-                      onClick={() => setActiveTab('report-testing')}
+                      onClick={() => handleTabChange('report-testing')}
                       className={`w-full text-left px-4 sm:px-6 py-3 flex items-center text-sm sm:text-base ${
                         activeTab === 'report-testing'
                           ? 'bg-blue-50 text-blue-600 border-l-4 border-blue-600'
@@ -183,7 +200,7 @@ export default function AdminPage() {
                   {/* Inventory */}
                   <li>
                     <button
-                      onClick={() => setActiveTab('inventory')}
+                      onClick={() => handleTabChange('inventory')}
                       className={`w-full text-left px-4 sm:px-6 py-3 flex items-center text-sm sm:text-base ${
                         activeTab === 'inventory'
                           ? 'bg-blue-50 text-blue-600 border-l-4 border-blue-600'

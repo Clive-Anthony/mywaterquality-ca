@@ -1170,7 +1170,8 @@ try {
         customerName: kitInfo.customerName || 'Customer',
         kitCode: kitInfo.kitCode || kitInfo.displayId || 'UNKNOWN',
         orderNumber: kitInfo.orderNumber || 'N/A',
-        manageReportsUrl: `${process.env.VITE_APP_URL || 'https://mywaterqualityca.netlify.app'}/admin-dashboard`
+        customerEmail: kitInfo.customerEmail || 'No email available',
+        manageReportsUrl: `${process.env.VITE_APP_URL || 'https://mywaterqualityca.netlify.app'}/admin-dashboard#reports`
       },
       attachments: attachments
     };
