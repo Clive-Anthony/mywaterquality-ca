@@ -1644,6 +1644,7 @@ function createSummaryCards(healthConcerns, aoConcerns, hasColiformContamination
   function createCWQISection(cwqi, concerns, type) {
     const isHealthType = type === 'health';
     const hasConcerns = concerns.length > 0;
+    const hasColiform = cwqi.coliformDetected || false;
     
     return React.createElement(ReactPDF.View, { style: styles.cwqiContainer },
       React.createElement(ReactPDF.View, { style: styles.cwqiBox },
@@ -1662,27 +1663,47 @@ function createSummaryCards(healthConcerns, aoConcerns, hasColiformContamination
           )
         ),
         React.createElement(ReactPDF.View, { style: styles.cwqiRight },
-          React.createElement(ReactPDF.Text, { style: styles.cwqiDescription },
-            `${isHealthType ? 'With health-related parameters, your water quality is' : 'For aesthetic and operational parameters, your water quality is'} ${cwqi.rating}, this means that ${getQualityDescription(cwqi.rating)}`
+          // First sentence - bold
+          React.createElement(ReactPDF.Text, { style: styles.cwqiDescriptionBold },
+            `${isHealthType ? 'With health-related parameters, your water quality is' : 'For aesthetic and operational parameters, your water quality is'} ${cwqi.rating}.`
           ),
+          
+          // Second sentence - regular
+          React.createElement(ReactPDF.Text, { style: styles.cwqiDescriptionRegular },
+            `This means that ${getQualityDescription(cwqi.rating)}`
+          ),
+          
+          // Additional bacteria message for health parameters
+          hasColiform && isHealthType ? React.createElement(ReactPDF.Text, { style: styles.cwqiBacteriaText },
+            'Your health-related score is 0 because bacteria were detected in the water.'
+          ) : null,
+          
+          // No concerns message
           !hasConcerns ? React.createElement(ReactPDF.Text, { style: styles.cwqiGreenText },
             `All ${isHealthType ? 'health-related' : 'aesthetic and operational'} parameters are within acceptable limits.`
           ) : null
         )
       ),
       
-      // Recommendations
-      React.createElement(ReactPDF.View, { style: hasConcerns ? styles.recommendationsRed : styles.recommendationsGreen },
+      // Recommendations - Updated logic for aesthetic concerns
+      React.createElement(ReactPDF.View, { 
+        style: !hasConcerns ? styles.recommendationsGreen : 
+               isHealthType ? styles.recommendationsRed : styles.recommendationsYellow 
+      },
         React.createElement(ReactPDF.Text, { 
-          style: hasConcerns ? styles.recommendationsTitleRed : styles.recommendationsTitleGreen 
+          style: !hasConcerns ? styles.recommendationsTitleGreen :
+                 isHealthType ? styles.recommendationsTitleRed : styles.recommendationsTitleYellow
         },
-          hasConcerns ? 'Recommendations: Actions Needed' : 'Recommendations: Continue Monitoring'
+          !hasConcerns ? 'Recommendations: Continue Monitoring' :
+          isHealthType ? 'Recommendations: Actions Needed' : 'Recommendations: Consider Treatment'
         )
       ),
       React.createElement(ReactPDF.Text, { style: styles.recommendationsText },
-        hasConcerns 
-          ? `The following ${isHealthType ? 'health-related' : 'aesthetic and operational'} parameters exceed safe limits. We strongly recommend consulting with a water treatment professional.`
-          : `Your ${isHealthType ? 'health-related' : 'aesthetic and operational'} parameters are within acceptable limits. Continue regular testing to maintain water quality.`
+        !hasConcerns 
+          ? `Your ${isHealthType ? 'health-related' : 'aesthetic and operational'} parameters are within acceptable limits. Continue regular testing to maintain water quality.`
+          : isHealthType 
+          ? 'Some health-related parameters exceed safe limits. We strongly recommend consulting with a water treatment professional. Please see the Next Steps section at the bottom of the report.'
+          : 'Some parameters exceed recommended limits. These may affect taste, odor, or water system performance. Please see the Next Steps section at the bottom of the report.'
       )
     );
   }
@@ -1690,14 +1711,19 @@ function createSummaryCards(healthConcerns, aoConcerns, hasColiformContamination
   function createPotentialScoreSection(cwqi) {
     if (!cwqi || !cwqi.coliformDetected || !cwqi.potentialScore) return null;
     
-    return React.createElement(ReactPDF.View, { style: styles.potentialScoreContainer },
-      React.createElement(ReactPDF.View, { style: styles.potentialScoreLeftSection },
-        React.createElement(ReactPDF.Text, { style: styles.potentialScoreTitle }, 'Potential Score'),
-        React.createElement(ReactPDF.Text, { style: styles.potentialScoreNumber }, `+${cwqi.potentialScore}`)
-      ),
-      React.createElement(ReactPDF.View, { style: styles.potentialScoreRightSection },
-        React.createElement(ReactPDF.Text, { style: styles.potentialScoreText },
-          `Your score could potentially increase to ${cwqi.potentialScore} points after removing the coliforms from your drinking water.`
+    return React.createElement(ReactPDF.View, { style: styles.potentialScoreContainerCWQI },
+      React.createElement(ReactPDF.View, { style: styles.potentialScoreBox },
+        // Left section - CWQI card style
+        React.createElement(ReactPDF.View, { style: styles.potentialScoreLeftCWQI },
+          React.createElement(ReactPDF.Text, { style: styles.potentialScoreTitleCWQI }, 'Potential Score'),
+          React.createElement(ReactPDF.Text, { style: styles.potentialScoreNumberCWQI }, `+${cwqi.potentialScore}`)
+        ),
+        
+        // Right section - description
+        React.createElement(ReactPDF.View, { style: styles.potentialScoreRightCWQI },
+          React.createElement(ReactPDF.Text, { style: styles.potentialScoreTextCWQI },
+            `Your score could potentially increase to ${cwqi.potentialScore} points after removing the coliforms from your drinking water.`
+          )
         )
       )
     );
@@ -2263,7 +2289,7 @@ cardTitleSmall: {
   marginBottom: 5
 },
 cardTextSmall: {
-  fontSize: 8, // Smaller text for three cards
+  fontSize: 10, // Smaller text for three cards
   textAlign: 'center',
   color: '#6B7280'
 },
@@ -2340,6 +2366,27 @@ statusTextRed: {
     marginTop: 5,
     lineHeight: 1.4
   },
+  cwqiDescriptionBold: {
+    fontSize: 10,
+    color: '#1F2937',
+    fontFamily: 'Helvetica-Bold',
+    lineHeight: 1.4,
+    marginBottom: 6
+  },
+  cwqiDescriptionRegular: {
+    fontSize: 10,
+    color: '#1F2937',
+    lineHeight: 1.4,
+    marginBottom: 8
+  },
+  cwqiBacteriaText: {
+    fontSize: 10,
+    color: '#DC2626',
+    fontFamily: 'Helvetica-Bold',
+    marginTop: 6,
+    marginBottom: 8,
+    lineHeight: 1.4
+  },
 
   // Recommendations
   recommendationsGreen: {
@@ -2380,6 +2427,20 @@ statusTextRed: {
     color: '#374151',
     marginTop: 8,
     lineHeight: 1.4
+  },
+  recommendationsYellow: {
+    backgroundColor: '#FFFBEB',
+    borderWidth: 1,
+    borderColor: '#FED7AA',
+    borderRadius: 4,
+    padding: 10,
+    marginBottom: 8,
+    marginTop: 8
+  },
+  recommendationsTitleYellow: {
+    fontSize: 10,
+    fontFamily: 'Helvetica-Bold',
+    color: '#F59E0B'
   },
 
   // Table styles
@@ -2432,46 +2493,60 @@ statusTextRed: {
   },
 
   // Replace all potential score styles with these:
-potentialScoreContainer: {
-  flexDirection: 'row',
+  potentialScoreContainerCWQI: {
+    marginTop: 10,
+    marginBottom: 20
+  },
+  // Updated CWQI-style potential score styles for better centering
+potentialScoreBox: {
   backgroundColor: '#FFFFFF',
-  borderWidth: 1,
-  borderColor: '#D1D5DB',
+  borderWidth: 2,
+  borderColor: '#9CA3AF',
   borderRadius: 8,
-  padding: 20,
-  marginTop: 10,
-  marginBottom: 20,
-  alignItems: 'center',
-  minHeight: 80
+  padding: 15,
+  flexDirection: 'row',
+  minHeight: 90,
+  alignItems: 'center'
 },
-potentialScoreLeftSection: {
-  width: 140,
+potentialScoreLeftCWQI: {
+  width: '35%',
   alignItems: 'center',
   justifyContent: 'center',
-  paddingRight: 20
+  paddingRight: 15,
+  height: '100%'
 },
-potentialScoreTitle: {
+potentialScoreRightCWQI: {
+  width: '65%',
+  paddingLeft: 15,
+  justifyContent: 'center',
+  alignItems: 'flex-start',
+  height: '100%'
+},
+potentialScoreTitleCWQI: {
   fontSize: 10,
   fontFamily: 'Helvetica-Bold',
-  color: '#6B7280',
+  color: '#1F2937',
   textAlign: 'center',
-  marginBottom: 6
+  marginBottom: 4
 },
-potentialScoreNumber: {
+potentialScoreNumberCWQI: {
   fontSize: 24,
   fontFamily: 'Helvetica-Bold',
   color: '#059669',
-  textAlign: 'center'
+  textAlign: 'center',
+  paddingBottom: 12,
 },
-potentialScoreRightSection: {
-  flex: 1,
-  paddingLeft: 10
-},
-potentialScoreText: {
+potentialScoreTextCWQI: {
   fontSize: 10,
   color: '#374151',
-  lineHeight: 1.5
+  lineHeight: 1.4,
+  textAlign: 'left'
 },
+  potentialScoreLabel: {
+    fontSize: 9,
+    textAlign: 'center',
+    color: '#6B7280'
+  },
 
   // Add to styles object:
 concernsTableTitle: {
