@@ -1456,12 +1456,13 @@ function createReactPDFDocument(reportData, sampleNumber, kitInfo = {}) {
       React.createElement(ReactPDF.Page, { size: 'A4', style: styles.page },
         createSectionTitle('YOUR DRINKING WATER QUALITY HEALTH SCORE'),
         // React.createElement(ReactPDF.Text, { style: styles.subsectionTitle }, 'Health Related Parameters'),
-        healthCWQI ? createCWQISection(healthCWQI, healthConcerns, 'health') : null
+        healthCWQI ? createCWQISection(healthCWQI, healthConcerns, 'health') : null,
+        healthCWQI ? createPotentialScoreSection(healthCWQI) : null
       ),
 
       // Page 3 - Aesthetic Score and Road Salt
       React.createElement(ReactPDF.Page, { size: 'A4', style: styles.page },
-        createSectionTitle('YOUR DRINKING WATER AESTHETIC AND OPERATIONAL SCORE'),
+        createSectionTitle('YOUR DRINKING WATER AESTHETIC & OPERATIONAL SCORE'),
         // React.createElement(ReactPDF.Text, { style: styles.subsectionTitle }, 'Aesthetic and Operational Parameters'),
         aoCWQI ? createCWQISection(aoCWQI, aoConcerns, 'ao') : null,
         
@@ -1470,25 +1471,31 @@ function createReactPDFDocument(reportData, sampleNumber, kitInfo = {}) {
         createRoadSaltAssessment(reportData)
       ),
 
-      // Page 4 - Health Results Table
+      // Page 4 - Health Concerns (only if there are health concerns)
+      healthConcerns.length > 0 ? createHealthConcernsPage(healthConcerns) : null,
+
+      // Page 5 - Aesthetic Concerns (only if there are aesthetic concerns)  
+      aoConcerns.length > 0 ? createAestheticConcernsPage(aoConcerns) : null,
+
+      // Page 6 - Health Results Table
       React.createElement(ReactPDF.Page, { size: 'A4', style: styles.page },
         createSectionTitle('DRINKING WATER QUALITY: HEALTH-RELATED RESULTS'),
         healthParameters.length > 0 ? createParametersTable(healthParameters, 'health') : null
       ),
 
-      // Page 5 - Aesthetic Results Table
+      // Page 7 - Aesthetic Results Table
       React.createElement(ReactPDF.Page, { size: 'A4', style: styles.page },
         createSectionTitle('DRINKING WATER QUALITY: AESTHETIC/OPERATIONAL-RELATED RESULTS'),
         aoParameters.length > 0 ? createParametersTable(aoParameters, 'ao') : null
       ),
 
-      // Page 6 - General Results Table
+      // Page 8 - General Results Table
       React.createElement(ReactPDF.Page, { size: 'A4', style: styles.page },
         createSectionTitle('DRINKING WATER QUALITY: GENERAL RESULTS'),
         generalParameters.length > 0 ? createGeneralParametersTable(generalParameters) : null
       ),
 
-      // Page 7 - Next Steps
+      // Page 9 - Next Steps
       React.createElement(ReactPDF.Page, { size: 'A4', style: styles.page },
         createSectionTitle('NEXT STEPS'),
         createNextStepsSection(),
@@ -1527,117 +1534,83 @@ function createReactPDFDocument(reportData, sampleNumber, kitInfo = {}) {
     );
   }
   
-  // Helper function to create summary cards with bacteriological card for bacteria-detecting kits
-  function createSummaryCards(healthConcerns, aoConcerns, hasColiformContamination, showBacteriological = false) {
-    const bacteriologicalExceeded = hasColiformContamination;
-    
-    if (showBacteriological) {
-      // Three cards for bacteria-detecting kits
-      return React.createElement(ReactPDF.View, { style: styles.summaryCardsContainerThree },
-        // Bacteriological card
-        React.createElement(ReactPDF.View, { 
-          style: [styles.summaryCardSmall, bacteriologicalExceeded ? styles.cardRed : styles.cardGreen] 
-        },
-          React.createElement(ReactPDF.Text, { style: styles.cardTitleSmall }, 'Bacteriological Results'),
-          React.createElement(ReactPDF.View, { 
-            style: { 
-              flex: 1, 
-              justifyContent: 'center', 
-              alignItems: 'center',
-              width: '100%'
-            }
-          },
-            React.createElement(ReactPDF.Text, { 
-              style: [styles.cardStatusSmall, bacteriologicalExceeded ? styles.statusTextRed : styles.statusTextGreen] 
-            }, bacteriologicalExceeded ? 'Bacteria Detected' : '0 concerns')
-          )
+  // Update the createSummaryCards function:
+function createSummaryCards(healthConcerns, aoConcerns, hasColiformContamination, showBacteriological = false) {
+  const bacteriologicalExceeded = hasColiformContamination;
+  
+  if (showBacteriological) {
+    // Three cards for bacteria-detecting kits
+    return React.createElement(ReactPDF.View, { style: styles.summaryCardsContainerThree },
+      // Bacteriological card
+      React.createElement(ReactPDF.View, { 
+        style: [styles.summaryCardSmall, bacteriologicalExceeded ? styles.cardRed : styles.cardGreen] 
+      },
+        React.createElement(ReactPDF.Text, { style: styles.cardTitleSmall }, 'Bacteriological Results'),
+        React.createElement(ReactPDF.View, { style: styles.cardContentCenter },
+          React.createElement(ReactPDF.Text, { 
+            style: [styles.cardStatusSmall, bacteriologicalExceeded ? styles.statusTextRed : styles.statusTextGreen] 
+          }, bacteriologicalExceeded ? 'Bacteria Detected' : '0 concerns')
         ),
-        
-        // Health card
-        React.createElement(ReactPDF.View, { 
-          style: [styles.summaryCardSmall, healthConcerns.length > 0 ? styles.cardRed : styles.cardGreen] 
-        },
-          React.createElement(ReactPDF.Text, { style: styles.cardTitleSmall }, 'Health-Related Results'),
-          React.createElement(ReactPDF.View, { 
-            style: { 
-              flex: 1, 
-              justifyContent: 'center', 
-              alignItems: 'center',
-              width: '100%'
-            }
-          },
-            React.createElement(ReactPDF.Text, { 
-              style: [styles.cardNumber, healthConcerns.length > 0 ? styles.numberRed : styles.numberGreen] 
-            }, healthConcerns.length.toString())
-          ),
-          React.createElement(ReactPDF.Text, { style: styles.cardTextSmall }, 'concerns present')
+        React.createElement(ReactPDF.Text, { style: styles.cardTextSmall }, '')
+      ),
+      
+      // Health card
+      React.createElement(ReactPDF.View, { 
+        style: [styles.summaryCardSmall, healthConcerns.length > 0 ? styles.cardRed : styles.cardGreen] 
+      },
+        React.createElement(ReactPDF.Text, { style: styles.cardTitleSmall }, 'Health-Related Results'),
+        React.createElement(ReactPDF.View, { style: styles.cardContentCenter },
+          React.createElement(ReactPDF.Text, { 
+            style: [styles.cardNumber, healthConcerns.length > 0 ? styles.numberRed : styles.numberGreen] 
+          }, healthConcerns.length.toString())
         ),
-        
-        // AO card  
-        React.createElement(ReactPDF.View, { 
-          style: [styles.summaryCardSmall, aoConcerns.length > 0 ? styles.cardRed : styles.cardGreen] 
-        },
-          React.createElement(ReactPDF.Text, { style: styles.cardTitleSmall }, 'Aesthetic and Operational'),
-          React.createElement(ReactPDF.View, { 
-            style: { 
-              flex: 1, 
-              justifyContent: 'center', 
-              alignItems: 'center',
-              width: '100%'
-            }
-          },
-            React.createElement(ReactPDF.Text, { 
-              style: [styles.cardNumber, aoConcerns.length > 0 ? styles.numberRed : styles.numberGreen] 
-            }, aoConcerns.length.toString())
-          ),
-          React.createElement(ReactPDF.Text, { style: styles.cardTextSmall }, 'concerns present')
-        )
-      );
-    } else {
-      // Two cards for non-bacteria-detecting kits (existing functionality)
-      return React.createElement(ReactPDF.View, { style: styles.summaryCardsContainer },
-        // Health card
-        React.createElement(ReactPDF.View, { 
-          style: [styles.summaryCard, healthConcerns.length > 0 ? styles.cardRed : styles.cardGreen] 
-        },
-          React.createElement(ReactPDF.Text, { style: styles.cardTitle }, 'Health-Related Results'),
-          React.createElement(ReactPDF.View, { 
-            style: { 
-              flex: 1, 
-              justifyContent: 'center', 
-              alignItems: 'center',
-              width: '100%'
-            }
-          },
-            React.createElement(ReactPDF.Text, { 
-              style: [styles.cardNumber, healthConcerns.length > 0 ? styles.numberRed : styles.numberGreen] 
-            }, healthConcerns.length.toString())
-          ),
-          React.createElement(ReactPDF.Text, { style: styles.cardText }, 'concerns present')
+        React.createElement(ReactPDF.Text, { style: styles.cardTextSmall }, 'concerns present')
+      ),
+      
+      // AO card  
+      React.createElement(ReactPDF.View, { 
+        style: [styles.summaryCardSmall, aoConcerns.length > 0 ? styles.cardRed : styles.cardGreen] 
+      },
+        React.createElement(ReactPDF.Text, { style: styles.cardTitleSmall }, 'Aesthetic & Operational'),
+        React.createElement(ReactPDF.View, { style: styles.cardContentCenter },
+          React.createElement(ReactPDF.Text, { 
+            style: [styles.cardNumber, aoConcerns.length > 0 ? styles.numberRed : styles.numberGreen] 
+          }, aoConcerns.length.toString())
         ),
-        
-        // AO card  
-        React.createElement(ReactPDF.View, { 
-          style: [styles.summaryCard, aoConcerns.length > 0 ? styles.cardRed : styles.cardGreen] 
-        },
-          React.createElement(ReactPDF.Text, { style: styles.cardTitle }, 'Aesthetic and Operational'),
-          React.createElement(ReactPDF.View, { 
-            style: { 
-              flex: 1, 
-              justifyContent: 'center', 
-              alignItems: 'center',
-              width: '100%'
-            }
-          },
-            React.createElement(ReactPDF.Text, { 
-              style: [styles.cardNumber, aoConcerns.length > 0 ? styles.numberRed : styles.numberGreen] 
-            }, aoConcerns.length.toString())
-          ),
-          React.createElement(ReactPDF.Text, { style: styles.cardText }, 'concerns present')
-        )
-      );
-    }
+        React.createElement(ReactPDF.Text, { style: styles.cardTextSmall }, 'concerns present')
+      )
+    );
+  } else {
+    // Two cards for non-bacteria-detecting kits
+    return React.createElement(ReactPDF.View, { style: styles.summaryCardsContainer },
+      // Health card
+      React.createElement(ReactPDF.View, { 
+        style: [styles.summaryCard, healthConcerns.length > 0 ? styles.cardRed : styles.cardGreen] 
+      },
+        React.createElement(ReactPDF.Text, { style: styles.cardTitle }, 'Health-Related Results'),
+        React.createElement(ReactPDF.View, { style: styles.cardContentCenter },
+          React.createElement(ReactPDF.Text, { 
+            style: [styles.cardNumber, healthConcerns.length > 0 ? styles.numberRed : styles.numberGreen] 
+          }, healthConcerns.length.toString())
+        ),
+        React.createElement(ReactPDF.Text, { style: styles.cardText }, 'concerns present')
+      ),
+      
+      // AO card  
+      React.createElement(ReactPDF.View, { 
+        style: [styles.summaryCard, aoConcerns.length > 0 ? styles.cardRed : styles.cardGreen] 
+      },
+        React.createElement(ReactPDF.Text, { style: styles.cardTitle }, 'Aesthetic & Operational'),
+        React.createElement(ReactPDF.View, { style: styles.cardContentCenter },
+          React.createElement(ReactPDF.Text, { 
+            style: [styles.cardNumber, aoConcerns.length > 0 ? styles.numberRed : styles.numberGreen] 
+          }, aoConcerns.length.toString())
+        ),
+        React.createElement(ReactPDF.Text, { style: styles.cardText }, 'concerns present')
+      )
+    );
   }
+}
   
   function createPerfectWaterMessage() {
     return React.createElement(ReactPDF.View, { style: styles.perfectWaterBox },
@@ -1676,7 +1649,7 @@ function createReactPDFDocument(reportData, sampleNumber, kitInfo = {}) {
       React.createElement(ReactPDF.View, { style: styles.cwqiBox },
         React.createElement(ReactPDF.View, { style: styles.cwqiLeft },
           React.createElement(ReactPDF.Text, { style: styles.cwqiScoreTitle }, 
-            isHealthType ? 'Health Related' : 'Aesthetic and Operational'
+            isHealthType ? 'Health Related' : 'Aesthetic & Operational'
           ),
           React.createElement(ReactPDF.Text, { style: [styles.cwqiScore, { color: getCWQIColor(cwqi.score) }] }, 
             `${cwqi.score}/100`
@@ -1700,7 +1673,9 @@ function createReactPDFDocument(reportData, sampleNumber, kitInfo = {}) {
       
       // Recommendations
       React.createElement(ReactPDF.View, { style: hasConcerns ? styles.recommendationsRed : styles.recommendationsGreen },
-        React.createElement(ReactPDF.Text, { style: styles.recommendationsTitle },
+        React.createElement(ReactPDF.Text, { 
+          style: hasConcerns ? styles.recommendationsTitleRed : styles.recommendationsTitleGreen 
+        },
           hasConcerns ? 'Recommendations: Actions Needed' : 'Recommendations: Continue Monitoring'
         )
       ),
@@ -1708,6 +1683,22 @@ function createReactPDFDocument(reportData, sampleNumber, kitInfo = {}) {
         hasConcerns 
           ? `The following ${isHealthType ? 'health-related' : 'aesthetic and operational'} parameters exceed safe limits. We strongly recommend consulting with a water treatment professional.`
           : `Your ${isHealthType ? 'health-related' : 'aesthetic and operational'} parameters are within acceptable limits. Continue regular testing to maintain water quality.`
+      )
+    );
+  }
+
+  function createPotentialScoreSection(cwqi) {
+    if (!cwqi || !cwqi.coliformDetected || !cwqi.potentialScore) return null;
+    
+    return React.createElement(ReactPDF.View, { style: styles.potentialScoreContainer },
+      React.createElement(ReactPDF.View, { style: styles.potentialScoreLeftSection },
+        React.createElement(ReactPDF.Text, { style: styles.potentialScoreTitle }, 'Potential Score'),
+        React.createElement(ReactPDF.Text, { style: styles.potentialScoreNumber }, `+${cwqi.potentialScore}`)
+      ),
+      React.createElement(ReactPDF.View, { style: styles.potentialScoreRightSection },
+        React.createElement(ReactPDF.Text, { style: styles.potentialScoreText },
+          `Your score could potentially increase to ${cwqi.potentialScore} points after removing the coliforms from your drinking water.`
+        )
       )
     );
   }
@@ -1762,6 +1753,82 @@ function createReactPDFDocument(reportData, sampleNumber, kitInfo = {}) {
         hasContamination 
           ? 'Your water shows signs of road salt contamination. Consider consulting with a water treatment professional about filtration options.'
           : 'Your water does not show signs of road salt contamination. The chloride level is below the threshold that would indicate potential road salt impact.'
+      )
+    );
+  }
+
+  function createHealthConcernsPage(healthConcerns) {
+    if (healthConcerns.length === 0) return null;
+    
+    return React.createElement(ReactPDF.Page, { size: 'A4', style: styles.page },
+      createSectionTitle('DRINKING WATER QUALITY CONCERNS'),
+      
+      React.createElement(ReactPDF.Text, { style: styles.concernsTableTitle }, 
+        'Health-Related Parameter Concerns'
+      ),
+      
+      // Table Header
+      React.createElement(ReactPDF.View, { style: styles.concernsTableHeader },
+        React.createElement(ReactPDF.Text, { style: styles.concernsHeaderLeft }, 'Parameter'),
+        React.createElement(ReactPDF.Text, { style: styles.concernsHeaderRight }, 'Parameter Details and Health Considerations')
+      ),
+      
+      // Table Rows
+      ...healthConcerns.map(param => 
+        React.createElement(ReactPDF.View, { style: styles.concernsTableRow },
+          React.createElement(ReactPDF.View, { style: styles.concernsLeftColumn },
+            React.createElement(ReactPDF.Text, { style: styles.concernsParameterName }, param.parameter_name),
+            React.createElement(ReactPDF.Text, { style: styles.concernsObjective }, 
+              `Objective: ${param.mac_display_value || 'No Standard'}`
+            ),
+            React.createElement(ReactPDF.Text, { style: styles.concernsResult }, 
+              `Your Result: ${formatLabResult(param)}`
+            )
+          ),
+          React.createElement(ReactPDF.View, { style: styles.concernsRightColumn },
+            React.createElement(ReactPDF.Text, { style: styles.concernsDetails },
+              param.health_effects || 'Elevated levels may pose health risks. Consult with a water treatment professional for specific health implications and recommended actions.'
+            )
+          )
+        )
+      )
+    );
+  }
+  
+  function createAestheticConcernsPage(aoConcerns) {
+    if (aoConcerns.length === 0) return null;
+    
+    return React.createElement(ReactPDF.Page, { size: 'A4', style: styles.page },
+      createSectionTitle('DRINKING WATER QUALITY CONCERNS'),
+      
+      React.createElement(ReactPDF.Text, { style: styles.concernsTableTitle }, 
+        'Aesthetic & Operational Parameter Concerns'
+      ),
+      
+      // Table Header
+      React.createElement(ReactPDF.View, { style: styles.concernsTableHeader },
+        React.createElement(ReactPDF.Text, { style: styles.concernsHeaderLeft }, 'Parameter'),
+        React.createElement(ReactPDF.Text, { style: styles.concernsHeaderRight }, 'Parameter Details and Health Considerations')
+      ),
+      
+      // Table Rows
+      ...aoConcerns.map(param => 
+        React.createElement(ReactPDF.View, { style: styles.concernsTableRow },
+          React.createElement(ReactPDF.View, { style: styles.concernsLeftColumn },
+            React.createElement(ReactPDF.Text, { style: styles.concernsParameterName }, param.parameter_name),
+            React.createElement(ReactPDF.Text, { style: styles.concernsObjective }, 
+              `Objective: ${param.ao_display_value || 'No Standard'}`
+            ),
+            React.createElement(ReactPDF.Text, { style: styles.concernsResult }, 
+              `Your Result: ${formatLabResult(param)}`
+            )
+          ),
+          React.createElement(ReactPDF.View, { style: styles.concernsRightColumn },
+            React.createElement(ReactPDF.Text, { style: styles.concernsDetails },
+              param.aesthetic_considerations || param.description || param.parameter_description || 'A water quality parameter that affects the aesthetic or operational characteristics of your water system.'
+            )
+          )
+        )
       )
     );
   }
@@ -2053,6 +2120,13 @@ const styles = {
   },
 
   // Summary cards
+  cardContentCenter: {
+    flex: 1,
+    justifyContent: 'center',
+    alignItems: 'center',
+    paddingVertical: 10
+  },
+
   summaryCardsContainer: {
     flexDirection: 'row',
     justifyContent: 'center',
@@ -2289,6 +2363,16 @@ statusTextRed: {
   recommendationsTitle: {
     fontSize: 10,
     fontFamily: 'Helvetica-Bold',
+    color: '#059669'
+  },
+  recommendationsTitleGreen: {
+    fontSize: 10,
+    fontFamily: 'Helvetica-Bold',
+    color: '#059669'
+  },
+  recommendationsTitleRed: {
+    fontSize: 10,
+    fontFamily: 'Helvetica-Bold',
     color: '#DC2626'
   },
   recommendationsText: {
@@ -2333,7 +2417,7 @@ statusTextRed: {
     backgroundColor: '#FEF2F2'
   },
   tableCell: {
-    fontSize: 9,
+    fontSize: 10,
     textAlign: 'center',
     paddingHorizontal: 4,
     alignSelf: 'center'
@@ -2346,6 +2430,123 @@ statusTextRed: {
     color: '#DC2626',
     fontFamily: 'Helvetica-Bold'
   },
+
+  // Replace all potential score styles with these:
+potentialScoreContainer: {
+  flexDirection: 'row',
+  backgroundColor: '#FFFFFF',
+  borderWidth: 1,
+  borderColor: '#D1D5DB',
+  borderRadius: 8,
+  padding: 20,
+  marginTop: 10,
+  marginBottom: 20,
+  alignItems: 'center',
+  minHeight: 80
+},
+potentialScoreLeftSection: {
+  width: 140,
+  alignItems: 'center',
+  justifyContent: 'center',
+  paddingRight: 20
+},
+potentialScoreTitle: {
+  fontSize: 10,
+  fontFamily: 'Helvetica-Bold',
+  color: '#6B7280',
+  textAlign: 'center',
+  marginBottom: 6
+},
+potentialScoreNumber: {
+  fontSize: 24,
+  fontFamily: 'Helvetica-Bold',
+  color: '#059669',
+  textAlign: 'center'
+},
+potentialScoreRightSection: {
+  flex: 1,
+  paddingLeft: 10
+},
+potentialScoreText: {
+  fontSize: 10,
+  color: '#374151',
+  lineHeight: 1.5
+},
+
+  // Add to styles object:
+concernsTableTitle: {
+  fontSize: 14,
+  fontFamily: 'Helvetica-Bold',
+  color: '#1F2937',
+  marginTop: 10,
+  marginBottom: 15
+},
+concernsTableHeader: {
+  flexDirection: 'row',
+  borderTopWidth: 2,
+  borderBottomWidth: 2,
+  borderColor: '#1F2937',
+  backgroundColor: '#FFFFFF',
+  paddingVertical: 12,
+  paddingHorizontal: 15
+},
+concernsHeaderLeft: {
+  width: '35%',
+  fontSize: 10,
+  fontFamily: 'Helvetica-Bold',
+  color: '#1F2937',
+  textAlign: 'center'
+},
+concernsHeaderRight: {
+  width: '65%',
+  fontSize: 10,
+  fontFamily: 'Helvetica-Bold',
+  color: '#1F2937',
+  textAlign: 'center'
+},
+concernsTableRow: {
+  flexDirection: 'row',
+  borderTopWidth: 1,
+  borderBottomWidth: 1,
+  borderColor: '#E5E7EB',
+  minHeight: 100
+},
+concernsLeftColumn: {
+  width: '35%',
+  padding: 15,
+  borderRightWidth: 1,
+  borderRightColor: '#E5E7EB',
+  justifyContent: 'flex-start'
+},
+concernsRightColumn: {
+  width: '65%',
+  padding: 15,
+  justifyContent: 'flex-start'
+},
+concernsParameterName: {
+  fontSize: 12,
+  fontFamily: 'Helvetica-Bold',
+  color: '#1F2937',
+  marginBottom: 8,
+  lineHeight: 1.3
+},
+concernsObjective: {
+  fontSize: 10,
+  color: '#374151',
+  marginBottom: 6,
+  fontFamily: 'Helvetica-Bold'
+},
+concernsResult: {
+  fontSize: 10,
+  color: '#DC2626',
+  fontFamily: 'Helvetica-Bold'
+},
+concernsDetails: {
+  fontSize: 10,
+  color: '#1F2937',
+  lineHeight: 1.5,
+  textAlign: 'justify'
+},
 
   // Next steps styles
   nextStepItemCompact: {
