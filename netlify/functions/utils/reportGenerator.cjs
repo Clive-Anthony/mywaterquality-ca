@@ -1262,7 +1262,7 @@ const styles = {
     backgroundColor: '#FFFFFF'
   },
   tableRowEven: {
-    backgroundColor: '#F9FAFB'
+    backgroundColor: '#FFFFFF'
   },
   exceededRow: {
     backgroundColor: '#FEF2F2'
