@@ -166,14 +166,14 @@ const loadAvailableSamples = async () => {
     setLoading(true);
     setError(null);
     setSuccess(null);
-
+  
     try {
       // Get auth token
       const { data: { session } } = await supabase.auth.getSession();
       if (!session) {
         throw new Error('Authentication required');
       }
-
+  
       // Call test report generation function
       const response = await fetch('/.netlify/functions/test-report-generation', {
         method: 'POST',
@@ -188,13 +188,31 @@ const loadAvailableSamples = async () => {
           testKitInfo: dataMode === 'mock' ? formData.testKitInfo : null
         })
       });
-
+  
       if (!response.ok) {
         const errorData = await response.json();
         throw new Error(errorData.error || 'Failed to generate test report');
       }
-
+  
       const result = await response.json();
+      
+      // Add validation for the response
+      if (!result.success) {
+        throw new Error(result.error || 'Report generation failed');
+      }
+      
+      if (!result.pdfBase64) {
+        throw new Error('No PDF data received from server');
+      }
+      
+      // Validate base64 string before trying to decode
+      try {
+        // Test if it's valid base64
+        atob(result.pdfBase64.substring(0, 100)); // Test first 100 characters
+      } catch (base64Error) {
+        console.error('Invalid base64 received:', result.pdfBase64.substring(0, 200));
+        throw new Error('Received invalid PDF data from server');
+      }
       
       // Convert base64 to blob and download
       const pdfBlob = base64ToBlob(result.pdfBase64, 'application/pdf');
