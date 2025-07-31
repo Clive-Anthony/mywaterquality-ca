@@ -115,20 +115,15 @@ async function populateChainOfCustody(templateBuffer, registrationData) {
     await workbook.xlsx.load(templateBuffer);
     
     // Get worksheet - try multiple approaches
-    let worksheet = workbook.getWorksheet(1); // Try index 1
+    let worksheet = workbook.getWorksheet(1);
     
     if (!worksheet) {
-      // Try index 0 if index 1 doesn't work
       worksheet = workbook.getWorksheet(0);
     }
     
     if (!worksheet) {
-      // Try getting by name if available
-      const worksheetNames = workbook.worksheets.map(ws => ws.name);
-      console.log('Available worksheets:', worksheetNames);
-      
       if (workbook.worksheets.length > 0) {
-        worksheet = workbook.worksheets[0]; // Get first available worksheet
+        worksheet = workbook.worksheets[0];
       }
     }
     
@@ -138,23 +133,61 @@ async function populateChainOfCustody(templateBuffer, registrationData) {
     
     console.log(`Using worksheet: "${worksheet.name}" (${worksheet.worksheets ? worksheet.worksheets.length : 'unknown'} total sheets)`);
     
-    // Format date and time for Excel
-    const sampleDate = new Date(registrationData.sample_date);
-    const formattedDate = sampleDate.toLocaleDateString('en-CA'); // YYYY-MM-DD format
+    // FIXED: Format date without timezone conversion
+    // Parse the date string directly without creating a Date object that might apply timezone
+    const dateString = registrationData.sample_date; // Should be in YYYY-MM-DD format
+    let formattedDate = dateString;
     
-    // Format time (remove seconds if present)
-    let formattedTime = registrationData.sample_time;
-    if (formattedTime && formattedTime.includes(':')) {
-      const timeParts = formattedTime.split(':');
-      formattedTime = `${timeParts[0]}:${timeParts[1]}`; // HH:MM format
+    // If we need to reformat the date, do it as string manipulation to avoid timezone issues
+    if (dateString && dateString.includes('-')) {
+      const dateParts = dateString.split('-');
+      if (dateParts.length === 3) {
+        // Convert YYYY-MM-DD to local display format if needed, or keep as-is
+        formattedDate = dateString; // Keep as YYYY-MM-DD
+        
+        // Or if you want MM-DD-YYYY format:
+        // formattedDate = `${dateParts[1]}-${dateParts[2]}-${dateParts[0]}`;
+      }
     }
+    
+    // FIXED: Format time and handle AM/PM conversion to 24-hour format
+    let formattedTime = registrationData.sample_time;
+    if (formattedTime) {
+      // Handle different time formats
+      if (formattedTime.includes(':')) {
+        const timeParts = formattedTime.split(':');
+        let hours = parseInt(timeParts[0]);
+        const minutes = timeParts[1] ? timeParts[1].replace(/[^\d]/g, '') : '00';
+        
+        // Check for AM/PM in the original time string
+        const timeString = formattedTime.toLowerCase();
+        const isAM = timeString.includes('am');
+        const isPM = timeString.includes('pm');
+        
+        // Convert to 24-hour format
+        if (isPM && hours !== 12) {
+          hours += 12;
+        } else if (isAM && hours === 12) {
+          hours = 0;
+        }
+        
+        // Format as HH:MM in 24-hour format
+        formattedTime = `${hours.toString().padStart(2, '0')}:${minutes.padStart(2, '0')}`;
+      }
+    }
+    
+    console.log('Formatted date and time:', { 
+      originalDate: registrationData.sample_date, 
+      formattedDate,
+      originalTime: registrationData.sample_time,
+      formattedTime 
+    });
     
     // Populate the Chain of Custody form
     // Time sample was collected (cells D21:E21)
     if (formattedTime) {
       const timeCell = worksheet.getCell('D21');
       timeCell.value = formattedTime;
-      // Merge cells D21:E21 if not already merged
       try {
         if (!timeCell.isMerged) {
           worksheet.mergeCells('D21:E21');
@@ -168,7 +201,6 @@ async function populateChainOfCustody(templateBuffer, registrationData) {
     if (formattedDate) {
       const dateCell = worksheet.getCell('A21');
       dateCell.value = formattedDate;
-      // Merge cells A21:C21 if not already merged
       try {
         if (!dateCell.isMerged) {
           worksheet.mergeCells('A21:C21');
@@ -182,7 +214,6 @@ async function populateChainOfCustody(templateBuffer, registrationData) {
     if (registrationData.sample_description) {
       const descCell = worksheet.getCell('G21');
       descCell.value = registrationData.sample_description;
-      // Merge cells G21:K21 if not already merged
       try {
         if (!descCell.isMerged) {
           worksheet.mergeCells('G21:K21');
@@ -196,7 +227,6 @@ async function populateChainOfCustody(templateBuffer, registrationData) {
     if (registrationData.person_taking_sample) {
       const samplerCell = worksheet.getCell('A44');
       samplerCell.value = registrationData.person_taking_sample;
-      // Merge cells A44:J44 if not already merged
       try {
         if (!samplerCell.isMerged) {
           worksheet.mergeCells('A44:J44');
@@ -216,7 +246,6 @@ async function populateChainOfCustody(templateBuffer, registrationData) {
     if (formattedTime) {
       const timeCell44 = worksheet.getCell('L44');
       timeCell44.value = formattedTime;
-      // Merge cells L44:N44 if not already merged
       try {
         if (!timeCell44.isMerged) {
           worksheet.mergeCells('L44:N44');
@@ -230,7 +259,6 @@ async function populateChainOfCustody(templateBuffer, registrationData) {
     if (registrationData.display_id) {
       const projectCell = worksheet.getCell('AC8');
       projectCell.value = registrationData.display_id;
-      // Merge cells AC8:AH8 if not already merged
       try {
         if (!projectCell.isMerged) {
           worksheet.mergeCells('AC8:AH8');

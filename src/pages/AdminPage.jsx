@@ -7,6 +7,7 @@ import AdminOrdersList from '../components/AdminOrdersList';
 import AdminReportsUpload from '../components/AdminReportsUpload';
 import AdminInventoryManagement from '../components/AdminInventoryManagement';
 import AdminReportTesting from '../components/AdminReportTesting';
+import AdminKitRegistration from '../components/AdminKitRegistration';
 
 export default function AdminPage() {
   const { user } = useAuth();
@@ -16,7 +17,7 @@ export default function AdminPage() {
   // Handle URL fragments for direct tab navigation
   useEffect(() => {
     const hash = location.hash.replace('#', '');
-    if (hash && ['dashboard', 'orders', 'reports', 'report-testing', 'inventory', 'kit-registrations'].includes(hash)) {
+    if (hash && ['dashboard', 'orders', 'reports', 'report-testing', 'inventory', 'kit-registration'].includes(hash)) {
       setActiveTab(hash);
     }
   }, [location.hash]);
@@ -57,8 +58,8 @@ export default function AdminPage() {
         return <AdminReportTesting />;
       case 'inventory':
         return <AdminInventoryManagement />;
-      case 'kit-registrations':
-        return <ComingSoonContent tabName={activeTab} />;
+        case 'kit-registration':
+          return <AdminKitRegistration />;
       default:
         return <AdminDashboardContent setActiveTab={handleTabChange} />;
     }
@@ -226,10 +227,42 @@ export default function AdminPage() {
                       <span className="truncate">Inventory</span>
                     </button>
                   </li>
+
+                  {/* Kit Registration */}
+                    <li>
+                      <button
+                        onClick={() => handleTabChange('kit-registration')}
+                        className={`w-full text-left px-4 sm:px-6 py-3 flex items-center text-sm sm:text-base ${
+                          activeTab === 'kit-registration'
+                            ? 'bg-blue-50 text-blue-600 border-l-4 border-blue-600'
+                            : 'text-gray-600 hover:bg-gray-50'
+                        }`}
+                      >
+                        <svg
+                          className={`mr-2 sm:mr-3 h-4 w-4 sm:h-5 sm:w-5 flex-shrink-0 ${
+                            activeTab === 'kit-registration' ? 'text-blue-600' : 'text-gray-400'
+                          }`}
+                          xmlns="http://www.w3.org/2000/svg"
+                          fill="none"
+                          viewBox="0 0 24 24"
+                          stroke="currentColor"
+                        >
+                          <path
+                            strokeLinecap="round"
+                            strokeLinejoin="round"
+                            strokeWidth="2"
+                            d="M9 5H7a2 2 0 00-2 2v10a2 2 0 002 2h8a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2m-6 9l2 2 4-4"
+                          />
+                        </svg>
+                        <span className="truncate">Kit Registration</span>
+                      </button>
+                    </li>
+
                 </ul>
               </nav>
             </div>
           </div>
+
 
          {/* Main Content Area */}
          <div className="flex-1 min-w-0">
@@ -364,6 +397,33 @@ function AdminDashboardContent({ setActiveTab }) {
                     </button>
                   </div>
                 </div>
+              </div>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      {/* Card 5 - Kit Registration */}
+      <div className="bg-white overflow-hidden shadow rounded-lg transition-shadow duration-300 hover:shadow-md">
+        <div className="px-4 py-4 sm:p-6">
+          <div className="flex items-start sm:items-center">
+            <div className="flex-shrink-0 bg-indigo-100 rounded-md p-2 sm:p-3">
+              <svg className="h-5 w-5 sm:h-6 sm:w-6 text-indigo-600" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M9 5H7a2 2 0 00-2 2v10a2 2 0 002 2h8a2 2 0 002-2V7a2 2 0 00-2-2h-2M9 5a2 2 0 002 2h2a2 2 0 002-2M9 5a2 2 0 012-2h2a2 2 0 012 2m-6 9l2 2 4-4" />
+              </svg>
+            </div>
+            <div className="ml-3 sm:ml-5 flex-1 min-w-0">
+              <h3 className="text-base sm:text-lg font-medium text-gray-900">Kit Registration</h3>
+              <p className="mt-1 sm:mt-2 text-sm text-gray-500 leading-relaxed">
+                Register unregistered test kits on behalf of customers.
+              </p>
+              <div className="mt-3 sm:mt-4">
+                <button
+                  onClick={() => setActiveTab('kit-registration')}
+                  className="inline-flex items-center px-3 py-1.5 sm:px-4 sm:py-2 border border-transparent text-xs sm:text-sm font-medium rounded-md text-indigo-700 bg-indigo-100 hover:bg-indigo-200 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-indigo-500 transition-colors duration-200"
+                >
+                  Register Kits
+                </button>
               </div>
             </div>
           </div>

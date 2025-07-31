@@ -13,6 +13,39 @@ function log(level, message, data = null) {
   }
 }
 
+// Helper function to format time to 24-hour format
+function formatTimeTo24Hour(timeString) {
+  if (!timeString) return 'Not specified';
+  
+  try {
+    // If already in 24-hour format, just clean it up
+    if (timeString.includes(':')) {
+      const timeParts = timeString.split(':');
+      let hours = parseInt(timeParts[0]);
+      const minutes = timeParts[1] ? timeParts[1].replace(/[^\d]/g, '') : '00';
+      
+      // Check for AM/PM
+      const lowerTime = timeString.toLowerCase();
+      const isAM = lowerTime.includes('am');
+      const isPM = lowerTime.includes('pm');
+      
+      // Convert to 24-hour format
+      if (isPM && hours !== 12) {
+        hours += 12;
+      } else if (isAM && hours === 12) {
+        hours = 0;
+      }
+      
+      return `${hours.toString().padStart(2, '0')}:${minutes.padStart(2, '0')}`;
+    }
+    
+    return timeString;
+  } catch (error) {
+    console.error('Error formatting time:', error);
+    return timeString;
+  }
+}
+
 exports.handler = async function(event, context) {
   const headers = {
     'Access-Control-Allow-Origin': '*',
@@ -91,86 +124,42 @@ exports.handler = async function(event, context) {
   }
 };
 
-// Get available kit registrations for user (both regular and legacy)
+// Get available kit registrations for user (simplified with view)
 async function getAvailableKitRegistrations(supabase, user, headers) {
   try {
     log('info', 'Getting available kit registrations for user', { userId: user.id });
 
-    // Get both regular and legacy kits in parallel
-    const [regularResult, legacyResult] = await Promise.allSettled([
-      // Regular kit registrations
-      supabase
-        .from('kit_registrations')
-        .select(`
-          kit_registration_id,
-          display_id,
-          order_item_id,
-          sample_date,
-          sample_description,
-          person_taking_sample,
-          status,
-          order_items!inner (
-            order_item_id,
-            product_name,
-            quantity,
-            order_id,
-            orders!inner (
-              order_number,
-              created_at
-            )
-          )
-        `)
-        .eq('user_id', user.id)
-        .order('created_at', { ascending: false }),
-      
-      // Legacy kit registrations
-      supabase
-        .from('legacy_kit_registrations')
-        .select(`
-          id,
-          display_id,
-          kit_code,
-          status,
-          sample_date,
-          sample_description,
-          person_taking_sample,
-          created_at,
-          is_claimed,
-          claimed_at,
-          test_kits!inner (
-            name
-          )
-        `)
-        .eq('user_id', user.id)
-        .eq('is_claimed', true)
-        .order('created_at', { ascending: false })
-    ]);
+    // Use the customer view for simplified querying
+    const { data: kits, error } = await supabase
+      .from('vw_customer_kit_registration')
+      .select('*')
+      .eq('user_id', user.id)
+      .order('order_created_at', { ascending: false });
 
-    // Handle results
-    const regularKits = regularResult.status === 'fulfilled' ? regularResult.value.data || [] : [];
-    const legacyKits = legacyResult.status === 'fulfilled' ? legacyResult.value.data || [] : [];
-
-    if (regularResult.status === 'rejected') {
-      log('warn', 'Failed to load regular kits', { error: regularResult.reason });
-    }
-    if (legacyResult.status === 'rejected') {
-      log('warn', 'Failed to load legacy kits', { error: legacyResult.reason });
+    if (error) {
+      throw error;
     }
 
     // Format kits using a unified formatter
-    const formattedRegularKits = regularKits.map(kit => formatKit(kit, 'regular'));
-    const formattedLegacyKits = legacyKits.map(kit => formatKit(kit, 'legacy'));
-
-    // Combine and sort by date
-    const allKits = [...formattedRegularKits, ...formattedLegacyKits]
-      .sort((a, b) => new Date(b.order_date) - new Date(a.order_date));
+    const formattedKits = (kits || []).map(kit => ({
+      kit_registration_id: kit.kit_id,
+      display_id: kit.display_id,
+      is_registered: kit.registration_status === 'registered',
+      status: kit.status,
+      source: kit.kit_type,
+      product_name: kit.test_kit_name,
+      order_number: kit.order_number,
+      order_date: kit.order_created_at,
+      claimed_at: kit.claimed_at,
+      is_claimed: kit.is_claimed
+    }));
 
     return {
       statusCode: 200,
       headers,
       body: JSON.stringify({
         success: true,
-        kits: allKits
+        kits: formattedKits
       })
     };
 
@@ -236,15 +225,10 @@ async function registerKit(supabase, user, event, headers) {
     });
 
     // Determine kit type and get kit data
-    const kitInfo = await determineKitType(supabase, registrationData.kit_registration_id, user.id);
+    const isAdminRegistration = registrationData.is_admin_registration || false;
+    const kitInfo = await determineKitType(supabase, registrationData.kit_registration_id, user.id, isAdminRegistration);
     if (kitInfo.error) {
       return createErrorResponse(404, kitInfo.error, headers);
-    }
-
-    // Check if already registered
-    const registrationCheck = checkIfAlreadyRegistered(kitInfo);
-    if (registrationCheck.error) {
-      return createErrorResponse(400, registrationCheck.error, headers);
     }
 
     // Register the kit
@@ -310,62 +294,131 @@ function parseAndValidateRequest(body) {
   }
 }
 
-// Determine if kit is legacy or regular and fetch kit data
-async function determineKitType(supabase, kitRegistrationId, userId) {
-  // Try legacy first
-  const { data: legacyKit, error: legacyError } = await supabase
-  .from('legacy_kit_registrations')
-  .select(`
-    id, kit_code, display_id, status, sample_date, 
-    person_taking_sample, is_claimed, claimed_at,
-    test_kits (name, description)
-  `)
-  .eq('id', kitRegistrationId)
-  .eq('user_id', userId)
-  .eq('is_claimed', true)  // Ensure kit is claimed by user
-  .single();
+// Determine if kit is legacy or regular and fetch kit data - CORRECTED VERSION
+async function determineKitType(supabase, kitRegistrationId, userId, isAdminRegistration = false) {
+  // For admin registrations, get kit data without user constraint first
+  if (isAdminRegistration) {
+    const { data: kit, error } = await supabase
+      .from('vw_test_kits_admin')
+      .select('*')
+      .eq('kit_id', kitRegistrationId)
+      .eq('registration_status', 'unregistered')
+      .single();
 
-  if (!legacyError && legacyKit) {
-    return { source: 'legacy', kit: legacyKit };
-  }
+    if (error || !kit) {
+      return { error: 'Kit registration not found or not available for admin registration' };
+    }
 
-  // Try regular kit
-  const { data: regularKit, error: regularError } = await supabase
-    .from('kit_registrations')
-    .select(`
-      kit_registration_id, display_id, status, sample_date, 
-      person_taking_sample, order_items!inner (
-        product_name, orders!inner (order_number, shipping_address)
-      )
-    `)
-    .eq('kit_registration_id', kitRegistrationId)
-    .eq('user_id', userId)
-    .single();
-
-  if (!regularError && regularKit) {
-    return { source: 'regular', kit: regularKit };
-  }
-
-  return { error: 'Kit registration not found or access denied' };
-}
-
-// Check if kit is already registered
-function checkIfAlreadyRegistered(kitInfo) {
-  const { kit } = kitInfo;
-  
-  if (!['confirmed', 'en_route_to_customer', 'delivered_awaiting_registration'].includes(kit.status) || 
-      (kit.sample_date && kit.person_taking_sample)) {
     return { 
-      error: `This ${kitInfo.source === 'legacy' ? 'legacy kit' : 'kit'} has already been registered` 
+      source: kit.kit_type, 
+      kit: transformAdminViewToKitFormat(kit),
+      customerUserId: kit.user_id // Return the customer's user ID
     };
   }
-  
-  return { success: true };
+
+  // For customer registrations, use the customer view with user constraint
+  const { data: kit, error } = await supabase
+    .from('vw_customer_kit_registration')
+    .select('*')
+    .eq('kit_id', kitRegistrationId)
+    .eq('user_id', userId)
+    .eq('registration_status', 'unregistered')
+    .single();
+
+  if (error || !kit) {
+    return { error: 'Kit registration not found, access denied, or already registered' };
+  }
+
+  return { 
+    source: kit.kit_type, 
+    kit: transformCustomerViewToKitFormat(kit),
+    customerUserId: userId // For customer registrations, it's the same as userId
+  };
+}
+
+// Helper function to transform admin view data to expected kit format
+function transformAdminViewToKitFormat(adminKit) {
+  if (adminKit.kit_type === 'legacy') {
+    return {
+      id: adminKit.kit_id,
+      kit_code: adminKit.kit_code,
+      display_id: adminKit.kit_code,
+      status: adminKit.kit_status,
+      sample_date: adminKit.sample_date,
+      person_taking_sample: adminKit.person_taking_sample,
+      waybill_reference_number: adminKit.waybill_reference_number,
+      test_kits: { 
+        name: adminKit.test_kit_name, 
+        description: adminKit.test_kit_description 
+      }
+    };
+  } else {
+    return {
+      kit_registration_id: adminKit.kit_id,
+      display_id: adminKit.kit_code,
+      status: adminKit.kit_status,
+      sample_date: adminKit.sample_date,
+      person_taking_sample: adminKit.person_taking_sample,
+      waybill_reference_number: adminKit.waybill_reference_number,
+      order_items: {
+        product_name: adminKit.test_kit_name,
+        orders: { 
+          order_number: adminKit.order_number,
+          shipping_address: {
+            firstName: adminKit.customer_first_name,
+            lastName: adminKit.customer_last_name
+          }
+        }
+      }
+    };
+  }
+}
+
+// Helper function to transform customer view data to expected kit format
+function transformCustomerViewToKitFormat(customerKit) {
+  if (customerKit.kit_type === 'legacy') {
+    return {
+      id: customerKit.kit_id,
+      kit_code: customerKit.display_id,
+      display_id: customerKit.display_id,
+      status: customerKit.status,
+      sample_date: customerKit.sample_date,
+      person_taking_sample: customerKit.person_taking_sample,
+      is_claimed: customerKit.is_claimed,
+      claimed_at: customerKit.claimed_at,
+      waybill_reference_number: customerKit.waybill_reference_number,
+      test_kits: { 
+        name: customerKit.test_kit_name, 
+        description: customerKit.test_kit_description 
+      }
+    };
+  } else {
+    return {
+      kit_registration_id: customerKit.kit_id,
+      display_id: customerKit.display_id,
+      status: customerKit.status,
+      sample_date: customerKit.sample_date,
+      person_taking_sample: customerKit.person_taking_sample,
+      waybill_reference_number: customerKit.waybill_reference_number,
+      order_items: {
+        product_name: customerKit.test_kit_name,
+        orders: { 
+          order_number: customerKit.order_number,
+          shipping_address: customerKit.shipping_address
+        }
+      }
+    };
+  }
 }
 
 // Process the actual kit registration
+// Updated processKitRegistration to use correct user ID
 async function processKitRegistration(supabase, user, registrationData, kitInfo, requestId) {
-  const { source, kit } = kitInfo;
+  const { source, kit, customerUserId } = kitInfo;
+  const isAdminRegistration = registrationData.is_admin_registration || false;
+  
+  // Use customerUserId for the database update, not the admin's user ID
+  const userIdForUpdate = customerUserId || user.id;
   
   // Prepare update data (same structure for both types)
   const updateData = {
@@ -381,6 +434,7 @@ async function processKitRegistration(supabase, user, registrationData, kitInfo,
     postal_code: registrationData.postal_code || null,
     country: registrationData.country || 'Canada',
     status: 'registered',
+    registration_status: 'registered',
     updated_at: new Date().toISOString()
   };
 
@@ -389,7 +443,7 @@ async function processKitRegistration(supabase, user, registrationData, kitInfo,
     updateData.registered_at = new Date().toISOString();
   }
 
-  // Update the appropriate table
+  // Update the appropriate table using the customer's user ID
   const tableName = source === 'legacy' ? 'legacy_kit_registrations' : 'kit_registrations';
   const idField = source === 'legacy' ? 'id' : 'kit_registration_id';
   const kitId = source === 'legacy' ? kit.id : kit.kit_registration_id;
@@ -398,7 +452,7 @@ async function processKitRegistration(supabase, user, registrationData, kitInfo,
     .from(tableName)
     .update(updateData)
     .eq(idField, kitId)
-    .eq('user_id', user.id)
+    .eq('user_id', userIdForUpdate) // Use customer's user ID
     .select(source === 'legacy' ? '*, test_kits (name, description)' : '*')
     .single();
 
@@ -410,8 +464,33 @@ async function processKitRegistration(supabase, user, registrationData, kitInfo,
     kitId: kitId,
     displayId: updatedKit.display_id || (source === 'legacy' ? updatedKit.kit_code : null),
     status: updatedKit.status,
+    registeredBy: isAdminRegistration ? 'admin' : 'customer',
+    customerUserId: userIdForUpdate,
     requestId
   });
+
+  // Get customer info for Chain of Custody and emails
+  let customerInfo;
+  if (isAdminRegistration) {
+    // For admin registrations, get customer info from the kit data
+    if (source === 'legacy') {
+      customerInfo = {
+        email: user.email, // We'll need to get customer email from kit data
+        user_metadata: { firstName: 'Customer', lastName: '' }
+      };
+    } else {
+      // Get customer info from shipping address or user profile
+      customerInfo = {
+        email: user.email, // This should be the customer's email from kit data
+        user_metadata: { 
+          firstName: kit.order_items?.orders?.shipping_address?.firstName || 'Customer',
+          lastName: kit.order_items?.orders?.shipping_address?.lastName || ''
+        }
+      };
+    }
+  } else {
+    customerInfo = user;
+  }
 
   // Get order info for Chain of Custody processing
   let orderInfo;
@@ -419,7 +498,7 @@ async function processKitRegistration(supabase, user, registrationData, kitInfo,
     orderInfo = {
       product_name: updatedKit.test_kits.name,
       order_number: `LEGACY-${updatedKit.kit_code}`,
-      customer_email: user.email
+      customer_email: customerInfo.email
     };
   } else {
     // Get order data for regular kit
@@ -444,49 +523,48 @@ async function processKitRegistration(supabase, user, registrationData, kitInfo,
     orderInfo = {
       product_name: orderData.order_items.product_name,
       order_number: orderData.order_items.orders.order_number,
-      customer_email: user.email
+      customer_email: customerInfo.email
     };
   }
 
   // Process Chain of Custody
-log('info', 'Processing Chain of Custody', { requestId });
-const cocResult = await processChainOfCustody(supabase, updatedKit, orderInfo, requestId);
+  log('info', 'Processing Chain of Custody', { requestId });
+  const cocResult = await processChainOfCustody(supabase, updatedKit, orderInfo, requestId);
 
-if (!cocResult.success) {
-  log('error', 'Chain of Custody processing failed', { 
-    error: cocResult.error, requestId 
-  });
-  // Don't throw error - kit registration was successful, CoC is supplementary
-} else {
-  // UPDATE: Added this entire else block to save CoC URL to database
-  try {
-    const { error: updateCocError } = await supabase
-      .from(tableName)
-      .update({ 
-        chain_of_custody_url: cocResult.fileUrl,
-        updated_at: new Date().toISOString()
-      })
-      .eq(idField, kitId)
-      .eq('user_id', user.id);
+  if (!cocResult.success) {
+    log('error', 'Chain of Custody processing failed', { 
+      error: cocResult.error, requestId 
+    });
+  } else {
+    // Save CoC URL to database
+    try {
+      const { error: updateCocError } = await supabase
+        .from(tableName)
+        .update({ 
+          chain_of_custody_url: cocResult.fileUrl,
+          updated_at: new Date().toISOString()
+        })
+        .eq(idField, kitId)
+        .eq('user_id', userIdForUpdate);
 
-    if (updateCocError) {
-      log('warn', 'Failed to update Chain of Custody URL in database', { 
-        error: updateCocError.message, requestId 
-      });
-    } else {
-      log('info', 'Chain of Custody URL saved to database', { 
-        kitId, fileUrl: cocResult.fileUrl, requestId 
+      if (updateCocError) {
+        log('warn', 'Failed to update Chain of Custody URL in database', { 
+          error: updateCocError.message, requestId 
+        });
+      } else {
+        log('info', 'Chain of Custody URL saved to database', { 
+          kitId, fileUrl: cocResult.fileUrl, requestId 
+        });
+      }
+    } catch (updateError) {
+      log('warn', 'Exception updating Chain of Custody URL', { 
+        error: updateError.message, requestId 
       });
     }
-  } catch (updateError) {
-    log('warn', 'Exception updating Chain of Custody URL', { 
-      error: updateError.message, requestId 
-    });
   }
-}
 
   // Send email notifications with Chain of Custody
-  await sendKitRegistrationEmails(supabase, updatedKit, kitInfo, user, orderInfo, cocResult, requestId);
+  await sendKitRegistrationEmails(supabase, updatedKit, kitInfo, customerInfo, orderInfo, cocResult, requestId);
 
   return {
     kit_registration_id: kitId,
@@ -611,9 +689,7 @@ async function sendLabNotificationEmail(supabase, kitData, orderInfo, shippingAd
     });
 
     const sampleTime = kitData.sample_time ? 
-      new Date(`1970-01-01T${kitData.sample_time}`).toLocaleTimeString('en-CA', {
-        hour: '2-digit', minute: '2-digit', hour12: true
-      }) : 'Not specified';
+      formatTimeTo24Hour(kitData.sample_time) : 'Not specified';
 
     // Email data for lab notification - exact format match
     const emailData = {
@@ -624,7 +700,8 @@ async function sendLabNotificationEmail(supabase, kitData, orderInfo, shippingAd
         sampler: kitData.person_taking_sample || 'Not specified',
         sampleDate: sampleDate,
         sampleTime: sampleTime,
-        sampleDescription: kitData.sample_description || 'No description provided'
+        sampleDescription: kitData.sample_description || 'No description provided',
+        waybillReference: kitData.waybill_reference_number || 'Not provided'
       }
     };
 
@@ -740,9 +817,7 @@ async function sendKitRegistrationEmail(kitData, orderInfo, shippingAddress, ema
     });
 
     const sampleTime = kitData.sample_time ? 
-      new Date(`1970-01-01T${kitData.sample_time}`).toLocaleTimeString('en-CA', {
-        hour: '2-digit', minute: '2-digit', hour12: true
-      }) : 'Not specified';
+      formatTimeTo24Hour(kitData.sample_time) : 'Not specified';
 
     // Email data
     const emailData = {
@@ -763,7 +838,8 @@ async function sendKitRegistrationEmail(kitData, orderInfo, shippingAddress, ema
         city: kitData.city || 'Not provided',
         province: kitData.province || 'Not provided',
         postalCode: kitData.postal_code || 'Not provided',
-        country: kitData.country || 'Canada'
+        country: kitData.country || 'Canada',
+        waybillReference: kitData.waybill_reference_number || 'Not provided'
       }
     };
 
