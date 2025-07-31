@@ -21,6 +21,7 @@ export default function AdminInventoryManagement() {
         .from('test_kits')
         .select('*')
         .eq('active', true)
+        .eq('environment','prod')
         .order('name');
 
       if (error) throw error;
