@@ -13,7 +13,7 @@ const {
 } = require('./utils/sharedProcessing');
 
 // Import existing report generator (preserve exactly as-is)
-const { generateAndSendReport } = require('./reportGenerator.cjs');
+const { generateAndSendReport } = require('../utils/reportGenerator.cjs');
 
 // Initialize Supabase client
 const supabase = createClient(
