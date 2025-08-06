@@ -146,13 +146,24 @@ function createReactPDFDocument(reportData, sampleNumber, kitInfo = {}) {
     const test_kit_display = kitInfo.testKitName || "Water Test Kit";
     const sample_description = sampleInfo?.sample_description || "Water Sample";
     
-    // Check for coliform contamination
-    const hasColiformContamination = bacteriological.some(param => 
-      (param.parameter_name?.toLowerCase().includes('coliform') || 
-       param.parameter_name?.toLowerCase().includes('e. coli')) &&
-      (param.result_display_value?.includes('Detected') || 
-       param.compliance_status === 'EXCEEDS_MAC')
-    );
+    // Check for coliform contamination - UPDATED LOGIC
+const hasColiformContamination = bacteriological.some(param => {
+  const isColiformParam = param.parameter_name?.toLowerCase().includes('coliform') || 
+                         param.parameter_name?.toLowerCase().includes('e. coli') ||
+                         param.parameter_name?.toLowerCase().includes('e.coli');
+  
+  if (!isColiformParam) return false;
+  
+  // Check multiple conditions for contamination
+  const hasDetectedInDisplay = param.result_display_value?.includes('Detected');
+  const exceedsMAC = param.compliance_status === 'EXCEEDS_MAC';
+  
+  // NEW: For coliform parameters, any numeric value > 0 indicates contamination
+  const numericValue = parseFloat(param.result_numeric);
+  const hasNumericContamination = !isNaN(numericValue) && numericValue > 0;
+  
+  return hasDetectedInDisplay || exceedsMAC || hasNumericContamination;
+});
 
     const perfectWater = healthCWQI?.score === 100 && aoCWQI?.score === 100;
     
@@ -1759,14 +1770,23 @@ const isMinimumParameter = (parameterName) => {
 const calculateCCMEWQI = (parameters) => {
   if (!parameters || parameters.length === 0) return null;
 
-  // Check for coliform detection first
-  const coliformDetected = parameters.some(param => 
-    (param.parameter_name?.toLowerCase().includes('coliform') || 
-     param.parameter_name?.toLowerCase().includes('e. coli') ||
-     param.parameter_name?.toLowerCase().includes('e.coli')) &&
-    (param.result_display_value?.includes('Detected') || 
-     param.compliance_status === 'EXCEEDS_MAC')
-  );
+  // Check for coliform detection first - UPDATED LOGIC
+const coliformDetected = parameters.some(param => {
+  const isColiformParam = (param.parameter_name?.toLowerCase().includes('coliform') || 
+                          param.parameter_name?.toLowerCase().includes('e. coli') ||
+                          param.parameter_name?.toLowerCase().includes('e.coli'));
+  
+  if (!isColiformParam) return false;
+  
+  const hasDetectedInDisplay = param.result_display_value?.includes('Detected');
+  const exceedsMAC = param.compliance_status === 'EXCEEDS_MAC';
+  
+  // NEW: For coliform parameters, any numeric value > 0 indicates contamination
+  const numericValue = parseFloat(param.result_numeric);
+  const hasNumericContamination = !isNaN(numericValue) && numericValue > 0;
+  
+  return hasDetectedInDisplay || exceedsMAC || hasNumericContamination;
+});
 
   // Step 1: Organize the data
   const parameterGroups = groupParametersByName(parameters);

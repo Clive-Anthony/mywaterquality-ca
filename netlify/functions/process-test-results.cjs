@@ -922,15 +922,15 @@ if (reportType === 'one_off') {
   }
   
   // Use registration data if available
-  if (kitRegistrationData) {
-    kitInfo.customerFirstName = kitRegistrationData.customer_first_name || 'Valued Customer';
-    kitInfo.customerName = `${kitRegistrationData.customer_first_name || ''} ${kitRegistrationData.customer_last_name || ''}`.trim() || 'Customer';
-    kitInfo.customerEmail = kitRegistrationData.customer_email || 'unknown@example.com';
-    kitInfo.testKitName = kitRegistrationData.test_kit_name || 'Water Test Kit';
-    kitInfo.testKitId = kitRegistrationData.test_kit_id || null;
-    kitInfo.displayId = kitRegistrationData.kit_code || kitOrderCode; // Kit identifier
-    kitInfo.kitCode = kitRegistrationData.kit_code || kitOrderCode;
-    kitInfo.orderNumber = kitRegistrationData.order_number || 'N/A'; // Actual order number
+if (kitRegistrationData) {
+  kitInfo.customerFirstName = kitRegistrationData.customer_first_name || 'Valued Customer';
+  kitInfo.customerName = `${kitRegistrationData.customer_first_name || ''} ${kitRegistrationData.customer_last_name || ''}`.trim() || 'Customer';
+  kitInfo.customerEmail = kitRegistrationData.customer_email || 'unknown@example.com';
+  kitInfo.testKitName = kitRegistrationData.test_kit_name || 'Water Test Kit';
+  kitInfo.testKitId = kitRegistrationData.test_kit_id || null; // <-- ADD/UPDATE THIS LINE
+  kitInfo.displayId = kitRegistrationData.kit_code || kitOrderCode; // Kit identifier
+  kitInfo.kitCode = kitRegistrationData.kit_code || kitOrderCode;
+  kitInfo.orderNumber = kitRegistrationData.order_number || 'N/A'; // Actual order number
     
     // Build location from registration address fields, override with custom location if provided
     const locationParts = [];
@@ -971,27 +971,27 @@ if (reportType === 'one_off') {
     .single();
 
   if (!kitAdminError && kitAdminData) {
-    const formatLocation = (data) => {
-      const parts = [];
-      if (data.customer_address) parts.push(data.customer_address);
-      if (data.customer_city) parts.push(data.customer_city);
-      if (data.customer_province) parts.push(data.customer_province);
-      if (data.customer_postal_code) parts.push(data.customer_postal_code);
-      
-      return parts.length > 0 ? parts.join(', ') : 'Not specified';
-    };
-  
-    kitInfo = {
-      displayId: kitAdminData.kit_code || kitOrderCode, // Kit identifier
-      kitCode: kitAdminData.kit_code || kitOrderCode,
-      orderNumber: kitAdminData.order_number || 'N/A', // Actual order number
-      testKitName: kitAdminData.test_kit_name || 'Water Test Kit',
-      testKitId: kitAdminData.test_kit_id,
-      customerFirstName: kitAdminData.customer_first_name || 'Valued Customer',
-      customerName: `${kitAdminData.customer_first_name || ''} ${kitAdminData.customer_last_name || ''}`.trim() || 'Customer',
-      customerEmail: kitAdminData.customer_email,
-      customerLocation: formatLocation(kitAdminData)
-    };
+  const formatLocation = (data) => {
+    const parts = [];
+    if (data.customer_address) parts.push(data.customer_address);
+    if (data.customer_city) parts.push(data.customer_city);
+    if (data.customer_province) parts.push(data.customer_province);
+    if (data.customer_postal_code) parts.push(data.customer_postal_code);
+    
+    return parts.length > 0 ? parts.join(', ') : 'Not specified';
+  };
+
+  kitInfo = {
+    displayId: kitAdminData.kit_code || kitOrderCode, // Kit identifier
+    kitCode: kitAdminData.kit_code || kitOrderCode,
+    orderNumber: kitAdminData.order_number || 'N/A', // Actual order number
+    testKitName: kitAdminData.test_kit_name || 'Water Test Kit',
+    testKitId: kitAdminData.test_kit_id || null, // <-- ENSURE THIS LINE EXISTS
+    customerFirstName: kitAdminData.customer_first_name || 'Valued Customer',
+    customerName: `${kitAdminData.customer_first_name || ''} ${kitAdminData.customer_last_name || ''}`.trim() || 'Customer',
+    customerEmail: kitAdminData.customer_email,
+    customerLocation: formatLocation(kitAdminData)
+  };
     
     log('info', 'Kit info retrieved from admin view', { 
       kitInfo: {
