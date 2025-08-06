@@ -1165,7 +1165,7 @@ try {
     // Send email via Loops directly
     const requestBody = {
       transactionalId: 'cmdj4w1u62ku8zc0jqy6rfekn',
-      email: 'david.phillips@bookerhq.ca',
+      email: 'info@mywaterquality.ca',
       dataVariables: {
         customerName: kitInfo.customerName || 'Customer',
         kitCode: kitInfo.kitCode || kitInfo.displayId || 'UNKNOWN',
