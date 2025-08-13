@@ -228,25 +228,42 @@ async function updateEmailRecord(emailId, updateData) {
  */
 async function downloadEmailAttachments(emailId) {
   try {
-    // Get attachment records from database
-    const { data: attachmentRecords, error: recordsError } = await supabase
-      .from('email_attachments')
-      .select('*')
-      .eq('email_id', emailId);
+    // Get email record to find work order and storage path
+    const { data: emailRecord, error: emailError } = await supabase
+      .from('emails_received')
+      .select('work_order_number')
+      .eq('id', emailId)
+      .single();
 
-    if (recordsError) {
-      throw recordsError;
+    if (emailError) {
+      throw emailError;
     }
 
-    log(`Found ${attachmentRecords.length} attachments to download`);
+    const workOrderNumber = emailRecord.work_order_number;
+    if (!workOrderNumber) {
+      throw new Error('No work order number found for email');
+    }
 
-    // Download each attachment
+    // List files directly from storage folder
+    const { data: fileList, error: listError } = await supabase.storage
+      .from('lab-results')
+      .list(workOrderNumber + '/');
+
+    if (listError) {
+      throw listError;
+    }
+
+    log(`Found ${fileList.length} files in storage folder ${workOrderNumber}/`);
+
+    // Download each file
     const attachments = [];
-    for (const record of attachmentRecords) {
+    for (const file of fileList) {
       try {
+        const filePath = `${workOrderNumber}/${file.name}`;
+        
         const { data: fileData, error: downloadError } = await supabase.storage
           .from('lab-results')
-          .download(record.storage_path);
+          .download(filePath);
 
         if (downloadError) {
           throw downloadError;
@@ -257,26 +274,20 @@ async function downloadEmailAttachments(emailId) {
         const buffer = Buffer.from(arrayBuffer);
 
         // Determine attachment type from filename
-        const attachmentType = determineAttachmentType(record.filename);
+        const attachmentType = determineAttachmentType(file.name);
 
         attachments.push({
-          ...record,
-          buffer: buffer,
-          filename: record.filename,
+          filename: file.name,
+          storage_path: filePath,
           size: buffer.length,
+          buffer: buffer,
           attachment_type: attachmentType
         });
 
-        // Update attachment record with determined type
-        await supabase
-          .from('email_attachments')
-          .update({ attachment_type: attachmentType })
-          .eq('id', record.id);
-
-        log(`Downloaded attachment: ${record.filename} (${buffer.length} bytes, type: ${attachmentType})`);
+        log(`Downloaded file: ${file.name} (${buffer.length} bytes, type: ${attachmentType})`);
 
       } catch (error) {
-        log(`Error downloading attachment ${record.filename}`, { error: error.message });
+        log(`Error downloading file ${file.name}`, { error: error.message });
         throw error;
       }
     }
