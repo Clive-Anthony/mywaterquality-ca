@@ -409,6 +409,86 @@ async function processResultsEmail(emailId, attachments, emailInfo) {
       throw new Error(`No kit registration found for work order: ${workOrderNumber}. Make sure confirmation email was processed first.`);
     }
 
+    // Get detailed customer info from admin view using the kit registration ID
+    let kitInfo = {
+      displayId: kitRegistration.display_id || kitRegistration.kit_code || 'UNKNOWN',
+      kitCode: kitRegistration.kit_code || kitRegistration.display_id || 'UNKNOWN',
+      orderNumber: 'N/A',
+      testKitName: 'Water Test Kit',
+      testKitId: null,
+      customerFirstName: 'Valued Customer',
+      customerName: 'Customer',
+      customerEmail: 'unknown@example.com',
+      customerLocation: 'Not specified'
+    };
+
+    try {
+      // Query the admin view to get full customer details
+      const { data: kitAdminData, error: kitAdminError } = await supabase
+        .from('vw_test_kits_admin')
+        .select('*')
+        .eq('kit_id', kitRegistration.kit_registration_id || kitRegistration.id)
+        .single();
+
+      if (!kitAdminError && kitAdminData) {
+        const formatLocation = (data) => {
+          const parts = [];
+          if (data.customer_address) parts.push(data.customer_address);
+          if (data.customer_city) parts.push(data.customer_city);
+          if (data.customer_province) parts.push(data.customer_province);
+          if (data.customer_postal_code) parts.push(data.customer_postal_code);
+          
+          return parts.length > 0 ? parts.join(', ') : 'Not specified';
+        };
+
+        kitInfo = {
+          displayId: kitAdminData.kit_code || kitInfo.displayId,
+          kitCode: kitAdminData.kit_code || kitInfo.kitCode,
+          orderNumber: kitAdminData.order_number || 'N/A',
+          testKitName: kitAdminData.test_kit_name || 'Water Test Kit',
+          testKitId: kitAdminData.test_kit_id || null,
+          customerFirstName: kitAdminData.customer_first_name || 'Valued Customer',
+          customerName: `${kitAdminData.customer_first_name || ''} ${kitAdminData.customer_last_name || ''}`.trim() || 'Customer',
+          customerEmail: kitAdminData.customer_email || 'unknown@example.com',
+          customerLocation: formatLocation(kitAdminData)
+        };
+
+        log('Retrieved customer info from admin view', {
+          customerName: kitInfo.customerName,
+          customerEmail: kitInfo.customerEmail,
+          kitCode: kitInfo.kitCode,
+          orderNumber: kitInfo.orderNumber
+        });
+      } else {
+        log('Could not retrieve detailed customer info, using basic kit registration data', {
+          error: kitAdminError?.message,
+          kitRegistrationId: kitRegistration.kit_registration_id || kitRegistration.id
+        });
+        
+        // Fallback to basic kit registration data if available
+        if (kitRegistration.user_id) {
+          // Try to get user details from profiles table
+          const { data: userProfile, error: profileError } = await supabase
+            .from('profiles')
+            .select('first_name, last_name, email')
+            .eq('id', kitRegistration.user_id)
+            .single();
+
+          if (!profileError && userProfile) {
+            kitInfo.customerFirstName = userProfile.first_name || 'Valued Customer';
+            kitInfo.customerName = `${userProfile.first_name || ''} ${userProfile.last_name || ''}`.trim() || 'Customer';
+            kitInfo.customerEmail = userProfile.email || 'unknown@example.com';
+          }
+        }
+      }
+    } catch (adminViewError) {
+      log('Error querying admin view for customer details', { 
+        error: adminViewError.message,
+        kitRegistrationId: kitRegistration.kit_registration_id || kitRegistration.id
+      });
+      // Continue with default values
+    }
+
     // Find Excel/CSV attachment for processing
     const dataAttachment = attachments.find(att => 
       att.attachment_type === 'excel' || att.attachment_type === 'csv'
@@ -450,15 +530,15 @@ async function processResultsEmail(emailId, attachments, emailInfo) {
       processingResult.sampleNumber
     );
 
-    // **REUSE existing report generation logic**
+    // **REUSE existing report generation logic with properly formatted kitInfo**
     await processReportGeneration(
-    supabase,                           // supabase client
-    kitRegistration.id,                 // reportId (using kit registration ID)
-    processingResult.sampleNumber,      // sampleNumber from processed results
-    kitRegistration.id,                 // requestId (using kit registration ID again)
-    kitRegistration.kit_code || kitRegistration.display_id || 'UNKNOWN', // kitOrderCode
-    kitRegistration                     // kitInfo (entire kit registration object)
-  );
+      supabase,                           // supabase client
+      kitRegistration.id,                 // reportId (using kit registration ID)
+      processingResult.sampleNumber,      // sampleNumber from processed results
+      kitRegistration.id,                 // requestId (using kit registration ID again)
+      kitInfo.kitCode,                    // kitOrderCode
+      kitInfo                            // kitInfo (properly formatted object)
+    );
 
     // Update email record
     const { error: updateError } = await supabase
@@ -476,7 +556,12 @@ async function processResultsEmail(emailId, attachments, emailInfo) {
     log('Results email processed successfully', {
       kitRegistrationId: kitRegistration.id,
       workOrderNumber,
-      resultsCount: processingResult.results.length
+      resultsCount: processingResult.results.length,
+      customerInfo: {
+        name: kitInfo.customerName,
+        email: kitInfo.customerEmail,
+        location: kitInfo.customerLocation
+      }
     });
 
     return {
