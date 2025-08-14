@@ -446,7 +446,7 @@ async function processResultsEmail(emailId, attachments, emailInfo) {
           kitCode: kitAdminData.kit_code || kitInfo.kitCode,
           orderNumber: kitAdminData.order_number || 'N/A',
           testKitName: kitAdminData.test_kit_name || 'Water Test Kit',
-          testKitId: kitAdminData.test_kit_id || null,
+          testKitId: kitAdminData.test_kit_id || kitAdminData.test_kit_uuid || null,
           customerFirstName: kitAdminData.customer_first_name || 'Valued Customer',
           customerName: `${kitAdminData.customer_first_name || ''} ${kitAdminData.customer_last_name || ''}`.trim() || 'Customer',
           customerEmail: kitAdminData.customer_email || 'unknown@example.com',
@@ -457,6 +457,7 @@ async function processResultsEmail(emailId, attachments, emailInfo) {
           customerName: kitInfo.customerName,
           customerEmail: kitInfo.customerEmail,
           kitCode: kitInfo.kitCode,
+          testKitId: kitInfo.testKitId,
           orderNumber: kitInfo.orderNumber
         });
       } else {

@@ -142,7 +142,9 @@ function createReactPDFDocument(reportData, sampleNumber, kitInfo = {}) {
     // Document data - using production sample information
     const customer_first = kitInfo.customerFirstName || "Valued Customer";
     const customer_name = kitInfo.customerName || "Customer";
-    const order_number = kitInfo.orderNumber || kitInfo.displayId || kitInfo.kitCode || 'N/A';
+    const order_number = kitInfo.orderNumber && kitInfo.orderNumber !== 'N/A' 
+  ? kitInfo.orderNumber 
+  : (kitInfo.displayId || kitInfo.kitCode || 'N/A');
     const test_kit_display = kitInfo.testKitName || "Water Test Kit";
     const sample_description = sampleInfo?.sample_description || "Water Sample";
     
@@ -168,10 +170,17 @@ const hasColiformContamination = bacteriological.some(param => {
     const perfectWater = healthCWQI?.score === 100 && aoCWQI?.score === 100;
     
     // Determine if bacteriological results should be shown
-    const CITY_WATER_TEST_KIT_ID = 'bf8834dc-b953-41a2-a396-b684c0833c85';
     const ADVANCED_WATER_TEST_KIT_ID = 'a69fd2ca-232f-458e-a240-7e36f50ffa2b';
-    const showBacteriologicalResults = kitInfo.testKitId === CITY_WATER_TEST_KIT_ID || 
-                                     kitInfo.testKitId === ADVANCED_WATER_TEST_KIT_ID;
+    const showBacteriologicalResults = kitInfo.testKitId === ADVANCED_WATER_TEST_KIT_ID;
+
+    console.log('Bacteriological Display Debug:', {
+      testKitId: kitInfo.testKitId,
+      testKitName: kitInfo.testKitName,
+      advancedKitId: ADVANCED_WATER_TEST_KIT_ID,
+      showBacteriologicalResults,
+      hasColiformContamination,
+      bacteriologicalCount: bacteriological.length
+    });
 
     return React.createElement(ReactPDF.Document, null,
       // Page 1 - Summary
