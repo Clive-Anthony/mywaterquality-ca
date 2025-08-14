@@ -730,13 +730,21 @@ async function processResultsEmail(emailId, attachments, emailInfo) {
       workOrderNumber
     );
 
-    // Update kit registration status
-    await updateKitRegistration(
+    // Update kit registration status and capture lab chain of custody URL
+    const kitUpdateResult = await updateKitRegistration(
       kitRegistration.kit_registration_id || kitRegistration.id,
       workOrderNumber,
       processingResult.sampleNumber,
       isLegacyKit
     );
+
+    // **CAPTURE THE LAB CHAIN OF CUSTODY URL**
+    const labChainOfCustodyUrl = kitUpdateResult.labChainOfCustodyUrl;
+
+    log('Kit registration update completed', {
+      hasLabChainOfCustody: !!labChainOfCustodyUrl,
+      labChainOfCustodyUrl: labChainOfCustodyUrl
+    });
 
     // Create a proper report record in the database
     const reportRecord = {
@@ -925,23 +933,30 @@ async function processResultsEmail(emailId, attachments, emailInfo) {
       }
       
       // Download Lab Chain of Custody if available (from the lab-results bucket)
-      if (kitRegistration.lab_chain_of_custody_url || labChainOfCustodyUrl) {
+      if (labChainOfCustodyUrl) {
         try {
-          const cocUrl = kitRegistration.lab_chain_of_custody_url || labChainOfCustodyUrl;
-          const cocFileName = `LAB_COC_${kitInfo.kitCode}.pdf`;
-          
           // Extract the file path from the URL for lab-results bucket
           let cocFilePath;
-          if (cocUrl.includes('/lab-results/')) {
-            cocFilePath = cocUrl.split('/lab-results/')[1];
+          if (labChainOfCustodyUrl.includes('/lab-results/')) {
+            // Extract path after '/lab-results/'
+            const urlParts = labChainOfCustodyUrl.split('/lab-results/');
+            cocFilePath = urlParts[1];
+            
+            // Remove any query parameters
+            if (cocFilePath.includes('?')) {
+              cocFilePath = cocFilePath.split('?')[0];
+            }
           } else {
             // Fallback: construct the path
             cocFilePath = `${workOrderNumber}/CofC${workOrderNumber}`;
           }
           
+          const cocFileName = `LAB_COC_${kitInfo.kitCode}.pdf`;
+          
           log('Downloading Lab Chain of Custody for admin email', { 
             filename: cocFileName,
-            filePath: cocFilePath
+            filePath: cocFilePath,
+            originalUrl: labChainOfCustodyUrl
           });
           
           const { data: cocData, error: cocError } = await supabase.storage

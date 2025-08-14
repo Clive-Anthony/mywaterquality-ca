@@ -356,12 +356,25 @@ async function updateKitRegistration(kitRegistrationId, workOrderNumber, sampleN
     log('Updating kit registration', { kitRegistrationId, workOrderNumber, sampleNumber, isLegacyKit });
 
     // Check for lab chain of custody file in the new location
-      let labChainOfCustodyUrl = null;
+    let labChainOfCustodyUrl = null;
+    
+    try {
+      log('Checking for lab chain of custody file', { workOrderNumber });
+      
+      const { data: fileList, error: listError } = await supabase.storage
+        .from('lab-results')
+        .list(workOrderNumber + '/');
 
-      try {
-        log('Checking for lab chain of custody file', { workOrderNumber });
-        
-        const cocFile = await findLabChainOfCustodyFile(supabase, workOrderNumber);
+      if (!listError && fileList) {
+        // Look for the CoC file (try different naming patterns)
+        const cocFile = fileList.find(file => {
+          const lowerName = file.name.toLowerCase();
+          return lowerName.startsWith(`coc${workOrderNumber}`.toLowerCase()) ||
+                 lowerName.startsWith(`cofc${workOrderNumber}`.toLowerCase()) ||
+                 lowerName.includes('coc') ||
+                 lowerName.includes('chain') ||
+                 lowerName.includes('custody');
+        });
 
         if (cocFile) {
           const actualCocPath = `${workOrderNumber}/${cocFile.name}`;
@@ -377,18 +390,27 @@ async function updateKitRegistration(kitRegistrationId, workOrderNumber, sampleN
             url: labChainOfCustodyUrl 
           });
         } else {
-          log('No lab chain of custody file found', { workOrderNumber });
+          log('No lab chain of custody file found', { 
+            workOrderNumber, 
+            filesInFolder: fileList.map(f => f.name) 
+          });
         }
-      } catch (cocError) {
-        log('Error checking for lab chain of custody', { error: cocError.message });
-        // Don't fail the entire update if CoC check fails
+      } else {
+        log('Error listing files or folder not found', { 
+          error: listError?.message, 
+          workOrderNumber 
+        });
       }
+    } catch (cocError) {
+      log('Error checking for lab chain of custody', { error: cocError.message });
+      // Don't fail the entire update if CoC check fails
+    }
 
     // Prepare update data
     const updateData = {
       work_order_number: workOrderNumber,
       sample_number: sampleNumber,
-      status: 'test_results_received',
+      status: 'results_received',
       updated_at: new Date().toISOString()
     };
 
@@ -428,7 +450,11 @@ async function updateKitRegistration(kitRegistrationId, workOrderNumber, sampleN
       labChainOfCustodyUrl
     });
     
-    return data[0];
+    // **RETURN BOTH DATA AND LAB CHAIN OF CUSTODY URL**
+    return {
+      data: data[0],
+      labChainOfCustodyUrl
+    };
     
   } catch (error) {
     log('Error updating kit registration', { 
