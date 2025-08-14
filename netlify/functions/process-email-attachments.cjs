@@ -699,6 +699,234 @@ async function processResultsEmail(emailId, attachments, emailInfo) {
           })
           .eq('kit_registration_id', kitRegistration.kit_registration_id);
       }
+
+      // **ADD ADMIN NOTIFICATION EMAIL - START**
+  try {
+    log('Sending admin notification email', { reportId, workOrderNumber });
+    
+    // Get report details for file downloads
+    const { data: report, error: reportError } = await supabase
+      .from('reports')
+      .select('csv_file_url, pdf_file_url')
+      .eq('report_id', reportId)
+      .single();
+    
+    if (reportError) {
+      log('Could not get report for admin notification', { error: reportError.message });
+    } else {
+      // Download and prepare attachments
+      const attachments = [];
+      
+      // Download CSV (from lab-results bucket, not test-results-csv)
+      try {
+        // Find the Excel/CSV file in the lab-results bucket under the work order folder
+        const { data: fileList, error: listError } = await supabase.storage
+          .from('lab-results')
+          .list(workOrderNumber + '/');
+
+        if (!listError && fileList) {
+          // Look for Excel or CSV files
+          const dataFile = fileList.find(file => 
+            file.name.toLowerCase().endsWith('.xlsx') || 
+            file.name.toLowerCase().endsWith('.xls') || 
+            file.name.toLowerCase().endsWith('.csv')
+          );
+
+          if (dataFile) {
+            const csvFilePath = `${workOrderNumber}/${dataFile.name}`;
+            log('Downloading data file for admin email', { filename: dataFile.name, path: csvFilePath });
+            
+            const { data: csvData, error: csvError } = await supabase.storage
+              .from('lab-results')
+              .download(csvFilePath);
+              
+            if (!csvError && csvData) {
+              // Convert to base64 based on file type
+              let csvBase64;
+              let contentType;
+              
+              if (dataFile.name.toLowerCase().endsWith('.csv')) {
+                const csvContent = await csvData.text();
+                csvBase64 = Buffer.from(csvContent, 'utf8').toString('base64');
+                contentType = 'text/csv';
+              } else {
+                // Excel file
+                const csvArrayBuffer = await csvData.arrayBuffer();
+                csvBase64 = Buffer.from(csvArrayBuffer).toString('base64');
+                contentType = 'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet';
+              }
+              
+              attachments.push({
+                filename: dataFile.name,
+                data: csvBase64,
+                contentType: contentType
+              });
+              
+              log('Data file attachment prepared', { 
+                filename: dataFile.name,
+                sizeKB: Math.round(csvBase64.length / 1024),
+                contentType: contentType
+              });
+            } else {
+              log('Data file download failed', { error: csvError?.message, filename: dataFile.name });
+            }
+          } else {
+            log('No data file found in lab-results folder', { 
+              workOrderNumber, 
+              filesInFolder: fileList.map(f => f.name) 
+            });
+          }
+        } else {
+          log('Error listing files in lab-results folder', { 
+            error: listError?.message, 
+            workOrderNumber 
+          });
+        }
+      } catch (csvErr) {
+        log('Data file processing error', { error: csvErr.message });
+      }
+      
+      // Download PDF Report
+      if (report.pdf_file_url) {
+        try {
+          const pdfFileName = report.pdf_file_url.split('/').pop();
+          log('Downloading PDF report for admin email', { filename: pdfFileName });
+          
+          const { data: pdfData, error: pdfError } = await supabase.storage
+            .from('generated-reports')
+            .download(pdfFileName);
+            
+          if (!pdfError && pdfData) {
+            const pdfArrayBuffer = await pdfData.arrayBuffer();
+            const pdfBase64 = Buffer.from(pdfArrayBuffer).toString('base64');
+            
+            attachments.push({
+              filename: pdfFileName,
+              data: pdfBase64,
+              contentType: 'application/pdf'
+            });
+            
+            log('PDF report attachment prepared', { 
+              filename: pdfFileName,
+              sizeKB: Math.round(pdfBase64.length / 1024) 
+            });
+          } else {
+            log('PDF report download failed', { error: pdfError?.message });
+          }
+        } catch (pdfErr) {
+          log('PDF report processing error', { error: pdfErr.message });
+        }
+      }
+      
+      // Download Lab Chain of Custody if available (from the lab-results bucket)
+      if (kitRegistration.lab_chain_of_custody_url || labChainOfCustodyUrl) {
+        try {
+          const cocUrl = kitRegistration.lab_chain_of_custody_url || labChainOfCustodyUrl;
+          const cocFileName = `LAB_COC_${kitInfo.kitCode}.pdf`;
+          
+          // Extract the file path from the URL for lab-results bucket
+          let cocFilePath;
+          if (cocUrl.includes('/lab-results/')) {
+            cocFilePath = cocUrl.split('/lab-results/')[1];
+          } else {
+            // Fallback: construct the path
+            cocFilePath = `${workOrderNumber}/CofC${workOrderNumber}`;
+          }
+          
+          log('Downloading Lab Chain of Custody for admin email', { 
+            filename: cocFileName,
+            filePath: cocFilePath
+          });
+          
+          const { data: cocData, error: cocError } = await supabase.storage
+            .from('lab-results')
+            .download(cocFilePath);
+            
+          if (!cocError && cocData) {
+            const cocArrayBuffer = await cocData.arrayBuffer();
+            const cocBase64 = Buffer.from(cocArrayBuffer).toString('base64');
+            
+            attachments.push({
+              filename: cocFileName,
+              data: cocBase64,
+              contentType: 'application/pdf'
+            });
+            
+            log('Lab Chain of Custody attachment prepared', { 
+              filename: cocFileName,
+              sizeKB: Math.round(cocBase64.length / 1024) 
+            });
+          } else {
+            log('Lab Chain of Custody download failed', { error: cocError?.message });
+          }
+        } catch (cocErr) {
+          log('Lab Chain of Custody processing error', { error: cocErr.message });
+        }
+      } else {
+        log('No Lab Chain of Custody URL available for this report', { workOrderNumber });
+      }
+      
+      log('All attachments prepared for admin email', { 
+        count: attachments.length,
+        filenames: attachments.map(att => att.filename)
+      });
+      
+      // Send email via Loops directly
+      const requestBody = {
+        transactionalId: 'cmdj4w1u62ku8zc0jqy6rfekn',
+        email: 'david.phillips@bookerhq.ca',
+        dataVariables: {
+          customerName: kitInfo.customerName || 'Customer',
+          kitCode: kitInfo.kitCode || kitInfo.displayId || 'UNKNOWN',
+          orderNumber: kitInfo.orderNumber || 'N/A',
+          customerEmail: kitInfo.customerEmail || 'No email available',
+          workOrderNumber: workOrderNumber,
+          sampleNumber: processingResult.sampleNumber,
+          manageReportsUrl: `${process.env.VITE_APP_URL || 'https://mywaterqualityca.netlify.app'}/admin-dashboard#reports`
+        },
+        attachments: attachments
+      };
+
+      if (attachments.length > 0) {
+        const loopsResponse = await fetch('https://app.loops.so/api/v1/transactional', {
+          method: 'POST',
+          headers: {
+            'Authorization': `Bearer ${process.env.VITE_LOOPS_API_KEY}`,
+            'Content-Type': 'application/json',
+          },
+          body: JSON.stringify(requestBody)
+        });
+
+        if (loopsResponse.ok) {
+          log('Admin notification sent successfully', { 
+            reportId, 
+            workOrderNumber,
+            attachmentsCount: attachments.length,
+            kitCode: kitInfo.kitCode || kitInfo.displayId,
+            orderNumber: kitInfo.orderNumber
+          });
+        } else {
+          const errorText = await loopsResponse.text();
+          log('Failed to send admin notification', { 
+            status: loopsResponse.status, 
+            error: errorText,
+            workOrderNumber
+          });
+        }
+      } else {
+        log('No attachments available, skipping admin notification', { workOrderNumber });
+      }
+    }
+  } catch (adminNotificationError) {
+    log('Exception in admin notification', { 
+      error: adminNotificationError.message,
+      stack: adminNotificationError.stack,
+      workOrderNumber
+    });
+    // Don't fail the entire process if admin notification fails
+  }
+  // **ADD ADMIN NOTIFICATION EMAIL - END**
+
     } else {
       await supabase
         .from('reports')
