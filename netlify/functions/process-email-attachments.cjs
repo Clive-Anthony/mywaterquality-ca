@@ -3,6 +3,7 @@
 // Handles ALL extraction and processing logic - Zapier only uploads files
 
 const { createClient } = require('@supabase/supabase-js');
+const { v4: uuidv4 } = require('uuid');
 const { 
   processTestResultsFile,
   updateKitRegistration,
@@ -409,7 +410,19 @@ async function processResultsEmail(emailId, attachments, emailInfo) {
       throw new Error(`No kit registration found for work order: ${workOrderNumber}. Make sure confirmation email was processed first.`);
     }
 
-    // Get detailed customer info from admin view using the kit registration ID
+    // Log what we found for debugging
+    log('Found kit registration', {
+      id: kitRegistration.id,
+      kit_registration_id: kitRegistration.kit_registration_id,
+      display_id: kitRegistration.display_id,
+      kit_code: kitRegistration.kit_code
+    });
+
+    // Generate a proper UUID for the report
+    const { v4: uuidv4 } = require('uuid');
+    const reportId = uuidv4();
+
+    // Get detailed customer info from admin view using the correct ID field
     let kitInfo = {
       displayId: kitRegistration.display_id || kitRegistration.kit_code || 'UNKNOWN',
       kitCode: kitRegistration.kit_code || kitRegistration.display_id || 'UNKNOWN',
@@ -423,14 +436,21 @@ async function processResultsEmail(emailId, attachments, emailInfo) {
     };
 
     try {
-      // Query the admin view to get full customer details
+      // Use kit_registration_id for regular kits, id for legacy kits
+      const queryId = kitRegistration.kit_registration_id || kitRegistration.id;
+      const queryField = kitRegistration.kit_registration_id ? 'kit_id' : 'kit_id';
+      
+      log('Querying admin view', { queryId, queryField });
+
       const { data: kitAdminData, error: kitAdminError } = await supabase
         .from('vw_test_kits_admin')
         .select('*')
-        .eq('kit_id', kitRegistration.kit_registration_id || kitRegistration.id)
-        .single();
+        .eq(queryField, queryId);
 
-      if (!kitAdminError && kitAdminData) {
+      // Handle multiple rows - take the first one
+      if (!kitAdminError && kitAdminData && kitAdminData.length > 0) {
+        const adminData = kitAdminData[0]; // Take first result if multiple
+        
         const formatLocation = (data) => {
           const parts = [];
           if (data.customer_address) parts.push(data.customer_address);
@@ -442,33 +462,37 @@ async function processResultsEmail(emailId, attachments, emailInfo) {
         };
 
         kitInfo = {
-          displayId: kitAdminData.kit_code || kitInfo.displayId,
-          kitCode: kitAdminData.kit_code || kitInfo.kitCode,
-          orderNumber: kitAdminData.order_number || 'N/A',
-          testKitName: kitAdminData.test_kit_name || 'Water Test Kit',
-          testKitId: kitAdminData.test_kit_id || kitAdminData.test_kit_uuid || null,
-          customerFirstName: kitAdminData.customer_first_name || 'Valued Customer',
-          customerName: `${kitAdminData.customer_first_name || ''} ${kitAdminData.customer_last_name || ''}`.trim() || 'Customer',
-          customerEmail: kitAdminData.customer_email || 'unknown@example.com',
-          customerLocation: formatLocation(kitAdminData)
+          displayId: adminData.kit_code || kitInfo.displayId,
+          kitCode: adminData.kit_code || kitInfo.kitCode,
+          orderNumber: adminData.order_number || 'N/A',
+          testKitName: adminData.test_kit_name || 'Water Test Kit',
+          testKitId: adminData.test_kit_id || adminData.test_kit_uuid || null,
+          customerFirstName: adminData.customer_first_name || 'Valued Customer',
+          customerName: `${adminData.customer_first_name || ''} ${adminData.customer_last_name || ''}`.trim() || 'Customer',
+          customerEmail: adminData.customer_email || 'unknown@example.com',
+          customerLocation: formatLocation(adminData)
         };
 
         log('Retrieved customer info from admin view', {
           customerName: kitInfo.customerName,
           customerEmail: kitInfo.customerEmail,
           kitCode: kitInfo.kitCode,
+          orderNumber: kitInfo.orderNumber,
           testKitId: kitInfo.testKitId,
-          orderNumber: kitInfo.orderNumber
+          testKitName: kitInfo.testKitName,
+          dataFound: true,
+          rowsReturned: kitAdminData.length
         });
       } else {
         log('Could not retrieve detailed customer info, using basic kit registration data', {
           error: kitAdminError?.message,
-          kitRegistrationId: kitRegistration.kit_registration_id || kitRegistration.id
+          rowsReturned: kitAdminData?.length || 0,
+          queryId,
+          queryField
         });
         
         // Fallback to basic kit registration data if available
         if (kitRegistration.user_id) {
-          // Try to get user details from profiles table
           const { data: userProfile, error: profileError } = await supabase
             .from('profiles')
             .select('first_name, last_name, email')
@@ -487,7 +511,6 @@ async function processResultsEmail(emailId, attachments, emailInfo) {
         error: adminViewError.message,
         kitRegistrationId: kitRegistration.kit_registration_id || kitRegistration.id
       });
-      // Continue with default values
     }
 
     // Find Excel/CSV attachment for processing
@@ -519,33 +542,35 @@ async function processResultsEmail(emailId, attachments, emailInfo) {
 
     // Save test results to database
     await saveTestResults(
-      kitRegistration.id, 
+      kitRegistration.kit_registration_id || kitRegistration.id, 
       processingResult.results, 
       workOrderNumber
     );
 
     // Update kit registration status
     await updateKitRegistration(
-      kitRegistration.id,
+      kitRegistration.kit_registration_id || kitRegistration.id,
       workOrderNumber,
       processingResult.sampleNumber
     );
 
     // **REUSE existing report generation logic with properly formatted kitInfo**
+    const requestId = Math.random().toString(36).substring(2, 8);
+    
     await processReportGeneration(
       supabase,                           // supabase client
-      kitRegistration.id,                 // reportId (using kit registration ID)
+      reportId,                          // reportId (proper UUID)
       processingResult.sampleNumber,      // sampleNumber from processed results
-      kitRegistration.id,                 // requestId (using kit registration ID again)
-      kitInfo.kitCode,                    // kitOrderCode
-      kitInfo                            // kitInfo (properly formatted object)
+      requestId,                         // requestId (random string for logging)
+      kitInfo.kitCode,                   // kitOrderCode
+      kitInfo                           // kitInfo (properly formatted object)
     );
 
     // Update email record
     const { error: updateError } = await supabase
       .from('emails_received')
       .update({
-        kit_registration_id: kitRegistration.id,
+        kit_registration_id: kitRegistration.kit_registration_id || kitRegistration.id,
         processing_status: 'results_processed'
       })
       .eq('id', emailId);
@@ -555,19 +580,22 @@ async function processResultsEmail(emailId, attachments, emailInfo) {
     }
 
     log('Results email processed successfully', {
-      kitRegistrationId: kitRegistration.id,
+      reportId,
+      kitRegistrationId: kitRegistration.kit_registration_id || kitRegistration.id,
       workOrderNumber,
       resultsCount: processingResult.results.length,
       customerInfo: {
         name: kitInfo.customerName,
         email: kitInfo.customerEmail,
-        location: kitInfo.customerLocation
+        location: kitInfo.customerLocation,
+        testKitId: kitInfo.testKitId
       }
     });
 
     return {
       stage: 'results',
-      kitRegistrationId: kitRegistration.id,
+      reportId,
+      kitRegistrationId: kitRegistration.kit_registration_id || kitRegistration.id,
       workOrderNumber,
       sampleNumber: processingResult.sampleNumber,
       resultsCount: processingResult.results.length,

@@ -174,13 +174,17 @@ const hasColiformContamination = bacteriological.some(param => {
     const showBacteriologicalResults = kitInfo.testKitId === ADVANCED_WATER_TEST_KIT_ID;
 
     console.log('Bacteriological Display Debug:', {
-      testKitId: kitInfo.testKitId,
-      testKitName: kitInfo.testKitName,
-      advancedKitId: ADVANCED_WATER_TEST_KIT_ID,
-      showBacteriologicalResults,
-      hasColiformContamination,
-      bacteriologicalCount: bacteriological.length
-    });
+        testKitId: kitInfo.testKitId,
+        testKitIdType: typeof kitInfo.testKitId,
+        testKitName: kitInfo.testKitName,
+        kitInfo: kitInfo, // Log entire kitInfo object
+        cityKitId: CITY_WATER_TEST_KIT_ID,
+        advancedKitId: ADVANCED_WATER_TEST_KIT_ID,
+        showBacteriologicalResults,
+        hasColiformContamination,
+        bacteriologicalCount: bacteriological.length,
+        bacteriologicalParams: bacteriological.map(b => b.parameter_name)
+      });
 
     return React.createElement(ReactPDF.Document, null,
       // Page 1 - Summary
