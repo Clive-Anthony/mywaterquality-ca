@@ -178,7 +178,6 @@ const hasColiformContamination = bacteriological.some(param => {
         testKitIdType: typeof kitInfo.testKitId,
         testKitName: kitInfo.testKitName,
         kitInfo: kitInfo, // Log entire kitInfo object
-        cityKitId: CITY_WATER_TEST_KIT_ID,
         advancedKitId: ADVANCED_WATER_TEST_KIT_ID,
         showBacteriologicalResults,
         hasColiformContamination,
