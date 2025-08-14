@@ -415,14 +415,18 @@ async function processResultsEmail(emailId, attachments, emailInfo) {
       id: kitRegistration.id,
       kit_registration_id: kitRegistration.kit_registration_id,
       display_id: kitRegistration.display_id,
-      kit_code: kitRegistration.kit_code
+      kit_code: kitRegistration.kit_code,
+      tableSource: kitRegistration.kit_registration_id ? 'kit_registrations' : 'legacy_kit_registrations'
     });
 
     // Generate a proper UUID for the report
     const { v4: uuidv4 } = require('uuid');
     const reportId = uuidv4();
 
-    // Get detailed customer info from admin view using the correct ID field
+    // Determine if this is a regular or legacy kit
+    const isLegacyKit = !kitRegistration.kit_registration_id;
+    
+    // Get detailed customer info from admin view
     let kitInfo = {
       displayId: kitRegistration.display_id || kitRegistration.kit_code || 'UNKNOWN',
       kitCode: kitRegistration.kit_code || kitRegistration.display_id || 'UNKNOWN',
@@ -436,20 +440,20 @@ async function processResultsEmail(emailId, attachments, emailInfo) {
     };
 
     try {
-      // Use kit_registration_id for regular kits, id for legacy kits
-      const queryId = kitRegistration.kit_registration_id || kitRegistration.id;
-      const queryField = kitRegistration.kit_registration_id ? 'kit_id' : 'kit_id';
+      // Query the admin view with the correct kit_id based on kit type
+      const queryId = isLegacyKit 
+        ? kitRegistration.id  // For legacy kits, use the direct id
+        : kitRegistration.kit_registration_id; // For regular kits, use kit_registration_id
       
-      log('Querying admin view', { queryId, queryField });
+      log('Querying admin view', { queryId, isLegacyKit, kitRegId: kitRegistration.kit_registration_id });
 
       const { data: kitAdminData, error: kitAdminError } = await supabase
         .from('vw_test_kits_admin')
         .select('*')
-        .eq(queryField, queryId);
+        .eq('kit_id', queryId);
 
-      // Handle multiple rows - take the first one
       if (!kitAdminError && kitAdminData && kitAdminData.length > 0) {
-        const adminData = kitAdminData[0]; // Take first result if multiple
+        const adminData = kitAdminData[0];
         
         const formatLocation = (data) => {
           const parts = [];
@@ -466,7 +470,7 @@ async function processResultsEmail(emailId, attachments, emailInfo) {
           kitCode: adminData.kit_code || kitInfo.kitCode,
           orderNumber: adminData.order_number || 'N/A',
           testKitName: adminData.test_kit_name || 'Water Test Kit',
-          testKitId: adminData.test_kit_id || adminData.test_kit_uuid || null,
+          testKitId: adminData.test_kit_id || null,
           customerFirstName: adminData.customer_first_name || 'Valued Customer',
           customerName: `${adminData.customer_first_name || ''} ${adminData.customer_last_name || ''}`.trim() || 'Customer',
           customerEmail: adminData.customer_email || 'unknown@example.com',
@@ -481,35 +485,86 @@ async function processResultsEmail(emailId, attachments, emailInfo) {
           testKitId: kitInfo.testKitId,
           testKitName: kitInfo.testKitName,
           dataFound: true,
-          rowsReturned: kitAdminData.length
+          isLegacyKit
         });
       } else {
-        log('Could not retrieve detailed customer info, using basic kit registration data', {
+        log('Could not retrieve detailed customer info from admin view, querying direct tables', {
           error: kitAdminError?.message,
           rowsReturned: kitAdminData?.length || 0,
           queryId,
-          queryField
+          isLegacyKit
         });
         
-        // Fallback to basic kit registration data if available
-        if (kitRegistration.user_id) {
-          const { data: userProfile, error: profileError } = await supabase
-            .from('profiles')
-            .select('first_name, last_name, email')
-            .eq('id', kitRegistration.user_id)
+        // Fallback: Query the kit tables directly
+        if (isLegacyKit) {
+          // Query legacy_kit_registrations and related tables
+          const { data: legacyData, error: legacyError } = await supabase
+            .from('legacy_kit_registrations')
+            .select(`
+              *,
+              test_kits (id, name, description),
+              profiles (first_name, last_name, email)
+            `)
+            .eq('id', kitRegistration.id)
             .single();
 
-          if (!profileError && userProfile) {
-            kitInfo.customerFirstName = userProfile.first_name || 'Valued Customer';
-            kitInfo.customerName = `${userProfile.first_name || ''} ${userProfile.last_name || ''}`.trim() || 'Customer';
-            kitInfo.customerEmail = userProfile.email || 'unknown@example.com';
+          if (!legacyError && legacyData) {
+            kitInfo = {
+              displayId: legacyData.display_id || legacyData.kit_code || kitInfo.displayId,
+              kitCode: legacyData.kit_code || kitInfo.kitCode,
+              orderNumber: `LEGACY-${legacyData.kit_code}`,
+              testKitName: legacyData.test_kits?.name || 'Water Test Kit',
+              testKitId: legacyData.test_kits?.id || null,
+              customerFirstName: legacyData.profiles?.first_name || 'Valued Customer',
+              customerName: `${legacyData.profiles?.first_name || ''} ${legacyData.profiles?.last_name || ''}`.trim() || 'Customer',
+              customerEmail: legacyData.profiles?.email || 'unknown@example.com',
+              customerLocation: [legacyData.address, legacyData.city, legacyData.province, legacyData.postal_code].filter(Boolean).join(', ') || 'Not specified'
+            };
+            log('Retrieved legacy kit info from direct query', { kitInfo });
+          }
+        } else {
+          // Query regular kit_registrations and related tables
+          const { data: regularData, error: regularError } = await supabase
+            .from('kit_registrations')
+            .select(`
+              *,
+              order_items (
+                test_kit_id,
+                test_kits (id, name, description),
+                orders (
+                  order_number,
+                  shipping_address
+                )
+              ),
+              profiles (first_name, last_name, email)
+            `)
+            .eq('kit_registration_id', kitRegistration.kit_registration_id)
+            .single();
+
+          if (!regularError && regularData) {
+            const testKit = regularData.order_items?.test_kits;
+            const order = regularData.order_items?.orders;
+            const profile = regularData.profiles;
+            
+            kitInfo = {
+              displayId: regularData.display_id || kitInfo.displayId,
+              kitCode: regularData.kit_code || regularData.display_id || kitInfo.kitCode,
+              orderNumber: order?.order_number || 'N/A',
+              testKitName: testKit?.name || 'Water Test Kit',
+              testKitId: testKit?.id || null,
+              customerFirstName: profile?.first_name || 'Valued Customer',
+              customerName: `${profile?.first_name || ''} ${profile?.last_name || ''}`.trim() || 'Customer',
+              customerEmail: profile?.email || 'unknown@example.com',
+              customerLocation: [regularData.address, regularData.city, regularData.province, regularData.postal_code].filter(Boolean).join(', ') || 'Not specified'
+            };
+            log('Retrieved regular kit info from direct query', { kitInfo });
           }
         }
       }
     } catch (adminViewError) {
-      log('Error querying admin view for customer details', { 
+      log('Error querying for customer details', { 
         error: adminViewError.message,
-        kitRegistrationId: kitRegistration.kit_registration_id || kitRegistration.id
+        stack: adminViewError.stack
       });
     }
 
@@ -554,10 +609,37 @@ async function processResultsEmail(emailId, attachments, emailInfo) {
       processingResult.sampleNumber
     );
 
+    // Create a proper report record in the database
+    const reportRecord = {
+      report_id: reportId,
+      sample_number: processingResult.sampleNumber,
+      work_order_number: workOrderNumber,
+      processing_status: 'processing',
+      report_type: 'registered',
+      user_id: kitRegistration.user_id
+    };
+
+    if (isLegacyKit) {
+      reportRecord.legacy_kit_registration_id = kitRegistration.id;
+    } else {
+      reportRecord.kit_registration_id = kitRegistration.kit_registration_id;
+    }
+
+    const { data: report, error: reportError } = await supabase
+      .from('reports')
+      .insert([reportRecord])
+      .select()
+      .single();
+
+    if (reportError) {
+      log('Failed to create report record', { error: reportError.message });
+      throw new Error(`Failed to create report record: ${reportError.message}`);
+    }
+
     // **REUSE existing report generation logic with properly formatted kitInfo**
     const requestId = Math.random().toString(36).substring(2, 8);
     
-    await processReportGeneration(
+    const reportResult = await processReportGeneration(
       supabase,                           // supabase client
       reportId,                          // reportId (proper UUID)
       processingResult.sampleNumber,      // sampleNumber from processed results
@@ -565,6 +647,44 @@ async function processResultsEmail(emailId, attachments, emailInfo) {
       kitInfo.kitCode,                   // kitOrderCode
       kitInfo                           // kitInfo (properly formatted object)
     );
+
+    // Update report status based on generation result
+    if (reportResult.success) {
+      await supabase
+        .from('reports')
+        .update({ 
+          pdf_file_url: reportResult.pdfUrl,
+          processing_status: 'completed'
+        })
+        .eq('report_id', reportId);
+
+      // Update kit registration with report ID
+      if (isLegacyKit) {
+        await supabase
+          .from('legacy_kit_registrations')
+          .update({ 
+            report_id: reportId,
+            status: 'report_generated'
+          })
+          .eq('id', kitRegistration.id);
+      } else {
+        await supabase
+          .from('kit_registrations')
+          .update({ 
+            report_id: reportId,
+            status: 'report_generated'
+          })
+          .eq('kit_registration_id', kitRegistration.kit_registration_id);
+      }
+    } else {
+      await supabase
+        .from('reports')
+        .update({ 
+          processing_status: 'failed',
+          error_message: reportResult.error
+        })
+        .eq('report_id', reportId);
+    }
 
     // Update email record
     const { error: updateError } = await supabase
@@ -584,11 +704,13 @@ async function processResultsEmail(emailId, attachments, emailInfo) {
       kitRegistrationId: kitRegistration.kit_registration_id || kitRegistration.id,
       workOrderNumber,
       resultsCount: processingResult.results.length,
+      reportGenerated: reportResult.success,
       customerInfo: {
         name: kitInfo.customerName,
         email: kitInfo.customerEmail,
         location: kitInfo.customerLocation,
-        testKitId: kitInfo.testKitId
+        testKitId: kitInfo.testKitId,
+        testKitName: kitInfo.testKitName
       }
     });
 
@@ -599,11 +721,11 @@ async function processResultsEmail(emailId, attachments, emailInfo) {
       workOrderNumber,
       sampleNumber: processingResult.sampleNumber,
       resultsCount: processingResult.results.length,
-      reportGenerated: true
+      reportGenerated: reportResult.success
     };
 
   } catch (error) {
-    log('Error processing results email', { error: error.message });
+    log('Error processing results email', { error: error.message, stack: error.stack });
     throw error;
   }
 }

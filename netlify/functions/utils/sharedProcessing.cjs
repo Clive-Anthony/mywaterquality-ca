@@ -379,21 +379,36 @@ function convertExcelToCSVFallback(buffer) {
 }
 
 /**
- * Find kit registration by work order number
+ * Find kit registration by work order number - check both regular and legacy tables
  */
 async function findKitRegistrationByWorkOrder(workOrderNumber) {
   try {
-    const { data, error } = await supabase
+    // First try regular kit registrations
+    const { data: regularKit, error: regularError } = await supabase
       .from('kit_registrations')
       .select('*')
       .eq('work_order_number', workOrderNumber)
       .single();
 
-    if (error && error.code !== 'PGRST116') { // PGRST116 = no rows returned
-      throw error;
+    if (!regularError && regularKit) {
+      log('Found regular kit registration by work order', { workOrderNumber, kitId: regularKit.kit_registration_id });
+      return regularKit;
     }
 
-    return data;
+    // If not found, try legacy kit registrations
+    const { data: legacyKit, error: legacyError } = await supabase
+      .from('legacy_kit_registrations')
+      .select('*')
+      .eq('work_order_number', workOrderNumber)
+      .single();
+
+    if (!legacyError && legacyKit) {
+      log('Found legacy kit registration by work order', { workOrderNumber, kitId: legacyKit.id });
+      return legacyKit;
+    }
+
+    log('No kit registration found by work order', { workOrderNumber });
+    return null;
     
   } catch (error) {
     log('Error finding kit registration by work order', { 
