@@ -181,27 +181,32 @@ async function processCSVData(csvText, workOrderNumber, sampleNumber) {
  * Parse individual CSV row into standardized format
  */
 function parseCSVRow(row) {
-  // This function would contain the logic to parse each row
-  // and map it to your parameter standards
+  // Use exact column names from Excel file (they match the database schema)
+  const parameterName = row['Parameter'];
+  const result = row['Result'];
+  const unit = row['Units'];
+  const method = row['Method'];
+  const detectionLimit = row['MDL'];
   
-  // Look for parameter name in various possible columns
-  const parameterName = row['Parameter'] || row['Analyte'] || row['Test'] || null;
-  const result = row['Result'] || row['Value'] || row['Concentration'] || null;
-  const unit = row['Unit'] || row['Units'] || null;
-  const method = row['Method'] || row['Test Method'] || null;
-  const detectionLimit = row['MDL'] || row['Detection Limit'] || null;
-  
-  if (!parameterName || result === null) {
+  if (!parameterName || result === null || result === undefined) {
     return null; // Skip invalid rows
   }
   
   return {
-    parameter_name: parameterName.trim(),
-    result_value: parseFloat(result) || result,
-    unit: unit?.trim(),
-    method: method?.trim(),
-    detection_limit: detectionLimit ? parseFloat(detectionLimit) : null,
-    raw_data: row // Keep original row data
+    // Map to database column names (which match Excel exactly)
+    work_order_number: row['Work Order #'],
+    sample_number: row['Sample #'],
+    sample_date: row['Sample Date'],
+    matrix: row['Matrix'],
+    sample_description: row['Sample Description'],
+    method: method,
+    parameter: parameterName,
+    mdl: detectionLimit,
+    result: result,
+    units: unit,
+    received_date: row['Received Date'],
+    analysis_date: row['Analysis Date'],
+    notes: row['Notes']
   };
 }
 
@@ -269,18 +274,23 @@ async function updateKitRegistration(kitRegistrationId, workOrderNumber, sampleN
 /**
  * Save test results to database
  */
-async function saveTestResults(kitRegistrationId, results, workOrderNumber) {
+async function saveTestResults(kitRegistrationId, results, workOrderNumber, sampleNumber) {
   try {
-    // Prepare results for insertion
+    // Map results directly to database schema (Excel columns match DB columns)
     const testResultsData = results.map(result => ({
-      kit_registration_id: kitRegistrationId,
-      work_order_number: workOrderNumber,
-      parameter_name: result.parameter_name,
-      result_value: result.result_value,
-      unit: result.unit,
-      method: result.method,
-      detection_limit: result.detection_limit,
-      raw_data: result.raw_data
+      "Work Order #": parseInt(result.work_order_number || workOrderNumber),
+      "Sample #": parseInt(result.sample_number || sampleNumber || "1"),
+      "Sample Date": result.sample_date,
+      "Matrix": result.matrix,
+      "Sample Description": result.sample_description,
+      "Method": result.method,
+      "Parameter": result.parameter,
+      "MDL": result.mdl,
+      "Result": result.result,
+      "Units": result.units,
+      "Received Date": result.received_date,
+      "Analysis Date": result.analysis_date,
+      "Notes": result.notes
     }));
 
     // Insert into test_results_raw table
