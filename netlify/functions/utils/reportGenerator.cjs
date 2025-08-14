@@ -572,9 +572,13 @@ function createRoadSaltAssessment(reportData) {
       )
     ),
     
-    // Assessment Result
-    React.createElement(ReactPDF.View, { style: hasContamination ? styles.recommendationsRed : styles.recommendationsGreen },
-      React.createElement(ReactPDF.Text, { style: styles.recommendationsTitle },
+    // UPDATED: Assessment Result with proper colors
+    React.createElement(ReactPDF.View, { 
+      style: hasContamination ? styles.recommendationsRed : styles.recommendationsGreen 
+    },
+      React.createElement(ReactPDF.Text, { 
+        style: hasContamination ? styles.recommendationsTitleRed : styles.recommendationsTitleGreen
+      },
         `Assessment Result: ${hasContamination ? 'Road Salt Impact Detected' : 'No Road Salt Impact'}`
       )
     ),
@@ -677,10 +681,42 @@ function createParametersTable(parameters, type) {
     
     // Table rows
     ...parameters.map((param, index) => {
-      const isExceeded = isHealth 
-        ? param.compliance_status === 'EXCEEDS_MAC'
-        : param.compliance_status === 'EXCEEDS_AO' || 
-          (param.compliance_status === 'AO_RANGE_VALUE' && param.overall_compliance_status === 'WARNING');
+      // UPDATED: Fix the exceeded logic to check multiple compliance statuses
+      let isExceeded = false;
+      
+      if (isHealth) {
+        isExceeded = param.compliance_status === 'EXCEEDS_MAC' || 
+                    param.mac_compliance_status === 'EXCEEDS_MAC';
+      } else {
+        isExceeded = param.compliance_status === 'EXCEEDS_AO' || 
+                    param.ao_compliance_status === 'EXCEEDS_AO' ||
+                    (param.compliance_status === 'AO_RANGE_VALUE' && param.overall_compliance_status === 'WARNING') ||
+                    (param.ao_compliance_status === 'AO_RANGE_VALUE' && param.overall_compliance_status === 'WARNING');
+      }
+      
+      // ADDITIONAL: Check numeric comparison as fallback
+      if (!isExceeded && param.result_numeric && param.objective_value) {
+        const resultValue = parseFloat(param.result_numeric);
+        const objectiveValue = parseFloat(param.objective_value);
+        
+        if (!isNaN(resultValue) && !isNaN(objectiveValue)) {
+          // For most parameters, exceeding means result > objective
+          // For pH, it's a range check
+          if (param.parameter_name?.toLowerCase().includes('ph')) {
+            // pH should be within range (e.g., 6.5-8.5)
+            const phRange = param.objective_display || param.mac_display_value || param.ao_display_value || '';
+            if (phRange.includes('-')) {
+              const [minPh, maxPh] = phRange.split('-').map(v => parseFloat(v.trim()));
+              if (!isNaN(minPh) && !isNaN(maxPh)) {
+                isExceeded = resultValue < minPh || resultValue > maxPh;
+              }
+            }
+          } else {
+            // For other parameters, check if result exceeds objective
+            isExceeded = resultValue > objectiveValue;
+          }
+        }
+      }
       
       return React.createElement(ReactPDF.View, { 
         style: [styles.tableRow, isExceeded ? styles.exceededRow : null, index % 2 === 1 ? styles.tableRowEven : null] 
@@ -852,7 +888,7 @@ const styles = {
     fontSize: 16,
     fontFamily: 'Helvetica-Bold',
     color: '#000000',
-    marginBottom: 4
+    marginBottom: 8
   },
   headerSubtitle: {
     fontSize: 11,

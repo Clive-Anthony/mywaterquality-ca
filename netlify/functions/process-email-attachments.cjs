@@ -453,17 +453,20 @@ async function processResultsEmail(emailId, attachments, emailInfo) {
     .select('*')
     .eq('kit_id', queryId);
 
+  let viewUsed = 'production';
+
   // If not found in production view, try development view
   if ((!kitAdminData || kitAdminData.length === 0) && !kitAdminError) {
     log('Kit not found in production admin view, trying development view', { queryId });
     
-    const { data: devKitAdminData, error: devKitAdminError } = await supabase
+    const { data: devData, error: devError } = await supabase
       .from('vw_test_kits_admin_dev')
       .select('*')
       .eq('kit_id', queryId);
     
-    kitAdminData = devKitAdminData;
-    kitAdminError = devKitAdminError;
+    kitAdminData = devData;
+    kitAdminError = devError;
+    viewUsed = 'development';
     
     if (kitAdminData && kitAdminData.length > 0) {
       log('Found kit in development admin view', { queryId, rowCount: kitAdminData.length });
@@ -504,7 +507,7 @@ async function processResultsEmail(emailId, attachments, emailInfo) {
       testKitName: kitInfo.testKitName,
       dataFound: true,
       isLegacyKit,
-      viewUsed: kitAdminData === devKitAdminData ? 'development' : 'production'
+      viewUsed
     });
   } else {
     log('Could not retrieve detailed customer info from admin views, querying direct tables', {
@@ -513,8 +516,6 @@ async function processResultsEmail(emailId, attachments, emailInfo) {
       queryId,
       isLegacyKit
     });
-    
-    // Rest of the fallback logic remains the same...
         
         // Fallback: Query the kit tables directly
         if (isLegacyKit) {
