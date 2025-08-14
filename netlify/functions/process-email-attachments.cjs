@@ -109,6 +109,34 @@ exports.handler = async (event, context) => {
       stack: error.stack
     });
 
+    // **ADD ERROR NOTIFICATION EMAIL**
+    try {
+      // Try to get context information for the error email
+      let errorContext = { emailId: email_id };
+      
+      // Try to get email record and extract info for better error context
+      try {
+        const emailRecord = await getEmailRecord(email_id);
+        const emailInfo = analyzeEmailSubject(emailRecord.subject, emailRecord.work_order_number);
+        
+        errorContext = {
+          emailId: email_id,
+          workOrderNumber: emailInfo.work_order_number,
+          projectNumber: emailInfo.project_number,
+          kitCode: emailInfo.project_number || emailInfo.work_order_number,
+          emailType: emailInfo.email_type,
+          stage: 'main_processing'
+        };
+      } catch (contextError) {
+        // If we can't get context, just use what we have
+        log('Could not get error context', { error: contextError.message });
+      }
+
+      await sendErrorNotificationEmail(error, errorContext);
+    } catch (notificationError) {
+      log('Failed to send error notification', { error: notificationError.message });
+    }
+
     // Update status to failed
     await updateEmailStatus(email_id, 'failed', error.message);
 
@@ -121,6 +149,74 @@ exports.handler = async (event, context) => {
     };
   }
 };
+
+/**
+ * Send error notification email to admin when automated processing fails
+ */
+async function sendErrorNotificationEmail(error, context = {}) {
+  try {
+    const {
+      emailId,
+      workOrderNumber,
+      projectNumber,
+      kitCode,
+      emailType,
+      stage = 'unknown'
+    } = context;
+
+    log('Sending error notification email', { 
+      error: error.message, 
+      context,
+      recipientEmail: 'david.phillips@bookerhq.ca'
+    });
+
+    // Prepare email data
+    const emailData = {
+      transactionalId: 'cmebqfwbm03b1y00ikw8f3rbp', // You'll need to create this template
+      email: 'david.phillips@bookerhq.ca',
+      dataVariables: {
+        errorMessage: error.message || 'An unknown error occurred during automated processing',
+        kitCode: kitCode || projectNumber || workOrderNumber || 'Unknown',
+        workOrderNumber: workOrderNumber || 'N/A',
+        projectNumber: projectNumber || 'N/A',
+        emailType: emailType || 'unknown',
+        processingStage: stage,
+        timestamp: new Date().toISOString(),
+        emailId: emailId || 'N/A',
+        errorDetails: error.stack ? error.stack.substring(0, 500) : 'No stack trace available'
+      }
+    };
+
+    const loopsResponse = await fetch('https://app.loops.so/api/v1/transactional', {
+      method: 'POST',
+      headers: {
+        'Authorization': `Bearer ${process.env.VITE_LOOPS_API_KEY}`,
+        'Content-Type': 'application/json',
+      },
+      body: JSON.stringify(emailData)
+    });
+
+    if (loopsResponse.ok) {
+      log('Error notification email sent successfully', { 
+        kitCode: kitCode || 'Unknown',
+        errorMessage: error.message
+      });
+    } else {
+      const errorText = await loopsResponse.text();
+      log('Failed to send error notification email', { 
+        status: loopsResponse.status, 
+        error: errorText
+      });
+    }
+
+  } catch (emailError) {
+    log('Exception while sending error notification email', { 
+      originalError: error.message,
+      emailError: emailError.message
+    });
+    // Don't throw - we don't want email failures to mask the original error
+  }
+}
 
 /**
  * Get email record from database
@@ -389,6 +485,16 @@ async function processConfirmationEmail(emailId, attachments, emailInfo) {
 
   } catch (error) {
     log('Error processing confirmation email', { error: error.message });
+
+    await sendErrorNotificationEmail(error, {
+      emailId,
+      workOrderNumber: emailInfo.work_order_number,
+      projectNumber: emailInfo.project_number,
+      kitCode: emailInfo.project_number,
+      emailType: 'confirmation',
+      stage: 'confirmation_processing'
+    });
+
     throw error;
   }
 }
@@ -977,6 +1083,16 @@ async function processResultsEmail(emailId, attachments, emailInfo) {
 
   } catch (error) {
     log('Error processing results email', { error: error.message, stack: error.stack });
+
+    await sendErrorNotificationEmail(error, {
+      emailId,
+      workOrderNumber: emailInfo.work_order_number,
+      projectNumber: emailInfo.project_number,
+      kitCode: kitInfo?.kitCode || emailInfo.project_number || emailInfo.work_order_number,
+      emailType: 'results',
+      stage: 'results_processing'
+    });
+
     throw error;
   }
 }
