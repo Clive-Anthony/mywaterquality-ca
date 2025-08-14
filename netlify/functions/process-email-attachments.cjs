@@ -13,7 +13,7 @@ const {
 } = require('./utils/sharedProcessing');
 
 // Import existing report generator (preserve exactly as-is)
-const { generateAndSendReport } = require('./utils/reportGenerator');
+const { processReportGeneration } = require('./utils/reportGenerator');
 
 // Initialize Supabase client
 const supabase = createClient(
@@ -451,7 +451,14 @@ async function processResultsEmail(emailId, attachments, emailInfo) {
     );
 
     // **REUSE existing report generation logic**
-    await generateAndSendReport(kitRegistration);
+    await processReportGeneration(
+    supabase,                           // supabase client
+    kitRegistration.id,                 // reportId (using kit registration ID)
+    processingResult.sampleNumber,      // sampleNumber from processed results
+    kitRegistration.id,                 // requestId (using kit registration ID again)
+    kitRegistration.kit_code || kitRegistration.display_id || 'UNKNOWN', // kitOrderCode
+    kitRegistration                     // kitInfo (entire kit registration object)
+  );
 
     // Update email record
     const { error: updateError } = await supabase

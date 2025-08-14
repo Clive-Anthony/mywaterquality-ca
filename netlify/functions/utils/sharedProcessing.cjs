@@ -90,7 +90,56 @@ function extractWorkOrderAndSampleFromExcel(worksheet) {
   let workOrderNumber = null;
   let sampleNumber = null;
   
-  // Search through cells for work order and sample info
+  try {
+    // Get the range of the worksheet
+    const range = XLSX.utils.decode_range(worksheet['!ref']);
+    
+    // Get header row (first row)
+    const headerRow = [];
+    for (let col = range.s.c; col <= range.e.c; col++) {
+      const cellAddress = XLSX.utils.encode_cell({ r: 0, c: col });
+      const cell = worksheet[cellAddress];
+      headerRow.push(cell ? cell.v : '');
+    }
+    
+    // Find the column indexes for Work Order # and Sample #
+    const workOrderIndex = headerRow.indexOf('Work Order #');
+    const sampleIndex = headerRow.indexOf('Sample #');
+    
+    // Get the first data row (row 1, since row 0 is headers)
+    if (range.e.r >= 1) { // Make sure there's at least one data row
+      
+      if (workOrderIndex >= 0) {
+        const workOrderCell = XLSX.utils.encode_cell({ r: 1, c: workOrderIndex });
+        const workOrderCellData = worksheet[workOrderCell];
+        if (workOrderCellData) {
+          workOrderNumber = workOrderCellData.v?.toString();
+        }
+      }
+      
+      if (sampleIndex >= 0) {
+        const sampleCell = XLSX.utils.encode_cell({ r: 1, c: sampleIndex });
+        const sampleCellData = worksheet[sampleCell];
+        if (sampleCellData) {
+          sampleNumber = sampleCellData.v?.toString();
+        }
+      }
+    }
+    
+  } catch (error) {
+    log('Error extracting work order and sample from Excel', { error: error.message });
+    // Fall back to the old method if the new one fails
+    return extractWorkOrderAndSampleFromExcelFallback(worksheet);
+  }
+  
+  return { workOrderNumber, sampleNumber };
+}
+
+// Fallback method (your original logic)
+function extractWorkOrderAndSampleFromExcelFallback(worksheet) {
+  let workOrderNumber = null;
+  let sampleNumber = null;
+  
   const range = XLSX.utils.decode_range(worksheet['!ref']);
   
   for (let row = range.s.r; row <= range.e.r; row++) {
@@ -103,7 +152,6 @@ function extractWorkOrderAndSampleFromExcel(worksheet) {
         
         // Look for work order pattern
         if (cellValue.includes('Work Order') || cellValue.includes('WO#')) {
-          // Extract number following work order
           const woMatch = cellValue.match(/(?:Work Order|WO#)\s*:?\s*(\d+)/i);
           if (woMatch) {
             workOrderNumber = woMatch[1];
@@ -133,17 +181,20 @@ function extractWorkOrderAndSampleFromCSV(csvText) {
   
   const lines = csvText.split('\n');
   
-  for (const line of lines.slice(0, 20)) { // Check first 20 lines
-    // Look for work order pattern
-    const woMatch = line.match(/(?:Work Order|WO#)\s*:?\s*(\d+)/i);
-    if (woMatch) {
-      workOrderNumber = woMatch[1];
+  // Check if first data row has the info we need
+  if (lines.length > 1) {
+    const headers = lines[0].split(',');
+    const firstDataRow = lines[1].split(',');
+    
+    const workOrderIndex = headers.indexOf('Work Order #');
+    const sampleIndex = headers.indexOf('Sample #');
+    
+    if (workOrderIndex >= 0 && firstDataRow[workOrderIndex]) {
+      workOrderNumber = firstDataRow[workOrderIndex].trim();
     }
     
-    // Look for sample number pattern  
-    const sampleMatch = line.match(/Sample\s*#?\s*:?\s*(\d+)/i);
-    if (sampleMatch) {
-      sampleNumber = sampleMatch[1];
+    if (sampleIndex >= 0 && firstDataRow[sampleIndex]) {
+      sampleNumber = firstDataRow[sampleIndex].trim();
     }
   }
   
