@@ -32,10 +32,10 @@ const PARAMETER_STANDARDS = new Map();
  */
 async function processTestResultsFile(fileData) {
   try {
-    log('Starting file processing', { 
-      filename: fileData.fileName,
-      size: fileData.fileBuffer?.length 
-    });
+    // log('Starting file processing', { 
+    //   filename: fileData.fileName,
+    //   size: fileData.fileBuffer?.length 
+    // });
 
     let csvData;
     let workOrderNumber;
@@ -441,14 +441,14 @@ async function updateKitRegistration(kitRegistrationId, workOrderNumber, sampleN
       throw error;
     }
 
-    log('Updated kit registration successfully', { 
-      kitRegistrationId, 
-      workOrderNumber, 
-      sampleNumber, 
-      isLegacyKit,
-      hasLabChainOfCustody: !!labChainOfCustodyUrl,
-      labChainOfCustodyUrl
-    });
+    // log('Updated kit registration successfully', { 
+    //   kitRegistrationId, 
+    //   workOrderNumber, 
+    //   sampleNumber, 
+    //   isLegacyKit,
+    //   hasLabChainOfCustody: !!labChainOfCustodyUrl,
+    //   labChainOfCustodyUrl
+    // });
     
     // **RETURN BOTH DATA AND LAB CHAIN OF CUSTODY URL**
     return {
@@ -500,7 +500,7 @@ async function saveTestResults(kitRegistrationId, results, workOrderNumber, samp
       throw error;
     }
 
-    log(`Saved ${data.length} test results to database`);
+    // log(`Saved ${data.length} test results to database`);
     return data;
     
   } catch (error) {
@@ -537,7 +537,7 @@ async function findKitRegistrationByWorkOrder(workOrderNumber) {
       .single();
 
     if (!regularError && regularKit) {
-      log('Found regular kit registration by work order', { workOrderNumber, kitId: regularKit.kit_registration_id });
+      // log('Found regular kit registration by work order', { workOrderNumber, kitId: regularKit.kit_registration_id });
       return regularKit;
     }
 
@@ -549,7 +549,7 @@ async function findKitRegistrationByWorkOrder(workOrderNumber) {
       .single();
 
     if (!legacyError && legacyKit) {
-      log('Found legacy kit registration by work order', { workOrderNumber, kitId: legacyKit.id });
+      // log('Found legacy kit registration by work order', { workOrderNumber, kitId: legacyKit.id });
       return legacyKit;
     }
 

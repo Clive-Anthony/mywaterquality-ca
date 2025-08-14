@@ -174,7 +174,7 @@ async function sendErrorNotificationEmail(error, context = {}) {
     // Prepare email data
     const emailData = {
       transactionalId: 'cmebqfwbm03b1y00ikw8f3rbp', // You'll need to create this template
-      email: 'david.phillips@bookerhq.ca',
+      email: 'info@mywaterquality.ca',
       dataVariables: {
         errorMessage: error.message || 'An unknown error occurred during automated processing',
         kitCode: kitCode || projectNumber || workOrderNumber || 'Unknown',
@@ -246,7 +246,7 @@ async function getEmailRecord(emailId) {
  * Now enhanced to work with pre-extracted work order numbers
  */
 function analyzeEmailSubject(subject, preExtractedWorkOrder = null) {
-  log('Analyzing email subject', { subject, preExtractedWorkOrder });
+  // log('Analyzing email subject', { subject, preExtractedWorkOrder });
 
   // Check if it's a confirmation email
   const confirmationMatch = subject.match(/Work Order Confirmation Report #\s*(\d+).*Project #\s*([A-Z0-9]+)/i);
@@ -313,7 +313,7 @@ async function updateEmailRecord(emailId, updateData) {
       throw error;
     }
 
-    log('Updated email record', { emailId, updateData });
+    // log('Updated email record', { emailId, updateData });
   } catch (error) {
     log('Error updating email record', { emailId, error: error.message });
     throw error;
@@ -351,7 +351,7 @@ async function downloadEmailAttachments(emailId) {
       throw listError;
     }
 
-    log(`Found ${fileList.length} files in storage folder ${workOrderNumber}/`);
+    // log(`Found ${fileList.length} files in storage folder ${workOrderNumber}/`);
 
     // Download each file
     const attachments = [];
@@ -382,7 +382,7 @@ async function downloadEmailAttachments(emailId) {
           attachment_type: attachmentType
         });
 
-        log(`Downloaded file: ${file.name} (${buffer.length} bytes, type: ${attachmentType})`);
+        // log(`Downloaded file: ${file.name} (${buffer.length} bytes, type: ${attachmentType})`);
 
       } catch (error) {
         log(`Error downloading file ${file.name}`, { error: error.message });
@@ -421,7 +421,7 @@ function determineAttachmentType(filename) {
  */
 async function processConfirmationEmail(emailId, attachments, emailInfo) {
   try {
-    log('Processing confirmation email', { emailId, emailInfo });
+    // log('Processing confirmation email', { emailId, emailInfo });
 
     const projectNumber = emailInfo.project_number;
     const workOrderNumber = emailInfo.work_order_number;
@@ -470,11 +470,11 @@ async function processConfirmationEmail(emailId, attachments, emailInfo) {
         .eq('id', kitRegistration.id);
     }
 
-    log('Confirmation email processed successfully', {
-      kitRegistrationId: kitRegistration.id,
-      projectNumber,
-      workOrderNumber
-    });
+    // log('Confirmation email processed successfully', {
+    //   kitRegistrationId: kitRegistration.id,
+    //   projectNumber,
+    //   workOrderNumber
+    // });
 
     return {
       stage: 'confirmation',
@@ -508,7 +508,7 @@ async function processResultsEmail(emailId, attachments, emailInfo) {
   let kitInfo = null;
   
   try {
-    log('Processing results email', { emailId, emailInfo });
+    // log('Processing results email', { emailId, emailInfo });
 
     const workOrderNumber = emailInfo.work_order_number;
 
@@ -520,13 +520,13 @@ async function processResultsEmail(emailId, attachments, emailInfo) {
     }
 
     // Log what we found for debugging
-    log('Found kit registration', {
-      id: kitRegistration.id,
-      kit_registration_id: kitRegistration.kit_registration_id,
-      display_id: kitRegistration.display_id,
-      kit_code: kitRegistration.kit_code,
-      tableSource: kitRegistration.kit_registration_id ? 'kit_registrations' : 'legacy_kit_registrations'
-    });
+    // log('Found kit registration', {
+    //   id: kitRegistration.id,
+    //   kit_registration_id: kitRegistration.kit_registration_id,
+    //   display_id: kitRegistration.display_id,
+    //   kit_code: kitRegistration.kit_code,
+    //   tableSource: kitRegistration.kit_registration_id ? 'kit_registrations' : 'legacy_kit_registrations'
+    // });
 
     // Generate a proper UUID for the report
     const { v4: uuidv4 } = require('uuid');
@@ -554,7 +554,7 @@ async function processResultsEmail(emailId, attachments, emailInfo) {
     ? kitRegistration.id  // For legacy kits, use the direct id
     : kitRegistration.kit_registration_id; // For regular kits, use kit_registration_id
   
-  log('Querying admin view', { queryId, isLegacyKit, kitRegId: kitRegistration.kit_registration_id });
+  // log('Querying admin view', { queryId, isLegacyKit, kitRegId: kitRegistration.kit_registration_id });
 
   // Try production admin view first
   let { data: kitAdminData, error: kitAdminError } = await supabase
@@ -566,7 +566,7 @@ async function processResultsEmail(emailId, attachments, emailInfo) {
 
   // If not found in production view, try development view
   if ((!kitAdminData || kitAdminData.length === 0) && !kitAdminError) {
-    log('Kit not found in production admin view, trying development view', { queryId });
+    // log('Kit not found in production admin view, trying development view', { queryId });
     
     const { data: devData, error: devError } = await supabase
       .from('vw_test_kits_admin_dev')
@@ -578,7 +578,7 @@ async function processResultsEmail(emailId, attachments, emailInfo) {
     viewUsed = 'development';
     
     if (kitAdminData && kitAdminData.length > 0) {
-      log('Found kit in development admin view', { queryId, rowCount: kitAdminData.length });
+      // log('Found kit in development admin view', { queryId, rowCount: kitAdminData.length });
     }
   }
 
@@ -607,17 +607,17 @@ async function processResultsEmail(emailId, attachments, emailInfo) {
       customerLocation: formatLocation(adminData)
     };
 
-    log('Retrieved customer info from admin view', {
-      customerName: kitInfo.customerName,
-      customerEmail: kitInfo.customerEmail,
-      kitCode: kitInfo.kitCode,
-      orderNumber: kitInfo.orderNumber,
-      testKitId: kitInfo.testKitId,
-      testKitName: kitInfo.testKitName,
-      dataFound: true,
-      isLegacyKit,
-      viewUsed
-    });
+    // log('Retrieved customer info from admin view', {
+    //   customerName: kitInfo.customerName,
+    //   customerEmail: kitInfo.customerEmail,
+    //   kitCode: kitInfo.kitCode,
+    //   orderNumber: kitInfo.orderNumber,
+    //   testKitId: kitInfo.testKitId,
+    //   testKitName: kitInfo.testKitName,
+    //   dataFound: true,
+    //   isLegacyKit,
+    //   viewUsed
+    // });
   } else {
     log('Could not retrieve detailed customer info from admin views, querying direct tables', {
       error: kitAdminError?.message,
@@ -651,7 +651,7 @@ async function processResultsEmail(emailId, attachments, emailInfo) {
               customerEmail: legacyData.profiles?.email || 'unknown@example.com',
               customerLocation: [legacyData.address, legacyData.city, legacyData.province, legacyData.postal_code].filter(Boolean).join(', ') || 'Not specified'
             };
-            log('Retrieved legacy kit info from direct query', { kitInfo });
+            // log('Retrieved legacy kit info from direct query', { kitInfo });
           }
         } else {
           // Query regular kit_registrations and related tables
@@ -688,7 +688,7 @@ async function processResultsEmail(emailId, attachments, emailInfo) {
               customerEmail: profile?.email || 'unknown@example.com',
               customerLocation: [regularData.address, regularData.city, regularData.province, regularData.postal_code].filter(Boolean).join(', ') || 'Not specified'
             };
-            log('Retrieved regular kit info from direct query', { kitInfo });
+            // log('Retrieved regular kit info from direct query', { kitInfo });
           }
         }
       }
@@ -744,10 +744,10 @@ async function processResultsEmail(emailId, attachments, emailInfo) {
     // **CAPTURE THE LAB CHAIN OF CUSTODY URL**
     const labChainOfCustodyUrl = kitUpdateResult.labChainOfCustodyUrl;
 
-    log('Kit registration update completed', {
-      hasLabChainOfCustody: !!labChainOfCustodyUrl,
-      labChainOfCustodyUrl: labChainOfCustodyUrl
-    });
+    // log('Kit registration update completed', {
+    //   hasLabChainOfCustody: !!labChainOfCustodyUrl,
+    //   labChainOfCustodyUrl: labChainOfCustodyUrl
+    // });
 
     // Create a proper report record in the database
     const reportRecord = {
@@ -819,7 +819,7 @@ async function processResultsEmail(emailId, attachments, emailInfo) {
 
       // **ADD ADMIN NOTIFICATION EMAIL - START**
   try {
-    log('Sending admin notification email', { reportId, workOrderNumber });
+    // log('Sending admin notification email', { reportId, workOrderNumber });
     
     // Get report details for file downloads
     const { data: report, error: reportError } = await supabase
@@ -851,7 +851,7 @@ async function processResultsEmail(emailId, attachments, emailInfo) {
 
           if (dataFile) {
             const csvFilePath = `${workOrderNumber}/${dataFile.name}`;
-            log('Downloading data file for admin email', { filename: dataFile.name, path: csvFilePath });
+            // log('Downloading data file for admin email', { filename: dataFile.name, path: csvFilePath });
             
             const { data: csvData, error: csvError } = await supabase.storage
               .from('lab-results')
@@ -879,11 +879,11 @@ async function processResultsEmail(emailId, attachments, emailInfo) {
                 contentType: contentType
               });
               
-              log('Data file attachment prepared', { 
-                filename: dataFile.name,
-                sizeKB: Math.round(csvBase64.length / 1024),
-                contentType: contentType
-              });
+              // log('Data file attachment prepared', { 
+              //   filename: dataFile.name,
+              //   sizeKB: Math.round(csvBase64.length / 1024),
+              //   contentType: contentType
+              // });
             } else {
               log('Data file download failed', { error: csvError?.message, filename: dataFile.name });
             }
@@ -907,7 +907,7 @@ async function processResultsEmail(emailId, attachments, emailInfo) {
       if (report.pdf_file_url) {
         try {
           const pdfFileName = report.pdf_file_url.split('/').pop();
-          log('Downloading PDF report for admin email', { filename: pdfFileName });
+          // log('Downloading PDF report for admin email', { filename: pdfFileName });
           
           const { data: pdfData, error: pdfError } = await supabase.storage
             .from('generated-reports')
@@ -923,10 +923,10 @@ async function processResultsEmail(emailId, attachments, emailInfo) {
               contentType: 'application/pdf'
             });
             
-            log('PDF report attachment prepared', { 
-              filename: pdfFileName,
-              sizeKB: Math.round(pdfBase64.length / 1024) 
-            });
+            // log('PDF report attachment prepared', { 
+            //   filename: pdfFileName,
+            //   sizeKB: Math.round(pdfBase64.length / 1024) 
+            // });
           } else {
             log('PDF report download failed', { error: pdfError?.message });
           }
@@ -956,11 +956,11 @@ async function processResultsEmail(emailId, attachments, emailInfo) {
           
           const cocFileName = `LAB_COC_${kitInfo.kitCode}.pdf`;
           
-          log('Downloading Lab Chain of Custody for admin email', { 
-            filename: cocFileName,
-            filePath: cocFilePath,
-            originalUrl: labChainOfCustodyUrl
-          });
+          // log('Downloading Lab Chain of Custody for admin email', { 
+          //   filename: cocFileName,
+          //   filePath: cocFilePath,
+          //   originalUrl: labChainOfCustodyUrl
+          // });
           
           const { data: cocData, error: cocError } = await supabase.storage
             .from('lab-results')
@@ -976,10 +976,10 @@ async function processResultsEmail(emailId, attachments, emailInfo) {
               contentType: 'application/pdf'
             });
             
-            log('Lab Chain of Custody attachment prepared', { 
-              filename: cocFileName,
-              sizeKB: Math.round(cocBase64.length / 1024) 
-            });
+            // log('Lab Chain of Custody attachment prepared', { 
+            //   filename: cocFileName,
+            //   sizeKB: Math.round(cocBase64.length / 1024) 
+            // });
           } else {
             log('Lab Chain of Custody download failed', { error: cocError?.message });
           }
@@ -990,10 +990,10 @@ async function processResultsEmail(emailId, attachments, emailInfo) {
         log('No Lab Chain of Custody URL available for this report', { workOrderNumber });
       }
       
-      log('All attachments prepared for admin email', { 
-        count: attachments.length,
-        filenames: attachments.map(att => att.filename)
-      });
+      // log('All attachments prepared for admin email', { 
+      //   count: attachments.length,
+      //   filenames: attachments.map(att => att.filename)
+      // });
       
       // Send email via Loops directly
       const requestBody = {
@@ -1022,13 +1022,13 @@ async function processResultsEmail(emailId, attachments, emailInfo) {
         });
 
         if (loopsResponse.ok) {
-          log('Admin notification sent successfully', { 
-            reportId, 
-            workOrderNumber,
-            attachmentsCount: attachments.length,
-            kitCode: kitInfo.kitCode || kitInfo.displayId,
-            orderNumber: kitInfo.orderNumber
-          });
+          // log('Admin notification sent successfully', { 
+          //   reportId, 
+          //   workOrderNumber,
+          //   attachmentsCount: attachments.length,
+          //   kitCode: kitInfo.kitCode || kitInfo.displayId,
+          //   orderNumber: kitInfo.orderNumber
+          // });
         } else {
           const errorText = await loopsResponse.text();
           log('Failed to send admin notification', { 
@@ -1074,20 +1074,20 @@ async function processResultsEmail(emailId, attachments, emailInfo) {
       throw updateError;
     }
 
-    log('Results email processed successfully', {
-      reportId,
-      kitRegistrationId: kitRegistration.kit_registration_id || kitRegistration.id,
-      workOrderNumber,
-      resultsCount: processingResult.results.length,
-      reportGenerated: reportResult.success,
-      customerInfo: {
-        name: kitInfo.customerName,
-        email: kitInfo.customerEmail,
-        location: kitInfo.customerLocation,
-        testKitId: kitInfo.testKitId,
-        testKitName: kitInfo.testKitName
-      }
-    });
+    // log('Results email processed successfully', {
+    //   reportId,
+    //   kitRegistrationId: kitRegistration.kit_registration_id || kitRegistration.id,
+    //   workOrderNumber,
+    //   resultsCount: processingResult.results.length,
+    //   reportGenerated: reportResult.success,
+    //   customerInfo: {
+    //     name: kitInfo.customerName,
+    //     email: kitInfo.customerEmail,
+    //     location: kitInfo.customerLocation,
+    //     testKitId: kitInfo.testKitId,
+    //     testKitName: kitInfo.testKitName
+    //   }
+    // });
 
     return {
       stage: 'results',
@@ -1158,7 +1158,7 @@ async function updateEmailStatus(emailId, status, errorMessage = null) {
       throw error;
     }
 
-    log(`Updated email status to ${status}`, { emailId });
+    // log(`Updated email status to ${status}`, { emailId });
 
   } catch (error) {
     log('Error updating email status', { 
