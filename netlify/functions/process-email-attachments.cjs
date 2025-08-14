@@ -440,60 +440,81 @@ async function processResultsEmail(emailId, attachments, emailInfo) {
     };
 
     try {
-      // Query the admin view with the correct kit_id based on kit type
-      const queryId = isLegacyKit 
-        ? kitRegistration.id  // For legacy kits, use the direct id
-        : kitRegistration.kit_registration_id; // For regular kits, use kit_registration_id
+  // Query the admin view with the correct kit_id based on kit type
+  const queryId = isLegacyKit 
+    ? kitRegistration.id  // For legacy kits, use the direct id
+    : kitRegistration.kit_registration_id; // For regular kits, use kit_registration_id
+  
+  log('Querying admin view', { queryId, isLegacyKit, kitRegId: kitRegistration.kit_registration_id });
+
+  // Try production admin view first
+  let { data: kitAdminData, error: kitAdminError } = await supabase
+    .from('vw_test_kits_admin')
+    .select('*')
+    .eq('kit_id', queryId);
+
+  // If not found in production view, try development view
+  if ((!kitAdminData || kitAdminData.length === 0) && !kitAdminError) {
+    log('Kit not found in production admin view, trying development view', { queryId });
+    
+    const { data: devKitAdminData, error: devKitAdminError } = await supabase
+      .from('vw_test_kits_admin_dev')
+      .select('*')
+      .eq('kit_id', queryId);
+    
+    kitAdminData = devKitAdminData;
+    kitAdminError = devKitAdminError;
+    
+    if (kitAdminData && kitAdminData.length > 0) {
+      log('Found kit in development admin view', { queryId, rowCount: kitAdminData.length });
+    }
+  }
+
+  if (!kitAdminError && kitAdminData && kitAdminData.length > 0) {
+    const adminData = kitAdminData[0];
+    
+    const formatLocation = (data) => {
+      const parts = [];
+      if (data.customer_address) parts.push(data.customer_address);
+      if (data.customer_city) parts.push(data.customer_city);
+      if (data.customer_province) parts.push(data.customer_province);
+      if (data.customer_postal_code) parts.push(data.customer_postal_code);
       
-      log('Querying admin view', { queryId, isLegacyKit, kitRegId: kitRegistration.kit_registration_id });
+      return parts.length > 0 ? parts.join(', ') : 'Not specified';
+    };
 
-      const { data: kitAdminData, error: kitAdminError } = await supabase
-        .from('vw_test_kits_admin')
-        .select('*')
-        .eq('kit_id', queryId);
+    kitInfo = {
+      displayId: adminData.kit_code || kitInfo.displayId,
+      kitCode: adminData.kit_code || kitInfo.kitCode,
+      orderNumber: adminData.order_number || 'N/A',
+      testKitName: adminData.test_kit_name || 'Water Test Kit',
+      testKitId: adminData.test_kit_id || null,
+      customerFirstName: adminData.customer_first_name || 'Valued Customer',
+      customerName: `${adminData.customer_first_name || ''} ${adminData.customer_last_name || ''}`.trim() || 'Customer',
+      customerEmail: adminData.customer_email || 'unknown@example.com',
+      customerLocation: formatLocation(adminData)
+    };
 
-      if (!kitAdminError && kitAdminData && kitAdminData.length > 0) {
-        const adminData = kitAdminData[0];
-        
-        const formatLocation = (data) => {
-          const parts = [];
-          if (data.customer_address) parts.push(data.customer_address);
-          if (data.customer_city) parts.push(data.customer_city);
-          if (data.customer_province) parts.push(data.customer_province);
-          if (data.customer_postal_code) parts.push(data.customer_postal_code);
-          
-          return parts.length > 0 ? parts.join(', ') : 'Not specified';
-        };
-
-        kitInfo = {
-          displayId: adminData.kit_code || kitInfo.displayId,
-          kitCode: adminData.kit_code || kitInfo.kitCode,
-          orderNumber: adminData.order_number || 'N/A',
-          testKitName: adminData.test_kit_name || 'Water Test Kit',
-          testKitId: adminData.test_kit_id || null,
-          customerFirstName: adminData.customer_first_name || 'Valued Customer',
-          customerName: `${adminData.customer_first_name || ''} ${adminData.customer_last_name || ''}`.trim() || 'Customer',
-          customerEmail: adminData.customer_email || 'unknown@example.com',
-          customerLocation: formatLocation(adminData)
-        };
-
-        log('Retrieved customer info from admin view', {
-          customerName: kitInfo.customerName,
-          customerEmail: kitInfo.customerEmail,
-          kitCode: kitInfo.kitCode,
-          orderNumber: kitInfo.orderNumber,
-          testKitId: kitInfo.testKitId,
-          testKitName: kitInfo.testKitName,
-          dataFound: true,
-          isLegacyKit
-        });
-      } else {
-        log('Could not retrieve detailed customer info from admin view, querying direct tables', {
-          error: kitAdminError?.message,
-          rowsReturned: kitAdminData?.length || 0,
-          queryId,
-          isLegacyKit
-        });
+    log('Retrieved customer info from admin view', {
+      customerName: kitInfo.customerName,
+      customerEmail: kitInfo.customerEmail,
+      kitCode: kitInfo.kitCode,
+      orderNumber: kitInfo.orderNumber,
+      testKitId: kitInfo.testKitId,
+      testKitName: kitInfo.testKitName,
+      dataFound: true,
+      isLegacyKit,
+      viewUsed: kitAdminData === devKitAdminData ? 'development' : 'production'
+    });
+  } else {
+    log('Could not retrieve detailed customer info from admin views, querying direct tables', {
+      error: kitAdminError?.message,
+      rowsReturned: kitAdminData?.length || 0,
+      queryId,
+      isLegacyKit
+    });
+    
+    // Rest of the fallback logic remains the same...
         
         // Fallback: Query the kit tables directly
         if (isLegacyKit) {
