@@ -255,7 +255,7 @@ async function updateKitRegistration(kitRegistrationId, workOrderNumber, sampleN
         status: 'results_received',
         updated_at: new Date().toISOString()
       })
-      .eq('id', kitRegistrationId)
+      .eq('display_id', kitRegistrationId)
       .select();
 
     if (error) {
