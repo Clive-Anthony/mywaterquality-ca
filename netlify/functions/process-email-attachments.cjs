@@ -628,7 +628,8 @@ async function processResultsEmail(emailId, attachments, emailInfo) {
     await updateKitRegistration(
       kitRegistration.kit_registration_id || kitRegistration.id,
       workOrderNumber,
-      processingResult.sampleNumber
+      processingResult.sampleNumber,
+      isLegacyKit
     );
 
     // Create a proper report record in the database

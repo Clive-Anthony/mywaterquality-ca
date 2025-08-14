@@ -294,30 +294,150 @@ function createColumnMapping(headers) {
 }
 
 /**
- * Update kit registration with work order information
+ * Find lab chain of custody file with flexible naming
  */
-async function updateKitRegistration(kitRegistrationId, workOrderNumber, sampleNumber) {
+async function findLabChainOfCustodyFile(supabase, workOrderNumber) {
   try {
-    const { data, error } = await supabase
-      .from('kit_registrations')
-      .update({
-        work_order_number: workOrderNumber,
-        sample_number: sampleNumber,
-        status: 'results_received',
-        updated_at: new Date().toISOString()
-      })
-      .eq('display_id', kitRegistrationId)
-      .select();
+    const { data: fileList, error: listError } = await supabase.storage
+      .from('lab-results')
+      .list(workOrderNumber + '/');
+
+    if (listError || !fileList) {
+      return null;
+    }
+
+    // Try different naming patterns for the CoC file
+    const possibleNames = [
+      `CofC${workOrderNumber}`,
+      `CoFC${workOrderNumber}`,
+      `coc${workOrderNumber}`,
+      `cofc${workOrderNumber}`,
+      `COC${workOrderNumber}`,
+      `COFC${workOrderNumber}`
+    ];
+
+    // Look for exact matches first
+    for (const name of possibleNames) {
+      const exactMatch = fileList.find(file => 
+        file.name === name || 
+        file.name === `${name}.pdf` ||
+        file.name === `${name}.PDF`
+      );
+      if (exactMatch) {
+        return exactMatch;
+      }
+    }
+
+    // Look for partial matches
+    const partialMatch = fileList.find(file => {
+      const lowerName = file.name.toLowerCase();
+      return lowerName.includes('coc') || 
+             lowerName.includes('cofc') || 
+             lowerName.includes('chain') ||
+             lowerName.includes('custody');
+    });
+
+    return partialMatch;
+
+  } catch (error) {
+    log('Error finding lab chain of custody file', { 
+      workOrderNumber, 
+      error: error.message 
+    });
+    return null;
+  }
+}
+
+/**
+ * Update kit registration with work order information and lab chain of custody
+ */
+async function updateKitRegistration(kitRegistrationId, workOrderNumber, sampleNumber, isLegacyKit = false) {
+  try {
+    log('Updating kit registration', { kitRegistrationId, workOrderNumber, sampleNumber, isLegacyKit });
+
+    // Check for lab chain of custody file in the new location
+      let labChainOfCustodyUrl = null;
+
+      try {
+        log('Checking for lab chain of custody file', { workOrderNumber });
+        
+        const cocFile = await findLabChainOfCustodyFile(supabase, workOrderNumber);
+
+        if (cocFile) {
+          const actualCocPath = `${workOrderNumber}/${cocFile.name}`;
+          
+          // Get public URL for the CoC file
+          const { data: urlData } = supabase.storage
+            .from('lab-results')
+            .getPublicUrl(actualCocPath);
+          
+          labChainOfCustodyUrl = urlData.publicUrl;
+          log('Found lab chain of custody file', { 
+            fileName: cocFile.name, 
+            url: labChainOfCustodyUrl 
+          });
+        } else {
+          log('No lab chain of custody file found', { workOrderNumber });
+        }
+      } catch (cocError) {
+        log('Error checking for lab chain of custody', { error: cocError.message });
+        // Don't fail the entire update if CoC check fails
+      }
+
+    // Prepare update data
+    const updateData = {
+      work_order_number: workOrderNumber,
+      sample_number: sampleNumber,
+      status: 'results_received',
+      updated_at: new Date().toISOString()
+    };
+
+    // Add lab chain of custody URL if found
+    if (labChainOfCustodyUrl) {
+      updateData.lab_chain_of_custody_url = labChainOfCustodyUrl;
+    }
+
+    let data, error;
+
+    if (isLegacyKit) {
+      // Update legacy kit registration
+      ({ data, error } = await supabase
+        .from('legacy_kit_registrations')
+        .update(updateData)
+        .eq('id', kitRegistrationId)
+        .select());
+    } else {
+      // Update regular kit registration
+      ({ data, error } = await supabase
+        .from('kit_registrations')
+        .update(updateData)
+        .eq('kit_registration_id', kitRegistrationId)
+        .select());
+    }
 
     if (error) {
       throw error;
     }
 
-    log('Updated kit registration', { kitRegistrationId, workOrderNumber, sampleNumber });
+    log('Updated kit registration successfully', { 
+      kitRegistrationId, 
+      workOrderNumber, 
+      sampleNumber, 
+      isLegacyKit,
+      hasLabChainOfCustody: !!labChainOfCustodyUrl,
+      labChainOfCustodyUrl
+    });
+    
     return data[0];
     
   } catch (error) {
-    log('Error updating kit registration', { error: error.message });
+    log('Error updating kit registration', { 
+      kitRegistrationId, 
+      workOrderNumber, 
+      sampleNumber, 
+      isLegacyKit,
+      error: error.message 
+    });
     throw error;
   }
 }
