@@ -103,51 +103,52 @@ exports.handler = async (event, context) => {
     };
 
   } catch (error) {
-    log('Error processing email attachments', {
-      email_id,
-      error: error.message,
-      stack: error.stack
-    });
+  log('Error processing email attachments', {
+    email_id,
+    error: error.message,
+    stack: error.stack
+  });
 
-    // **ADD ERROR NOTIFICATION EMAIL**
+  // **IMPROVED ERROR NOTIFICATION EMAIL**
+  try {
+    // Try to get context information for the error email
+    let errorContext = { emailId: email_id };
+    
+    // Try to get email record and extract info for better error context
     try {
-      // Try to get context information for the error email
-      let errorContext = { emailId: email_id };
+      const emailRecord = await getEmailRecord(email_id);
+      const emailInfo = analyzeEmailSubject(emailRecord.subject, emailRecord.work_order_number);
       
-      // Try to get email record and extract info for better error context
-      try {
-        const emailRecord = await getEmailRecord(email_id);
-        const emailInfo = analyzeEmailSubject(emailRecord.subject, emailRecord.work_order_number);
-        
-        errorContext = {
-          emailId: email_id,
-          workOrderNumber: emailInfo.work_order_number,
-          projectNumber: emailInfo.project_number,
-          kitCode: emailInfo.project_number || emailInfo.work_order_number,
-          emailType: emailInfo.email_type,
-          stage: 'main_processing'
-        };
-      } catch (contextError) {
-        // If we can't get context, just use what we have
-        log('Could not get error context', { error: contextError.message });
-      }
-
-      await sendErrorNotificationEmail(error, errorContext);
-    } catch (notificationError) {
-      log('Failed to send error notification', { error: notificationError.message });
+      errorContext = {
+        emailId: email_id,
+        workOrderNumber: emailInfo.work_order_number,
+        projectNumber: emailInfo.project_number,
+        kitCode: emailInfo.project_number || emailInfo.work_order_number || 'Unknown',
+        emailType: emailInfo.email_type,
+        stage: 'main_processing'
+      };
+    } catch (contextError) {
+      // If we can't get context, just use what we have
+      log('Could not get error context', { error: contextError.message });
+      errorContext.kitCode = 'Unknown';
     }
 
-    // Update status to failed
-    await updateEmailStatus(email_id, 'failed', error.message);
-
-    return {
-      statusCode: 500,
-      body: JSON.stringify({
-        success: false,
-        error: error.message
-      })
-    };
+    await sendErrorNotificationEmail(error, errorContext);
+  } catch (notificationError) {
+    log('Failed to send error notification', { error: notificationError.message });
   }
+
+  // Update status to failed
+  await updateEmailStatus(email_id, 'failed', error.message);
+
+  return {
+    statusCode: 500,
+    body: JSON.stringify({
+      success: false,
+      error: error.message
+    })
+  };
+}
 };
 
 /**
@@ -504,6 +505,8 @@ async function processConfirmationEmail(emailId, attachments, emailInfo) {
  * Stage 2: Process results using existing logic
  */
 async function processResultsEmail(emailId, attachments, emailInfo) {
+  let kitInfo = null;
+  
   try {
     log('Processing results email', { emailId, emailInfo });
 
@@ -1103,7 +1106,7 @@ async function processResultsEmail(emailId, attachments, emailInfo) {
       emailId,
       workOrderNumber: emailInfo.work_order_number,
       projectNumber: emailInfo.project_number,
-      kitCode: kitInfo?.kitCode || emailInfo.project_number || emailInfo.work_order_number,
+      kitCode: kitInfo?.kitCode || emailInfo.project_number || emailInfo.work_order_number || 'Unknown',
       emailType: 'results',
       stage: 'results_processing'
     });

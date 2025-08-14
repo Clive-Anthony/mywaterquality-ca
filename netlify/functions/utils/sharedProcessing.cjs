@@ -410,7 +410,7 @@ async function updateKitRegistration(kitRegistrationId, workOrderNumber, sampleN
     const updateData = {
       work_order_number: workOrderNumber,
       sample_number: sampleNumber,
-      status: 'results_received',
+      status: 'test_results_received',
       updated_at: new Date().toISOString()
     };
 
