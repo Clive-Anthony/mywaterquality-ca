@@ -280,8 +280,7 @@ async function saveTestResults(kitRegistrationId, results, workOrderNumber) {
       unit: result.unit,
       method: result.method,
       detection_limit: result.detection_limit,
-      raw_data: result.raw_data,
-      created_at: new Date().toISOString()
+      raw_data: result.raw_data
     }));
 
     // Insert into test_results_raw table
