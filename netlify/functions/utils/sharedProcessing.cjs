@@ -294,55 +294,88 @@ function createColumnMapping(headers) {
 }
 
 /**
- * Find lab chain of custody file with flexible naming
+ * Find lab chain of custody file with enhanced logging and flexible naming
  */
 async function findLabChainOfCustodyFile(supabase, workOrderNumber) {
   try {
+    log('Searching for lab chain of custody file', { workOrderNumber });
+    
+    const folderPath = workOrderNumber + '/';
     const { data: fileList, error: listError } = await supabase.storage
       .from('lab-results')
-      .list(workOrderNumber + '/');
+      .list(folderPath);
 
-    if (listError || !fileList) {
+    if (listError) {
+      log('Error listing files in lab-results bucket', { 
+        error: listError.message, 
+        folderPath,
+        bucket: 'lab-results'
+      });
       return null;
     }
 
-    // Try different naming patterns for the CoC file
-    const possibleNames = [
+    if (!fileList || fileList.length === 0) {
+      log('No files found in lab-results folder', { folderPath });
+      return null;
+    }
+
+    log('Files found in lab-results folder', { 
+      folderPath,
+      fileCount: fileList.length,
+      files: fileList.map(f => ({ 
+        name: f.name, 
+        size: f.size,
+        lastModified: f.updated_at 
+      }))
+    });
+
+    // Try exact patterns first (based on your specification: CofC{work_order_number})
+    const exactPatterns = [
       `CofC${workOrderNumber}`,
-      `CoFC${workOrderNumber}`,
-      `coc${workOrderNumber}`,
-      `cofc${workOrderNumber}`,
-      `COC${workOrderNumber}`,
-      `COFC${workOrderNumber}`
+      `CofC${workOrderNumber}.pdf`,
+      `CofC${workOrderNumber}.PDF`
     ];
 
-    // Look for exact matches first
-    for (const name of possibleNames) {
+    for (const pattern of exactPatterns) {
       const exactMatch = fileList.find(file => 
-        file.name === name || 
-        file.name === `${name}.pdf` ||
-        file.name === `${name}.PDF`
+        file.name === pattern || file.name.toLowerCase() === pattern.toLowerCase()
       );
       if (exactMatch) {
+        log('Found exact pattern match', { pattern, fileName: exactMatch.name });
         return exactMatch;
       }
     }
 
-    // Look for partial matches
-    const partialMatch = fileList.find(file => {
+    // Try fuzzy matching
+    const fuzzyMatch = fileList.find(file => {
       const lowerName = file.name.toLowerCase();
-      return lowerName.includes('coc') || 
-             lowerName.includes('cofc') || 
-             lowerName.includes('chain') ||
-             lowerName.includes('custody');
+      const lowerWorkOrder = workOrderNumber.toLowerCase();
+      return (
+        lowerName.includes('cofc') && lowerName.includes(lowerWorkOrder)
+      ) || (
+        lowerName.includes('coc') && lowerName.includes(lowerWorkOrder)
+      ) || (
+        lowerName.includes('chain') && lowerName.includes('custody')
+      );
     });
 
-    return partialMatch;
+    if (fuzzyMatch) {
+      log('Found fuzzy match', { fileName: fuzzyMatch.name });
+      return fuzzyMatch;
+    }
+
+    log('No CoC file found matching any pattern', { 
+      workOrderNumber,
+      searchedPatterns: exactPatterns,
+      availableFiles: fileList.map(f => f.name)
+    });
+    return null;
 
   } catch (error) {
-    log('Error finding lab chain of custody file', { 
+    log('Exception while searching for lab chain of custody file', { 
       workOrderNumber, 
-      error: error.message 
+      error: error.message,
+      stack: error.stack
     });
     return null;
   }
@@ -355,54 +388,35 @@ async function updateKitRegistration(kitRegistrationId, workOrderNumber, sampleN
   try {
     log('Updating kit registration', { kitRegistrationId, workOrderNumber, sampleNumber, isLegacyKit });
 
-    // Check for lab chain of custody file in the new location
+    // **USE THE HELPER FUNCTION TO FIND LAB CHAIN OF CUSTODY**
     let labChainOfCustodyUrl = null;
     
     try {
-      log('Checking for lab chain of custody file', { workOrderNumber });
-      
-      const { data: fileList, error: listError } = await supabase.storage
-        .from('lab-results')
-        .list(workOrderNumber + '/');
+      const cocFile = await findLabChainOfCustodyFile(supabase, workOrderNumber);
 
-      if (!listError && fileList) {
-        // Look for the CoC file (try different naming patterns)
-        const cocFile = fileList.find(file => {
-          const lowerName = file.name.toLowerCase();
-          return lowerName.startsWith(`coc${workOrderNumber}`.toLowerCase()) ||
-                 lowerName.startsWith(`cofc${workOrderNumber}`.toLowerCase()) ||
-                 lowerName.includes('coc') ||
-                 lowerName.includes('chain') ||
-                 lowerName.includes('custody');
+      if (cocFile) {
+        const actualCocPath = `${workOrderNumber}/${cocFile.name}`;
+        
+        // Get public URL for the CoC file
+        const { data: urlData } = supabase.storage
+          .from('lab-results')
+          .getPublicUrl(actualCocPath);
+        
+        labChainOfCustodyUrl = urlData.publicUrl;
+        log('Lab chain of custody URL generated', { 
+          fileName: cocFile.name,
+          filePath: actualCocPath,
+          url: labChainOfCustodyUrl,
+          fileSize: cocFile.size
         });
-
-        if (cocFile) {
-          const actualCocPath = `${workOrderNumber}/${cocFile.name}`;
-          
-          // Get public URL for the CoC file
-          const { data: urlData } = supabase.storage
-            .from('lab-results')
-            .getPublicUrl(actualCocPath);
-          
-          labChainOfCustodyUrl = urlData.publicUrl;
-          log('Found lab chain of custody file', { 
-            fileName: cocFile.name, 
-            url: labChainOfCustodyUrl 
-          });
-        } else {
-          log('No lab chain of custody file found', { 
-            workOrderNumber, 
-            filesInFolder: fileList.map(f => f.name) 
-          });
-        }
       } else {
-        log('Error listing files or folder not found', { 
-          error: listError?.message, 
-          workOrderNumber 
-        });
+        log('No lab chain of custody file found for work order', { workOrderNumber });
       }
     } catch (cocError) {
-      log('Error checking for lab chain of custody', { error: cocError.message });
+      log('Error checking for lab chain of custody', { 
+        error: cocError.message,
+        workOrderNumber
+      });
       // Don't fail the entire update if CoC check fails
     }
 
@@ -417,6 +431,9 @@ async function updateKitRegistration(kitRegistrationId, workOrderNumber, sampleN
     // Add lab chain of custody URL if found
     if (labChainOfCustodyUrl) {
       updateData.lab_chain_of_custody_url = labChainOfCustodyUrl;
+      log('Adding lab chain of custody URL to update', { labChainOfCustodyUrl });
+    } else {
+      log('No lab chain of custody URL to add to update');
     }
 
     let data, error;
@@ -441,16 +458,16 @@ async function updateKitRegistration(kitRegistrationId, workOrderNumber, sampleN
       throw error;
     }
 
-    // log('Updated kit registration successfully', { 
-    //   kitRegistrationId, 
-    //   workOrderNumber, 
-    //   sampleNumber, 
-    //   isLegacyKit,
-    //   hasLabChainOfCustody: !!labChainOfCustodyUrl,
-    //   labChainOfCustodyUrl
-    // });
+    log('Updated kit registration successfully', { 
+      kitRegistrationId, 
+      workOrderNumber, 
+      sampleNumber, 
+      isLegacyKit,
+      hasLabChainOfCustody: !!labChainOfCustodyUrl,
+      labChainOfCustodyUrl,
+      updateResult: data[0]
+    });
     
-    // **RETURN BOTH DATA AND LAB CHAIN OF CUSTODY URL**
     return {
       data: data[0],
       labChainOfCustodyUrl
@@ -462,7 +479,8 @@ async function updateKitRegistration(kitRegistrationId, workOrderNumber, sampleN
       workOrderNumber, 
       sampleNumber, 
       isLegacyKit,
-      error: error.message 
+      error: error.message,
+      stack: error.stack
     });
     throw error;
   }

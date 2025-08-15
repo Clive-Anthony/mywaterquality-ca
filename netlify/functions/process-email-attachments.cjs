@@ -174,7 +174,7 @@ async function sendErrorNotificationEmail(error, context = {}) {
     // Prepare email data
     const emailData = {
       transactionalId: 'cmebqfwbm03b1y00ikw8f3rbp', // You'll need to create this template
-      email: 'info@mywaterquality.ca',
+      email: 'david.phillips@bookerhq.ca',
       dataVariables: {
         errorMessage: error.message || 'An unknown error occurred during automated processing',
         kitCode: kitCode || projectNumber || workOrderNumber || 'Unknown',
@@ -1074,7 +1074,8 @@ async function processResultsEmail(emailId, attachments, emailInfo) {
       throw updateError;
     }
 
-    // log('Results email processed successfully', {
+    log('Results email processed successfully', 
+      // {
     //   reportId,
     //   kitRegistrationId: kitRegistration.kit_registration_id || kitRegistration.id,
     //   workOrderNumber,
@@ -1087,7 +1088,8 @@ async function processResultsEmail(emailId, attachments, emailInfo) {
     //     testKitId: kitInfo.testKitId,
     //     testKitName: kitInfo.testKitName
     //   }
-    // });
+    // }
+    );
 
     return {
       stage: 'results',
@@ -1122,7 +1124,10 @@ function adaptStorageFilesToBusboyFormat(dataAttachment, cocAttachment = null) {
   const fileData = {
     fileBuffer: dataAttachment.buffer,
     fileName: dataAttachment.filename,
-    mimetype: dataAttachment.mime_type || 'application/octet-stream'
+    mimetype: dataAttachment.mime_type || 'application/octet-stream',
+    cocFileBuffer: null,
+    cocFileName: null,
+    cocMimetype: null
   };
 
   // Add COC file if available
