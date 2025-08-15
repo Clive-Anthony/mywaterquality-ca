@@ -315,19 +315,19 @@ async function findLabChainOfCustodyFile(supabase, workOrderNumber) {
     }
 
     if (!fileList || fileList.length === 0) {
-      log('No files found in lab-results folder', { folderPath });
+      // log('No files found in lab-results folder', { folderPath });
       return null;
     }
 
-    log('Files found in lab-results folder', { 
-      folderPath,
-      fileCount: fileList.length,
-      files: fileList.map(f => ({ 
-        name: f.name, 
-        size: f.size,
-        lastModified: f.updated_at 
-      }))
-    });
+    // log('Files found in lab-results folder', { 
+    //   folderPath,
+    //   fileCount: fileList.length,
+    //   files: fileList.map(f => ({ 
+    //     name: f.name, 
+    //     size: f.size,
+    //     lastModified: f.updated_at 
+    //   }))
+    // });
 
     // Try exact patterns first (based on your specification: CofC{work_order_number})
     const exactPatterns = [
@@ -403,12 +403,14 @@ async function updateKitRegistration(kitRegistrationId, workOrderNumber, sampleN
           .getPublicUrl(actualCocPath);
         
         labChainOfCustodyUrl = urlData.publicUrl;
-        log('Lab chain of custody URL generated', { 
-          fileName: cocFile.name,
-          filePath: actualCocPath,
-          url: labChainOfCustodyUrl,
-          fileSize: cocFile.size
-        });
+        log('Lab chain of custody URL generated'
+        //   , { 
+        //   fileName: cocFile.name,
+        //   filePath: actualCocPath,
+        //   url: labChainOfCustodyUrl,
+        //   fileSize: cocFile.size
+        // }
+      );
       } else {
         log('No lab chain of custody file found for work order', { workOrderNumber });
       }
@@ -431,7 +433,9 @@ async function updateKitRegistration(kitRegistrationId, workOrderNumber, sampleN
     // Add lab chain of custody URL if found
     if (labChainOfCustodyUrl) {
       updateData.lab_chain_of_custody_url = labChainOfCustodyUrl;
-      log('Adding lab chain of custody URL to update', { labChainOfCustodyUrl });
+      log('Adding lab chain of custody URL to update'
+        // , { labChainOfCustodyUrl }
+      );
     } else {
       log('No lab chain of custody URL to add to update');
     }
