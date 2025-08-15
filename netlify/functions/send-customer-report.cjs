@@ -146,7 +146,7 @@ exports.handler = async function(event, context) {
           } else if (report.kit_registration_id) {
             // Regular kit registration - get data from admin view
             const { data: kitReg, error: kitRegError } = await supabase
-              .from('vw_test_kits_admin_dev')
+              .from('vw_test_kits_admin')
               .select('*')
               .eq('kit_id', report.kit_registration_id)
               .single();

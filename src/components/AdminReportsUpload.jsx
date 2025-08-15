@@ -126,7 +126,7 @@ export default function AdminReportsUpload() {
       setLoading(true);
       
       const { data: kitsData, error: kitsError } = await supabase
-        .from('vw_test_kits_admin_dev')
+        .from('vw_test_kits_admin')
         .select('*')
         .is('work_order_number', null)
         .is('sample_number', null) 
@@ -193,7 +193,7 @@ export default function AdminReportsUpload() {
   const loadAllTestKits = async () => {
     try {
       const { data, error } = await supabase
-        .from('vw_test_kits_admin_dev')
+        .from('vw_test_kits_admin')
         .select('*',)
         .order('kit_created_at', { ascending: false });
 

@@ -901,7 +901,7 @@ if (reportType === 'one_off') {
   
   if (kitRegistrationType === 'regular') {
     const { data: kitReg, error: kitRegError } = await supabase
-      .from('vw_test_kits_admin_dev')
+      .from('vw_test_kits_admin')
       .select('*')
       .eq('kit_id', kitRegistrationId)
       .single();

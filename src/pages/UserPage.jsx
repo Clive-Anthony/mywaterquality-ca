@@ -5,6 +5,7 @@ import { useAuth } from '../contexts/AuthContext';
 import PageLayout from '../components/PageLayout';
 import ProfileForm from '../components/ProfileForm';
 import OrdersList from '../components/OrdersList';
+import CustomerReports from '../components/CustomerReports';
 // import KitRegistrationsSummary from '../components/KitRegistrationsSummary';
 
 
@@ -35,6 +36,8 @@ export default function UserPage() {
         return <DashboardContent />;
       case 'orders':
         return <OrdersList showTitle={false} maxHeight="max-h-full" />;
+      case 'reports':
+        return <CustomerReports showTitle={false} maxHeight="max-h-full" />;
       case 'profile':
         return <ProfileForm />;
       default:
@@ -110,13 +113,19 @@ export default function UserPage() {
                       Orders
                     </button>
                   </li>
-                  <li>
+                    <li>
                     <button
-                      disabled
-                      className="w-full text-left px-6 py-3 flex items-center text-gray-400 cursor-not-allowed"
+                      onClick={() => setActiveTab('reports')}
+                      className={`w-full text-left px-6 py-3 flex items-center ${
+                        activeTab === 'reports'
+                          ? 'bg-blue-50 text-blue-600 border-l-4 border-blue-600'
+                          : 'text-gray-600 hover:bg-gray-50'
+                      }`}
                     >
                       <svg
-                        className="mr-3 h-5 w-5 text-gray-400"
+                        className={`mr-3 h-5 w-5 ${
+                          activeTab === 'reports' ? 'text-blue-600' : 'text-gray-400'
+                        }`}
                         xmlns="http://www.w3.org/2000/svg"
                         fill="none"
                         viewBox="0 0 24 24"
@@ -129,8 +138,7 @@ export default function UserPage() {
                           d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z"
                         />
                       </svg>
-                      Results
-                      <span className="ml-auto bg-gray-100 text-xs px-2 py-1 rounded-full">Soon</span>
+                      Reports
                     </button>
                   </li>
                   <li>
