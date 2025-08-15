@@ -38,11 +38,14 @@ exports.handler = async (event, context) => {
   const requestBody = JSON.parse(event.body);
   const { email_id, trigger_source = 'unknown' } = requestBody;
 
-  log('Processing email attachments', { 
-    email_id, 
-    trigger_source,
-    has_webhook_secret: !!webhookSecret 
-  });
+  log('Processing email attachments'
+    // , 
+  //   { 
+  //   email_id, 
+  //   trigger_source,
+  //   has_webhook_secret: !!webhookSecret 
+  // }
+);
 
   try {
     // Update status to processing
@@ -313,7 +316,9 @@ async function updateEmailRecord(emailId, updateData) {
       throw error;
     }
 
-    // log('Updated email record', { emailId, updateData });
+    log('Updated email record'
+      // , { emailId, updateData }
+    );
   } catch (error) {
     log('Error updating email record', { emailId, error: error.message });
     throw error;
@@ -421,7 +426,9 @@ function determineAttachmentType(filename) {
  */
 async function processConfirmationEmail(emailId, attachments, emailInfo) {
   try {
-    // log('Processing confirmation email', { emailId, emailInfo });
+    log('Processing confirmation email'
+      // , { emailId, emailInfo }
+    );
 
     const projectNumber = emailInfo.project_number;
     const workOrderNumber = emailInfo.work_order_number;
@@ -470,11 +477,13 @@ async function processConfirmationEmail(emailId, attachments, emailInfo) {
         .eq('id', kitRegistration.id);
     }
 
-    // log('Confirmation email processed successfully', {
+    log('Confirmation email processed successfully'
+    // , {
     //   kitRegistrationId: kitRegistration.id,
     //   projectNumber,
     //   workOrderNumber
-    // });
+    // }
+    );
 
     return {
       stage: 'confirmation',
@@ -508,7 +517,9 @@ async function processResultsEmail(emailId, attachments, emailInfo) {
   let kitInfo = null;
   
   try {
-    // log('Processing results email', { emailId, emailInfo });
+    log('Processing results email'
+      // , { emailId, emailInfo }
+    );
 
     const workOrderNumber = emailInfo.work_order_number;
 
@@ -607,7 +618,8 @@ async function processResultsEmail(emailId, attachments, emailInfo) {
       customerLocation: formatLocation(adminData)
     };
 
-    // log('Retrieved customer info from admin view', {
+    log('Retrieved customer info'
+    // , {
     //   customerName: kitInfo.customerName,
     //   customerEmail: kitInfo.customerEmail,
     //   kitCode: kitInfo.kitCode,
@@ -617,7 +629,8 @@ async function processResultsEmail(emailId, attachments, emailInfo) {
     //   dataFound: true,
     //   isLegacyKit,
     //   viewUsed
-    // });
+    // }
+    );
   } else {
     log('Could not retrieve detailed customer info from admin views, querying direct tables', {
       error: kitAdminError?.message,
@@ -744,10 +757,12 @@ async function processResultsEmail(emailId, attachments, emailInfo) {
     // **CAPTURE THE LAB CHAIN OF CUSTODY URL**
     const labChainOfCustodyUrl = kitUpdateResult.labChainOfCustodyUrl;
 
-    // log('Kit registration update completed', {
+    log('Kit registration update completed'
+    // , {
     //   hasLabChainOfCustody: !!labChainOfCustodyUrl,
     //   labChainOfCustodyUrl: labChainOfCustodyUrl
-    // });
+    // }
+    );
 
     // Create a proper report record in the database
     const reportRecord = {
@@ -819,7 +834,9 @@ async function processResultsEmail(emailId, attachments, emailInfo) {
 
       // **ADD ADMIN NOTIFICATION EMAIL - START**
   try {
-    // log('Sending admin notification email', { reportId, workOrderNumber });
+    log('Sending admin notification email'
+      // , { reportId, workOrderNumber }
+    );
     
     // Get report details for file downloads
     const { data: report, error: reportError } = await supabase
@@ -1022,13 +1039,15 @@ async function processResultsEmail(emailId, attachments, emailInfo) {
         });
 
         if (loopsResponse.ok) {
-          // log('Admin notification sent successfully', { 
+          log('Admin notification sent successfully'
+          // , { 
           //   reportId, 
           //   workOrderNumber,
           //   attachmentsCount: attachments.length,
           //   kitCode: kitInfo.kitCode || kitInfo.displayId,
           //   orderNumber: kitInfo.orderNumber
-          // });
+          // }
+          );
         } else {
           const errorText = await loopsResponse.text();
           log('Failed to send admin notification', { 
@@ -1163,7 +1182,9 @@ async function updateEmailStatus(emailId, status, errorMessage = null) {
       throw error;
     }
 
-    // log(`Updated email status to ${status}`, { emailId });
+    log(`Updated email status to ${status}`
+      // , { emailId }
+    );
 
   } catch (error) {
     log('Error updating email status', { 
