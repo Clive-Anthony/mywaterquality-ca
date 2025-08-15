@@ -194,7 +194,7 @@ export default function AdminReportsUpload() {
     try {
       const { data, error } = await supabase
         .from('vw_test_kits_admin_dev')
-        .select('*')
+        .select('*',)
         .order('kit_created_at', { ascending: false });
 
       if (error) throw error;
@@ -439,18 +439,18 @@ export default function AdminReportsUpload() {
     }
   };
 
-// NEW: Handle approval status change - Updates approval immediately
+// NEW: Handle approval status change - Works for both approve AND disapprove
 const handleApprovalChange = async (kit, isApproved) => {
-  if (!kit.has_report || !kit.report_id) {
+  if (!kit.report_id || !kit.pdf_file_url) {
     setError('No report available for this kit');
     return;
   }
 
-  // Update approval status immediately, regardless of email
+  // Update approval status immediately (works for both true and false)
   await updateApprovalStatus(kit.report_id, isApproved);
 
+  // Only show email modal when approving (not when disapproving)
   if (isApproved) {
-    // Show the customer email modal when approving (optional email sending)
     setSelectedReportForEmail({
       reportId: kit.report_id,
       kitCode: kit.kit_code,
@@ -485,8 +485,6 @@ const updateApprovalStatus = async (reportId, approvalStatus) => {
     // Reload the test kits data to reflect the change
     loadAllTestKits();
     
-    setSuccessModalMessage(`Report approval status updated successfully!`);
-    setShowSuccessModal(true);
   } catch (err) {
     console.error('Error updating approval status:', err);
     setError(err.message || 'Failed to update approval status');
@@ -1484,9 +1482,9 @@ const updateApprovalStatus = async (reportId, approvalStatus) => {
                     </div>
                   </td>
                     
-                  {/* Report Column */}
+                  {/* Report Column - Updated to use pdf_file_url */}
                   <td className="px-4 py-4 whitespace-nowrap text-center">
-                    {kit.has_report && kit.report_id ? (
+                    {kit.report_id && kit.pdf_file_url ? (
                       <button
                         onClick={() => handleDownloadReport(kit.report_id, kit.kit_code)}
                         className="inline-flex items-center justify-center w-8 h-8 bg-yellow-100 hover:bg-yellow-200 text-yellow-700 rounded-md transition-colors duration-200"
@@ -1501,15 +1499,15 @@ const updateApprovalStatus = async (reportId, approvalStatus) => {
                     )}
                   </td>
 
-                  {/* Approve Report Column */}
+                  {/* Approve Report Column - Same condition */}
                   <td className="px-4 py-4 whitespace-nowrap text-center">
-                    {kit.has_report && kit.report_id ? (
+                    {kit.report_id && kit.pdf_file_url ? (
                       <input
                         type="checkbox"
                         checked={kit.approval_status || false}
                         onChange={(e) => handleApprovalChange(kit, e.target.checked)}
                         className="h-4 w-4 text-blue-600 focus:ring-blue-500 border-gray-300 rounded"
-                        title="Approve report for customer access"
+                        title="Approve/disapprove report for customer access"
                       />
                     ) : (
                       <span className="text-gray-400 text-sm">-</span>
@@ -1534,44 +1532,39 @@ const updateApprovalStatus = async (reportId, approvalStatus) => {
         </div>
       </div>
 
-      {/* NEW: Customer Email Modal */}
+      {/* NEW: Customer Email Modal - Fixed formatting */}
       {showCustomerEmailModal && (
         <div className="fixed inset-0 bg-gray-600 bg-opacity-50 overflow-y-auto h-full w-full z-50">
           <div className="relative top-20 mx-auto p-5 border w-96 shadow-lg rounded-md bg-white">
             <div className="mt-3">
               <div className="flex items-center justify-between mb-4">
                 <h3 className="text-lg font-medium text-gray-900">Send Report to Customer</h3>
-                <p className="text-sm text-gray-500 mt-1">Report has been approved. Send notification email to customer (optional).</p>
                 <button
-                  type="button"
                   onClick={() => {
                     setShowCustomerEmailModal(false);
                     setSelectedReportForEmail(null);
                     setCustomerEmailAddress('');
                   }}
-                  disabled={sendingToCustomer}
-                  className="px-4 py-2 border border-gray-300 rounded-md text-sm font-medium text-gray-700 hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500 disabled:opacity-50"
+                  className="text-gray-400 hover:text-gray-600"
                 >
-                  Skip Email
+                  <svg className="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M6 18L18 6M6 6l12 12" />
+                  </svg>
                 </button>
-                <button
-                  type="button"
-                  onClick={sendReportToCustomer}
-                  disabled={sendingToCustomer || !customerEmailAddress.trim()}
-                  className="px-4 py-2 border border-transparent rounded-md text-sm font-medium text-white bg-blue-600 hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500 disabled:opacity-50 disabled:cursor-not-allowed"
-                >
-                  {sendingToCustomer ? (
-                    <>
-                      <svg className="animate-spin -ml-1 mr-2 h-4 w-4 text-white" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
-                        <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
-                        <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
-                      </svg>
-                      Sending...
-                    </>
-                  ) : (
-                    'Send Email Notification'
-                  )}
-                </button>
+              </div>
+              
+              <div className="mb-4 p-3 bg-green-50 border border-green-200 rounded-md">
+                <div className="flex items-start">
+                  <div className="flex-shrink-0">
+                    <svg className="h-5 w-5 text-green-400" viewBox="0 0 20 20" fill="currentColor">
+                      <path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.293a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z" clipRule="evenodd" />
+                    </svg>
+                  </div>
+                  <div className="ml-3">
+                    <p className="text-sm font-medium text-green-800">Report has been approved.</p>
+                    <p className="text-sm text-green-700 mt-1">Send notification email to customer (optional).</p>
+                  </div>
+                </div>
               </div>
               
               {selectedReportForEmail && (
@@ -1611,7 +1604,7 @@ const updateApprovalStatus = async (reportId, approvalStatus) => {
                   disabled={sendingToCustomer}
                   className="px-4 py-2 border border-gray-300 rounded-md text-sm font-medium text-gray-700 hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500 disabled:opacity-50"
                 >
-                  Cancel
+                  Skip Email
                 </button>
                 <button
                   type="button"
@@ -1628,7 +1621,7 @@ const updateApprovalStatus = async (reportId, approvalStatus) => {
                       Sending...
                     </>
                   ) : (
-                    'Send Report'
+                    'Send Email Notification'
                   )}
                 </button>
               </div>
