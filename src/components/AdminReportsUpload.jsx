@@ -126,7 +126,7 @@ export default function AdminReportsUpload() {
       setLoading(true);
       
       const { data: kitsData, error: kitsError } = await supabase
-        .from('vw_test_kits_admin')
+        .from('vw_test_kits_admin_dev')
         .select('*')
         .is('work_order_number', null)
         .is('sample_number', null) 
@@ -193,7 +193,7 @@ export default function AdminReportsUpload() {
   const loadAllTestKits = async () => {
     try {
       const { data, error } = await supabase
-        .from('vw_test_kits_admin')
+        .from('vw_test_kits_admin_dev')
         .select('*')
         .order('kit_created_at', { ascending: false });
 
@@ -439,6 +439,60 @@ export default function AdminReportsUpload() {
     }
   };
 
+// NEW: Handle approval status change - Updates approval immediately
+const handleApprovalChange = async (kit, isApproved) => {
+  if (!kit.has_report || !kit.report_id) {
+    setError('No report available for this kit');
+    return;
+  }
+
+  // Update approval status immediately, regardless of email
+  await updateApprovalStatus(kit.report_id, isApproved);
+
+  if (isApproved) {
+    // Show the customer email modal when approving (optional email sending)
+    setSelectedReportForEmail({
+      reportId: kit.report_id,
+      kitCode: kit.kit_code,
+      customerName: `${kit.customer_first_name || ''} ${kit.customer_last_name || ''}`.trim(),
+      defaultEmail: kit.customer_email || ''
+    });
+    
+    setCustomerEmailAddress(kit.customer_email || '');
+    setShowCustomerEmailModal(true);
+    setError(null);
+    setSuccess(null);
+  }
+};
+
+// NEW: Update approval status in database
+const updateApprovalStatus = async (reportId, approvalStatus) => {
+  try {
+    const { data: { session } } = await supabase.auth.getSession();
+    if (!session) {
+      throw new Error('Authentication required');
+    }
+
+    const { error } = await supabase
+      .from('reports')
+      .update({ approval_status: approvalStatus })
+      .eq('report_id', reportId);
+
+    if (error) {
+      throw new Error(`Failed to update approval status: ${error.message}`);
+    }
+
+    // Reload the test kits data to reflect the change
+    loadAllTestKits();
+    
+    setSuccessModalMessage(`Report approval status updated successfully!`);
+    setShowSuccessModal(true);
+  } catch (err) {
+    console.error('Error updating approval status:', err);
+    setError(err.message || 'Failed to update approval status');
+  }
+};
+
   // NEW: Handle send to customer button click
   const handleSendToCustomer = async (kit) => {
     if (!kit.has_report || !kit.report_id) {
@@ -493,6 +547,7 @@ export default function AdminReportsUpload() {
       }
 
       const result = await response.json();
+
       
       setSuccessModalMessage(`Report sent successfully to ${result.customerEmail}!`);
       setShowSuccessModal(true);
@@ -1326,40 +1381,27 @@ export default function AdminReportsUpload() {
           <table className="min-w-full divide-y divide-gray-200">
             <thead className="bg-gray-50">
               <tr>
-                <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider w-1/5">
-                  Details
-                </th>
                 <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider w-1/4">
                   Customer Name
                 </th>
-                <th className="px-4 py-3 text-center text-xs font-medium text-gray-500 uppercase tracking-wider w-1/6">
-                  Original Chain of Custody
+                <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider w-1/5">
+                  Details
                 </th>
                 <th className="px-4 py-3 text-center text-xs font-medium text-gray-500 uppercase tracking-wider w-1/6">
                   Lab Chain of Custody
                 </th>
                 <th className="px-4 py-3 text-center text-xs font-medium text-gray-500 uppercase tracking-wider w-1/6">
-                  Report Actions
+                  Report
+                </th>
+                <th className="px-4 py-3 text-center text-xs font-medium text-gray-500 uppercase tracking-wider w-1/6">
+                  Approve Report
                 </th>
               </tr>
             </thead>
             <tbody className="bg-white divide-y divide-gray-200">
               {filteredTestKits.map((kit) => (
                 <tr key={kit.kit_id} className="hover:bg-gray-50">
-                  <td className="px-4 py-4 whitespace-nowrap w-1/5">
-                    <div className="max-w-[120px]">
-                      <div className="text-sm font-medium text-gray-900 truncate" title={kit.kit_code || 'N/A'}>
-                        {kit.kit_code || 'N/A'}
-                      </div>
-                      <div className="text-sm text-gray-500 truncate" title={`#${kit.order_number || 'N/A'}`}>
-                        #{kit.order_number || 'N/A'}
-                      </div>
-                      <div className="text-xs text-gray-400">
-                        {kit.kit_type === 'legacy' ? 'Legacy Kit' : 'Regular Kit'}
-                      </div>
-                    </div>
-                  </td>
-                  
+                  {/* Customer Name Column */}
                   <td className="px-4 py-4 whitespace-nowrap w-1/4">
                     <div className="max-w-[180px]">
                       <div className="text-sm font-medium text-gray-900 truncate" title={
@@ -1381,22 +1423,22 @@ export default function AdminReportsUpload() {
                     </div>
                   </td>
                   
-                  <td className="px-4 py-4 whitespace-nowrap text-center">
-                    {kit.chain_of_custody_url ? (
-                      <button
-                        onClick={() => handleDownloadChainOfCustody(kit.chain_of_custody_url, kit.kit_code, 'original')}
-                        className="inline-flex items-center justify-center w-8 h-8 bg-blue-100 hover:bg-blue-200 text-blue-700 rounded-md transition-colors duration-200"
-                        title="Download Original Chain of Custody"
-                      >
-                        <svg className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M12 10v6m0 0l-3-3m3 3l3-3m2 8H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
-                        </svg>
-                      </button>
-                    ) : (
-                      <span className="text-gray-400 text-sm">-</span>
-                    )}
+                  {/* Details Column */}
+                  <td className="px-4 py-4 whitespace-nowrap w-1/5">
+                    <div className="max-w-[120px]">
+                      <div className="text-sm font-medium text-gray-900 truncate" title={kit.kit_code || 'N/A'}>
+                        {kit.kit_code || 'N/A'}
+                      </div>
+                      <div className="text-sm text-gray-500 truncate" title={`#${kit.order_number || 'N/A'}`}>
+                        #{kit.order_number || 'N/A'}
+                      </div>
+                      <div className="text-xs text-gray-400">
+                        {kit.kit_type === 'legacy' ? 'Legacy Kit' : 'Regular Kit'}
+                      </div>
+                    </div>
                   </td>
 
+                  {/* Lab Chain of Custody Column */}
                   <td className="px-4 py-4 whitespace-nowrap text-center">
                     <div className="flex items-center justify-center space-x-2">
                       <label
@@ -1442,36 +1484,36 @@ export default function AdminReportsUpload() {
                     </div>
                   </td>
                     
+                  {/* Report Column */}
                   <td className="px-4 py-4 whitespace-nowrap text-center">
-                    <div className="flex items-center justify-center space-x-2">
-                      {kit.has_report && kit.report_id ? (
-                        <>
-                          <button
-                            onClick={() => handleDownloadReport(kit.report_id, kit.kit_code)}
-                            className="inline-flex items-center justify-center w-8 h-8 bg-yellow-100 hover:bg-yellow-200 text-yellow-700 rounded-md transition-colors duration-200"
-                            title="Download Report"
-                          >
-                            <svg className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M12 10v6m0 0l-3-3m3 3l3-3m2 8H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
-                            </svg>
-                          </button>
-                          
-                          {/* NEW: Send to Customer Button */}
-                          <button
-                            onClick={() => handleSendToCustomer(kit)}
-                            className="inline-flex items-center px-2 py-1 border border-transparent text-xs font-medium rounded-md text-blue-700 bg-blue-100 hover:bg-blue-200 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500 transition-colors duration-200"
-                            title="Send Report to Customer"
-                          >
-                            <svg className="h-4 w-4 mr-1" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M3 8l7.89 7.89a2 2 0 002.22 0L21 8M5 19h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z" />
-                            </svg>
-                            Send to Customer
-                          </button>
-                        </>
-                      ) : (
-                        <span className="text-gray-400 text-sm">-</span>
-                      )}
-                    </div>
+                    {kit.has_report && kit.report_id ? (
+                      <button
+                        onClick={() => handleDownloadReport(kit.report_id, kit.kit_code)}
+                        className="inline-flex items-center justify-center w-8 h-8 bg-yellow-100 hover:bg-yellow-200 text-yellow-700 rounded-md transition-colors duration-200"
+                        title="Download Report"
+                      >
+                        <svg className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M12 10v6m0 0l-3-3m3 3l3-3m2 8H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
+                        </svg>
+                      </button>
+                    ) : (
+                      <span className="text-gray-400 text-sm">-</span>
+                    )}
+                  </td>
+
+                  {/* Approve Report Column */}
+                  <td className="px-4 py-4 whitespace-nowrap text-center">
+                    {kit.has_report && kit.report_id ? (
+                      <input
+                        type="checkbox"
+                        checked={kit.approval_status || false}
+                        onChange={(e) => handleApprovalChange(kit, e.target.checked)}
+                        className="h-4 w-4 text-blue-600 focus:ring-blue-500 border-gray-300 rounded"
+                        title="Approve report for customer access"
+                      />
+                    ) : (
+                      <span className="text-gray-400 text-sm">-</span>
+                    )}
                   </td>
                 </tr>
               ))}
@@ -1499,17 +1541,36 @@ export default function AdminReportsUpload() {
             <div className="mt-3">
               <div className="flex items-center justify-between mb-4">
                 <h3 className="text-lg font-medium text-gray-900">Send Report to Customer</h3>
+                <p className="text-sm text-gray-500 mt-1">Report has been approved. Send notification email to customer (optional).</p>
                 <button
+                  type="button"
                   onClick={() => {
                     setShowCustomerEmailModal(false);
                     setSelectedReportForEmail(null);
                     setCustomerEmailAddress('');
                   }}
-                  className="text-gray-400 hover:text-gray-600"
+                  disabled={sendingToCustomer}
+                  className="px-4 py-2 border border-gray-300 rounded-md text-sm font-medium text-gray-700 hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500 disabled:opacity-50"
                 >
-                  <svg className="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M6 18L18 6M6 6l12 12" />
-                  </svg>
+                  Skip Email
+                </button>
+                <button
+                  type="button"
+                  onClick={sendReportToCustomer}
+                  disabled={sendingToCustomer || !customerEmailAddress.trim()}
+                  className="px-4 py-2 border border-transparent rounded-md text-sm font-medium text-white bg-blue-600 hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500 disabled:opacity-50 disabled:cursor-not-allowed"
+                >
+                  {sendingToCustomer ? (
+                    <>
+                      <svg className="animate-spin -ml-1 mr-2 h-4 w-4 text-white" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+                        <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
+                        <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+                      </svg>
+                      Sending...
+                    </>
+                  ) : (
+                    'Send Email Notification'
+                  )}
                 </button>
               </div>
               
