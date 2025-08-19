@@ -768,48 +768,67 @@ const updateApprovalStatus = async (kitId, kitType, approvalStatus) => {
   };
   
   const handleDownloadChainOfCustody = async (url, kitCode, type = 'original') => {
-    try {
-      if (!url) {
-        setError(`No ${type} chain of custody available`);
-        return;
-      }
-  
-      let bucket, fileName;
-      
-      if (type === 'lab') {
-        bucket = 'lab-chain-of-custody';
-        fileName = url.split('/').pop();
-      } else {
-        if (url.includes('/storage/v1/object/public/')) {
-          const urlParts = url.split('/storage/v1/object/public/')[1];
-          const [bucketName, ...filenameParts] = urlParts.split('/');
-          bucket = bucketName;
-          fileName = filenameParts.join('/');
-        } else {
-          bucket = 'generated-chain-of-custody';
-          fileName = url.split('/').pop();
-        }
-      }
-  
-      const { data: signedUrlData, error: signedUrlError } = await supabase.storage
-        .from(bucket)
-        .createSignedUrl(fileName, 3600);
-  
-      if (signedUrlError) {
-        throw new Error(`Failed to generate download link: ${signedUrlError.message}`);
-      }
-  
-      if (signedUrlData?.signedUrl) {
-        window.open(signedUrlData.signedUrl, '_blank');
-        setError(null);
-      } else {
-        setError('Failed to generate download link');
-      }
-    } catch (err) {
-      console.error('Error downloading chain of custody:', err);
-      setError(`Failed to download ${type} chain of custody: ${err.message}`);
+  try {
+    if (!url) {
+      setError(`No ${type} chain of custody available`);
+      return;
     }
-  };
+
+    let bucket, fileName;
+    
+    // Parse the URL to extract bucket and file path
+    if (url.includes('/storage/v1/object/public/')) {
+      // Handle public URLs (though lab-results is private, some URLs might still have this format)
+      const urlParts = url.split('/storage/v1/object/public/')[1];
+      const [bucketName, ...filenameParts] = urlParts.split('/');
+      bucket = bucketName;
+      fileName = filenameParts.join('/');
+    } else if (url.includes('/storage/v1/object/sign/')) {
+      // Handle signed URLs
+      const urlParts = url.split('/storage/v1/object/sign/')[1];
+      const [bucketName, ...filenameParts] = urlParts.split('/');
+      bucket = bucketName;
+      fileName = filenameParts.join('/');
+    } else {
+      // Fallback: assume it's a lab-results URL and try to extract the path
+      // For URLs like: https://domain.supabase.co/storage/v1/object/public/lab-results/592161/CofC592161.pdf
+      const urlObj = new URL(url);
+      const pathParts = urlObj.pathname.split('/');
+      
+      // Find 'lab-results' in the path
+      const labResultsIndex = pathParts.indexOf('lab-results');
+      if (labResultsIndex !== -1 && labResultsIndex < pathParts.length - 1) {
+        bucket = 'lab-results';
+        fileName = pathParts.slice(labResultsIndex + 1).join('/');
+      } else {
+        // Final fallback
+        bucket = 'lab-results';
+        fileName = url.split('/').pop();
+      }
+    }
+
+    console.log('Downloading from bucket:', bucket, 'file:', fileName);
+
+    const { data: signedUrlData, error: signedUrlError } = await supabase.storage
+      .from(bucket)
+      .createSignedUrl(fileName, 3600);
+
+    if (signedUrlError) {
+      console.error('Signed URL error:', signedUrlError);
+      throw new Error(`Failed to generate download link: ${signedUrlError.message}`);
+    }
+
+    if (signedUrlData?.signedUrl) {
+      window.open(signedUrlData.signedUrl, '_blank');
+      setError(null);
+    } else {
+      setError('Failed to generate download link');
+    }
+  } catch (err) {
+    console.error('Error downloading chain of custody:', err);
+    setError(`Failed to download ${type} chain of custody: ${err.message}`);
+  }
+};
 
   const filteredTestKits = allTestKits.filter(kit => {
     if (!searchQuery) return true;
