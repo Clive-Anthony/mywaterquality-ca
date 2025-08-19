@@ -251,8 +251,8 @@ const hasColiformContamination = bacteriological.some(param => {
         aoCWQI ? createCWQISection(aoCWQI, aoConcerns, 'ao') : null,
         
         // Road Salt Assessment
-        createSectionTitle('ROAD SALT IMPACT ASSESSMENT'),
-        createRoadSaltAssessment(reportData)
+        // createSectionTitle('ROAD SALT IMPACT ASSESSMENT'),
+        // createRoadSaltAssessment(reportData)
       ),
 
       // Page 4 - Health Concerns (only if there are health concerns)

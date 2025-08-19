@@ -60,11 +60,16 @@ export default function AdminReportsUpload() {
   const [customerEmailAddress, setCustomerEmailAddress] = useState('');
   const [sendingToCustomer, setSendingToCustomer] = useState(false);
 
+  const [availableReportsForUpdate, setAvailableReportsForUpdate] = useState([]);
+  const [selectedReportForUpdate, setSelectedReportForUpdate] = useState('');
+  const [regeneratingReport, setRegeneratingReport] = useState(false);
+
   // Load data on component mount
   useEffect(() => {
     loadKitsData();
     loadTestKitTypes();
     loadAllTestKits();
+    loadAvailableReportsForUpdate();
   }, []);
 
   // Reset form when report type changes
@@ -204,6 +209,28 @@ export default function AdminReportsUpload() {
     }
   };
 
+  const loadAvailableReportsForUpdate = async () => {
+  try {
+    const { data: reportsData, error: reportsError } = await supabase
+      .from('vw_test_kits_admin')
+      .select('*')
+      .not('work_order_number', 'is', null)
+      .not('sample_number', 'is', null)
+      .not('report_id', 'is', null)
+      .order('kit_created_at', { ascending: false });
+
+    if (reportsError) {
+      throw reportsError;
+    }
+
+    setAvailableReportsForUpdate(reportsData || []);
+  } catch (err) {
+    console.error('Error loading available reports for update:', err);
+    setError('Failed to load available reports');
+  }
+};
+
+
   const handleInputChange = (e) => {
     const { name, value } = e.target;
     
@@ -272,6 +299,68 @@ export default function AdminReportsUpload() {
       }));
     }
   };
+
+  const handleReportRegeneration = async () => {
+  if (!selectedReportForUpdate) {
+    setError('Please select a report to regenerate');
+    return;
+  }
+
+  setRegeneratingReport(true);
+  setError(null);
+  setSuccess(null);
+
+  try {
+    const { data: { session } } = await supabase.auth.getSession();
+    if (!session) {
+      throw new Error('Authentication required');
+    }
+
+    const selectedReport = availableReportsForUpdate.find(
+      report => report.kit_id === selectedReportForUpdate
+    );
+
+    if (!selectedReport) {
+      throw new Error('Selected report not found');
+    }
+
+    const response = await fetch('/.netlify/functions/regenerate-report', {
+      method: 'POST',
+      headers: {
+        'Content-Type': 'application/json',
+        'Authorization': `Bearer ${session.access_token}`
+      },
+      body: JSON.stringify({
+        kitId: selectedReport.kit_id,
+        kitType: selectedReport.kit_type
+      })
+    });
+
+    if (!response.ok) {
+      const errorData = await response.json();
+      throw new Error(errorData.error || 'Failed to regenerate report');
+    }
+
+    const result = await response.json();
+    
+    setSuccessModalMessage(
+      `Report regenerated successfully! New Report ID: ${result.reportId}. ` +
+      `Health CWQI: ${result.healthCWQI || 'N/A'}, AO CWQI: ${result.aoCWQI || 'N/A'}`
+    );
+    setShowSuccessModal(true);
+    setSelectedReportForUpdate('');
+    
+    // Reload data
+    loadAllTestKits();
+    loadAvailableReportsForUpdate();
+    
+  } catch (err) {
+    console.error('Error regenerating report:', err);
+    setError(err.message || 'Failed to regenerate report');
+  } finally {
+    setRegeneratingReport(false);
+  }
+};
 
   const handleFileChange = (e) => {
     const file = e.target.files[0];
@@ -1350,6 +1439,161 @@ const updateApprovalStatus = async (reportId, approvalStatus) => {
     </div>
   </div>
       
+      {/* Update Existing Report Section */}
+      <div className="bg-white shadow rounded-lg overflow-hidden">
+        <div className="px-4 sm:px-6 py-4 sm:py-5 border-b border-gray-200">
+          <div className="flex items-center">
+            <svg className="h-5 w-5 text-orange-600 mr-2" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
+            </svg>
+            <h3 className="text-lg leading-6 font-medium">
+              Update Existing Report
+            </h3>
+          </div>
+          <p className="mt-1 text-sm">
+            Regenerate reports for existing test kits (useful for design changes or corrections).
+          </p>
+        </div>
+
+        <div className="p-4 sm:p-6">
+          <div className="space-y-6">
+            {/* Report Selection */}
+            <div>
+              <label htmlFor="reportSelect" className="block text-sm font-medium text-gray-700 mb-2">
+                Select Report to Update <span className="text-red-500">*</span>
+              </label>
+              <select
+                id="reportSelect"
+                value={selectedReportForUpdate}
+                onChange={(e) => setSelectedReportForUpdate(e.target.value)}
+                className="w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-2 focus:ring-orange-500 focus:border-orange-500 sm:text-sm"
+                disabled={regeneratingReport}
+              >
+                <option value="">-- Select a report to regenerate --</option>
+                {availableReportsForUpdate.map((report) => (
+                  <option key={report.kit_id} value={report.kit_id}>
+                    {`${report.customer_first_name || ''} ${report.customer_last_name || ''}`.trim() || 'Unknown Customer'} - {report.kit_code} - WO{report.work_order_number}
+                  </option>
+                ))}
+              </select>
+              
+              {availableReportsForUpdate.length === 0 && (
+                <p className="mt-2 text-sm text-gray-500">
+                  No reports available for regeneration. Reports must have completed test results.
+                </p>
+              )}
+            </div>
+
+            {/* Selected Report Info */}
+            {selectedReportForUpdate && (
+              <div className="bg-orange-50 border border-orange-200 rounded-md p-4">
+                {(() => {
+                  const selectedReport = availableReportsForUpdate.find(
+                    report => report.kit_id === selectedReportForUpdate
+                  );
+                  return selectedReport ? (
+                    <div>
+                      <h4 className="text-sm font-medium text-orange-900 mb-2">
+                        Selected Report Information
+                      </h4>
+                      <div className="grid grid-cols-1 sm:grid-cols-2 gap-3 text-sm">
+                        <div>
+                          <span className="font-medium text-orange-800">Customer:</span>
+                          <span className="ml-2 text-orange-700">
+                            {`${selectedReport.customer_first_name || ''} ${selectedReport.customer_last_name || ''}`.trim() || 'Unknown Customer'}
+                          </span>
+                        </div>
+                        <div>
+                          <span className="font-medium text-orange-800">Kit Code:</span>
+                          <span className="ml-2 text-orange-700">{selectedReport.kit_code}</span>
+                        </div>
+                        <div>
+                          <span className="font-medium text-orange-800">Work Order:</span>
+                          <span className="ml-2 text-orange-700">WO{selectedReport.work_order_number}</span>
+                        </div>
+                        <div>
+                          <span className="font-medium text-orange-800">Sample:</span>
+                          <span className="ml-2 text-orange-700">{selectedReport.sample_number}</span>
+                        </div>
+                        <div>
+                          <span className="font-medium text-orange-800">Test Kit:</span>
+                          <span className="ml-2 text-orange-700">{selectedReport.test_kit_name}</span>
+                        </div>
+                        <div>
+                          <span className="font-medium text-orange-800">Current Report ID:</span>
+                          <span className="ml-2 text-orange-700 font-mono text-xs">{selectedReport.report_id}</span>
+                        </div>
+                      </div>
+                    </div>
+                  ) : null;
+                })()}
+              </div>
+            )}
+
+            {/* Error/Success/Processing Messages */}
+            {error && (
+              <div className="bg-red-50 border border-red-200 rounded-md p-4">
+                <div className="flex">
+                  <div className="flex-shrink-0">
+                    <svg className="h-5 w-5 text-red-400" viewBox="0 0 20 20" fill="currentColor">
+                      <path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zM8.707 7.293a1 1 0 00-1.414 1.414L8.586 10l-1.293 1.293a1 1 0 101.414 1.414L10 11.414l1.293 1.293a1 1 0 001.414-1.414L11.414 10l1.293-1.293a1 1 0 00-1.414-1.414L10 8.586 8.707 7.293z" clipRule="evenodd" />
+                    </svg>
+                  </div>
+                  <div className="ml-3">
+                    <h3 className="text-sm font-medium text-red-800">Error</h3>
+                    <div className="mt-1 text-sm text-red-700">{error}</div>
+                  </div>
+                </div>
+              </div>
+            )}
+
+            {regeneratingReport && (
+              <div className="bg-orange-50 border border-orange-200 rounded-md p-4">
+                <div className="flex">
+                  <div className="flex-shrink-0">
+                    <svg className="animate-spin h-5 w-5 text-orange-600" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+                      <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
+                      <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+                    </svg>
+                  </div>
+                  <div className="ml-3">
+                    <h3 className="text-sm font-medium text-orange-800">Processing</h3>
+                    <div className="mt-1 text-sm text-orange-700">
+                      Regenerating report... This may take a few moments.
+                    </div>
+                  </div>
+                </div>
+              </div>
+            )}
+
+            {/* Generate Button */}
+            <div className="flex justify-end border-t border-gray-200 pt-6">
+              <button
+                onClick={handleReportRegeneration}
+                disabled={!selectedReportForUpdate || regeneratingReport}
+                className="inline-flex items-center px-4 py-2 border border-transparent text-sm font-medium rounded-md text-white bg-orange-600 hover:bg-orange-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-orange-500 disabled:opacity-50 disabled:cursor-not-allowed transition-colors duration-200"
+              >
+                {regeneratingReport ? (
+                  <>
+                    <svg className="animate-spin -ml-1 mr-2 h-4 w-4 text-white" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24">
+                      <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"></circle>
+                      <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8V0C5.373 0 0 5.373 0 12h4zm2 5.291A7.962 7.962 0 014 12H0c0 3.042 1.135 5.824 3 7.938l3-2.647z"></path>
+                    </svg>
+                    Regenerating...
+                  </>
+                ) : (
+                  <>
+                    <svg className="h-4 w-4 mr-2" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
+                    </svg>
+                    Generate Report
+                  </>
+                )}
+              </button>
+            </div>
+          </div>
+        </div>
+      </div>
 
       {/* All Test Kits List */}
       <div className="bg-white shadow rounded-lg overflow-hidden">
