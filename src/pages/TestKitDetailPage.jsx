@@ -4,6 +4,7 @@ import { useParams, useNavigate, Link } from 'react-router-dom';
 import PageLayout from '../components/PageLayout';
 import QuantitySelector from '../components/QuantitySelector';
 import { useCartActions } from '../hooks/useCartActions';
+import { useShopPageTracking } from '../hooks/useGTM';
 import {
   getTestKitBySlug,
   getTestKitParameters,
@@ -48,6 +49,16 @@ export default function TestKitDetailPage() {
     getItemQuantity,
     isInCart
   } = useCartActions();
+
+  // Add GTM tracking for individual product page views
+  useShopPageTracking(
+    testKit ? `${testKit.name} - Water Test Kit` : 'Water Test Kit Details',
+    testKit ? {
+      id: testKit.id,
+      name: testKit.name,
+      price: testKit.price
+    } : null
+  );
 
   // Fetch test kit data
   useEffect(() => {

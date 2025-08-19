@@ -4,6 +4,7 @@ import { Link, useNavigate, useLocation } from 'react-router-dom';
 import { signIn, signInWithGoogle } from '../lib/supabaseClient';
 import { useAuth } from '../contexts/AuthContext';
 import { supabase } from '../lib/supabaseClient';
+import { trackUserLogin } from '../utils/gtm';
 
 
 export default function LoginPage() {
@@ -84,68 +85,74 @@ export default function LoginPage() {
     }, [user, authLoading, waitingForAuth, navigate]);
 
   const handleSubmit = async (e) => {
-    e.preventDefault();
-    e.stopPropagation();
+  e.preventDefault();
+  e.stopPropagation();
+  
+  // Prevent double submissions
+  if (submissionInProgress.current || loading) {
+    console.log('Submission already in progress, blocking duplicate');
+    return;
+  }
+  
+  // Basic validation
+  if (!email.trim() || !password.trim()) {
+    setError('Please enter both email and password');
+    return;
+  }
+  
+  submissionInProgress.current = true;
+  setError(null);
+  setLoading(true);
+  
+  try {
+    console.log('Starting login attempt for:', email);
     
-    // Prevent double submissions
-    if (submissionInProgress.current || loading) {
-      console.log('Submission already in progress, blocking duplicate');
-      return;
+    const { data, error } = await signIn(email.trim(), password);
+    
+    if (error) {
+      console.error('Login error:', error);
+      throw error;
     }
     
-    // Basic validation
-    if (!email.trim() || !password.trim()) {
-      setError('Please enter both email and password');
-      return;
-    }
+    console.log('Login successful, waiting for auth state to update...');
     
-    submissionInProgress.current = true;
-    setError(null);
-    setLoading(true);
-    
+    // Track successful login
     try {
-      console.log('Starting login attempt for:', email);
-      
-      const { data, error } = await signIn(email.trim(), password);
-      
-      if (error) {
-        console.error('Login error:', error);
-        throw error;
-      }
-      
-      console.log('Login successful, waiting for auth state to update...');
-      
-      // Clear form on success
-      setEmail('');
-      setPassword('');
-      
-      // Set flag to wait for auth context to update
-      setWaitingForAuth(true);
-      
-      // Don't navigate immediately - wait for useEffect to handle it
-      // navigate('/dashboard'); // Remove this line
-      
-    } catch (err) {
-      console.error('Login error:', err);
-      
-      // Reset loading states on error
-      setLoading(false);
-      submissionInProgress.current = false;
-      setWaitingForAuth(false);
-      
-      // Handle specific error messages
-      if (err.message?.includes('invalid_credentials') || err.message?.includes('Invalid login credentials')) {
-        setError('Invalid email or password. Please check your credentials and try again.');
-      } else if (err.message?.includes('too_many_requests')) {
-        setError('Too many login attempts. Please wait a moment and try again.');
-      } else if (err.message?.includes('email_not_confirmed')) {
-        setError('Please check your email and click the verification link before logging in.');
-      } else {
-        setError(err.message || 'Failed to sign in. Please try again.');
-      }
+      await trackUserLogin('email');
+    } catch (gtmError) {
+      console.error('GTM tracking error (non-critical):', gtmError);
     }
-    // Don't put finally block here - let the useEffect handle success cleanup
-  };
+    
+    // Clear form on success
+    setEmail('');
+    setPassword('');
+    
+    // Set flag to wait for auth context to update
+    setWaitingForAuth(true);
+    
+    // Don't navigate immediately - wait for useEffect to handle it
+    
+  } catch (err) {
+    console.error('Login error:', err);
+    
+    // Reset loading states on error
+    setLoading(false);
+    submissionInProgress.current = false;
+    setWaitingForAuth(false);
+    
+    // Handle specific error messages
+    if (err.message?.includes('invalid_credentials') || err.message?.includes('Invalid login credentials')) {
+      setError('Invalid email or password. Please check your credentials and try again.');
+    } else if (err.message?.includes('too_many_requests')) {
+      setError('Too many login attempts. Please wait a moment and try again.');
+    } else if (err.message?.includes('email_not_confirmed')) {
+      setError('Please check your email and click the verification link before logging in.');
+    } else {
+      setError(err.message || 'Failed to sign in. Please try again.');
+    }
+  }
+  // Don't put finally block here - let the useEffect handle success cleanup
+};
 
   const handleGoogleSignIn = async () => {
     // Prevent multiple Google sign-in attempts

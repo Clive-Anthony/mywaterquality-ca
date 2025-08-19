@@ -26,55 +26,67 @@ export default function SignupPage() {
   };
 
   const handleSubmit = async (e) => {
-    e.preventDefault();
-    setError(null);
+  e.preventDefault();
+  setError(null);
+  
+  // Form validation
+  if (formData.password !== formData.confirmPassword) {
+    setError('Passwords do not match');
+    return;
+  }
+  
+  if (formData.password.length < 6) {
+    setError('Password must be at least 6 characters');
+    return;
+  }
+  
+  setLoading(true);
+  
+  try {
+    const { data, error } = await signUp(
+      formData.email, 
+      formData.password, 
+      formData.firstName, 
+      formData.lastName
+    );
     
-    // Form validation
-    if (formData.password !== formData.confirmPassword) {
-      setError('Passwords do not match');
-      return;
+    if (error) {
+      throw error;
     }
     
-    if (formData.password.length < 6) {
-      setError('Password must be at least 6 characters');
-      return;
-    }
-    
-    setLoading(true);
-    
+    // Track sign-up conversion after successful account creation
     try {
-      const { data, error } = await signUp(
-        formData.email, 
-        formData.password, 
-        formData.firstName, 
-        formData.lastName
-      );
-      
-      if (error) {
-        throw error;
-      }
-      
-      setSuccessMessage('Success! Please check your email for a verification link to complete your account setup.');
-      
-      // Clear form
-      setFormData({
-        firstName: '',
-        lastName: '',
-        email: '',
-        password: '',
-        confirmPassword: ''
-      });
-      
-      // Redirect to login after 5 seconds
-      setTimeout(() => {
-        navigate('/login');
-      }, 5000);
-    } catch (err) {
-      setError(err.message || 'An error occurred during signup');
-    } finally {
-      setLoading(false);
+      const { trackSignupConversion } = await import('../utils/gtm');
+      await trackSignupConversion({
+        email: formData.email,
+        firstName: formData.firstName,
+        lastName: formData.lastName
+      }, 'email');
+    } catch (gtmError) {
+      console.error('GTM tracking error (non-critical):', gtmError);
     }
-  };
+    
+    setSuccessMessage('Success! Please check your email for a verification link to complete your account setup.');
+    
+    // Clear form
+    setFormData({
+      firstName: '',
+      lastName: '',
+      email: '',
+      password: '',
+      confirmPassword: ''
+    });
+    
+    // Redirect to login after 5 seconds
+    setTimeout(() => {
+      navigate('/login');
+    }, 5000);
+  } catch (err) {
+    setError(err.message || 'An error occurred during signup');
+  } finally {
+    setLoading(false);
+  }
+};
 
   const handleGoogleSignUp = async () => {
     setError(null);

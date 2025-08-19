@@ -2,6 +2,7 @@ import React, { useEffect, useState, useRef } from 'react';
 import { useNavigate, useSearchParams } from 'react-router-dom';
 import { supabase } from '../lib/supabaseClient';
 import { useAuth } from '../contexts/AuthContext';
+import { trackSignupConversion, trackUserLogin } from '../utils/gtm';
 
 const AuthRedirect = () => {
   const [searchParams] = useSearchParams();
@@ -39,151 +40,177 @@ const AuthRedirect = () => {
   };
 
   useEffect(() => {
-    const handleRedirect = async () => {
-      // Prevent multiple simultaneous processing
-      if (processingRef.current || !mountedRef.current) {
-        return;
-      }
+  const handleRedirect = async () => {
+    // Prevent multiple simultaneous processing
+    if (processingRef.current || !mountedRef.current) {
+      return;
+    }
 
-      // Wait for AuthContext to be ready
-      if (!isReady) {
-        return;
-      }
+    // Wait for AuthContext to be ready
+    if (!isReady) {
+      return;
+    }
 
-      processingRef.current = true;
+    processingRef.current = true;
 
-      try {
-        const accessToken = searchParams.get('access_token');
-        const refreshToken = searchParams.get('refresh_token');
-        const errorParam = searchParams.get('error');
-        const errorDescription = searchParams.get('error_description');
+    try {
+      const accessToken = searchParams.get('access_token');
+      const refreshToken = searchParams.get('refresh_token');
+      const errorParam = searchParams.get('error');
+      const errorDescription = searchParams.get('error_description');
 
-        // Handle OAuth errors
-        if (errorParam) {
-          console.error('OAuth error:', errorParam, errorDescription);
-          setError(errorDescription || errorParam);
-          setStatus('error');
-          
-          // Navigate to login with error after delay
-          setTimeout(() => {
-            if (mountedRef.current) {
-              navigate('/login', { 
-                state: { 
-                  error: errorDescription || 'Authentication failed' 
-                },
-                replace: true 
-              });
-            }
-          }, 2000);
-          return;
-        }
-
-        // Validate required tokens
-        if (!accessToken || !refreshToken) {
-          console.error('Missing tokens in redirect');
-          setError('Invalid authentication response');
-          setStatus('error');
-          
-          setTimeout(() => {
-            if (mountedRef.current) {
-              navigate('/login', { 
-                state: { 
-                  error: 'Authentication failed - missing tokens' 
-                },
-                replace: true 
-              });
-            }
-          }, 2000);
-          return;
-        }
-
-        console.log('Processing OAuth redirect...');
-        setStatus('setting_session');
-
-        // Clear any existing redirect flags first
-        sessionStorage.removeItem('auth_redirect_in_progress');
+      // Handle OAuth errors
+      if (errorParam) {
+        console.error('OAuth error:', errorParam, errorDescription);
+        setError(errorDescription || errorParam);
+        setStatus('error');
         
-        // Set session with tokens
-        const { data, error: sessionError } = await supabase.auth.setSession({
-          access_token: accessToken,
-          refresh_token: refreshToken
-        });
-
-        if (sessionError) {
-          console.error('Session error:', sessionError);
-          setError(sessionError.message);
-          setStatus('error');
-          
-          setTimeout(() => {
-            if (mountedRef.current) {
-              navigate('/login', { 
-                state: { 
-                  error: 'Failed to establish session' 
-                },
-                replace: true 
-              });
-            }
-          }, 2000);
-          return;
-        }
-
-        if (!data.session || !data.user) {
-          console.error('No session or user after setSession');
-          setError('Failed to establish user session');
-          setStatus('error');
-          
-          setTimeout(() => {
-            if (mountedRef.current) {
-              navigate('/login', { 
-                state: { 
-                  error: 'Session creation failed' 
-                },
-                replace: true 
-              });
-            }
-          }, 2000);
-          return;
-        }
-
-        console.log('Session established successfully');
-        setStatus('success');
-
-        // Get redirect path based on user role
-        const redirectPath = await getRedirectPath(data.user);
-        
-        // Wait a bit for AuthContext to update, then navigate
+        // Navigate to login with error after delay
         setTimeout(() => {
           if (mountedRef.current) {
-            // Clear any stored return path since we're determining path by role
-            sessionStorage.removeItem('auth_return_to');
-            
-            console.log('Navigating to:', redirectPath);
-            navigate(redirectPath, { replace: true });
+            navigate('/login', { 
+              state: { 
+                error: errorDescription || 'Authentication failed' 
+              },
+              replace: true 
+            });
           }
-        }, 1000);
+        }, 2000);
+        return;
+      }
 
-      } catch (error) {
-        console.error('Auth redirect error:', error);
-        setError(error.message);
+      // Validate required tokens
+      if (!accessToken || !refreshToken) {
+        console.error('Missing tokens in redirect');
+        setError('Invalid authentication response');
         setStatus('error');
         
         setTimeout(() => {
           if (mountedRef.current) {
             navigate('/login', { 
               state: { 
-                error: 'Authentication processing failed' 
+                error: 'Authentication failed - missing tokens' 
               },
               replace: true 
             });
           }
         }, 2000);
-      } finally {
-        processingRef.current = false;
+        return;
       }
-    };
 
-    handleRedirect();
-  }, [searchParams, navigate, isReady]);
+      console.log('Processing OAuth redirect...');
+      setStatus('setting_session');
+
+      // Clear any existing redirect flags first
+      sessionStorage.removeItem('auth_redirect_in_progress');
+      
+      // Set session with tokens
+      const { data, error: sessionError } = await supabase.auth.setSession({
+        access_token: accessToken,
+        refresh_token: refreshToken
+      });
+
+      if (sessionError) {
+        console.error('Session error:', sessionError);
+        setError(sessionError.message);
+        setStatus('error');
+        
+        setTimeout(() => {
+          if (mountedRef.current) {
+            navigate('/login', { 
+              state: { 
+                error: 'Failed to establish session' 
+              },
+              replace: true 
+            });
+          }
+        }, 2000);
+        return;
+      }
+
+      if (!data.session || !data.user) {
+        console.error('No session or user after setSession');
+        setError('Failed to establish user session');
+        setStatus('error');
+        
+        setTimeout(() => {
+          if (mountedRef.current) {
+            navigate('/login', { 
+              state: { 
+                error: 'Session creation failed' 
+              },
+              replace: true 
+            });
+          }
+        }, 2000);
+        return;
+      }
+
+      console.log('Session established successfully');
+      setStatus('success');
+
+      // ENHANCED: Determine if this is a new user signup or existing user login
+      const user = data.user;
+      const userCreatedAt = new Date(user.created_at);
+      const now = new Date();
+      const timeDiffMinutes = (now - userCreatedAt) / (1000 * 60);
+      const isNewUser = timeDiffMinutes < 10; // Consider new if created within 10 minutes
+
+      // Track GTM conversion
+      try {
+        if (isNewUser) {
+          // Track as signup conversion
+          console.log('Tracking OAuth signup conversion');
+          await trackSignupConversion({
+            email: user.email,
+            firstName: user.user_metadata?.first_name || user.user_metadata?.full_name?.split(' ')[0] || '',
+            lastName: user.user_metadata?.last_name || user.user_metadata?.full_name?.split(' ')[1] || ''
+          }, 'google');
+        } else {
+          // Track as login
+          console.log('Tracking OAuth login');
+          await trackUserLogin('google');
+        }
+      } catch (gtmError) {
+        console.error('GTM tracking error (non-critical):', gtmError);
+      }
+
+      // Get redirect path based on user role
+      const redirectPath = await getRedirectPath(data.user);
+      
+      // Wait a bit for AuthContext to update, then navigate
+      setTimeout(() => {
+        if (mountedRef.current) {
+          // Clear any stored return path since we're determining path by role
+          sessionStorage.removeItem('auth_return_to');
+          
+          console.log('Navigating to:', redirectPath);
+          navigate(redirectPath, { replace: true });
+        }
+      }, 1000);
+
+    } catch (error) {
+      console.error('Auth redirect error:', error);
+      setError(error.message);
+      setStatus('error');
+      
+      setTimeout(() => {
+        if (mountedRef.current) {
+          navigate('/login', { 
+            state: { 
+              error: 'Authentication processing failed' 
+            },
+            replace: true 
+          });
+        }
+      }, 2000);
+    } finally {
+      processingRef.current = false;
+    }
+  };
+
+  handleRedirect();
+}, [searchParams, navigate, isReady]);
 
   // Don't render anything if already authenticated (avoid interference)
   if (isAuthenticated && isReady) {

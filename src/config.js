@@ -36,4 +36,18 @@ export const config = {
   baseUrl: getBaseUrl(),
   supabaseUrl: import.meta.env.VITE_SUPABASE_URL,
   supabaseAnonKey: import.meta.env.VITE_SUPABASE_ANON_KEY,
+  
+  // GTM Configuration
+  gtm: {
+    containerId: import.meta.env.VITE_GTM_CONTAINER_ID || 'GTM-XXXXXXX',
+    googleAds: {
+      conversionId: import.meta.env.VITE_GOOGLE_ADS_CONVERSION_ID || 'AW-10938159955',
+      signupLabel: import.meta.env.VITE_GOOGLE_ADS_SIGNUP_LABEL,
+      shopPageViewLabel: import.meta.env.VITE_GOOGLE_ADS_SHOP_PAGE_VIEW_LABEL
+    },
+    ga4: {
+      measurementId: import.meta.env.VITE_GA4_MEASUREMENT_ID || 'G-8YYC0H41PQ'
+    }
+  }
 };
+

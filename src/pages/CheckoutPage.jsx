@@ -6,6 +6,7 @@ import { useCart } from '../contexts/CartContext';
 import PageLayout from '../components/PageLayout';
 import PayPalPayment from '../components/PayPalPayment';
 import { supabase } from '../lib/supabaseClient';
+import { trackCartEvent } from '../utils/gtm';
 
 const debugLog = (step, message, data = null) => {
   const timestamp = new Date().toISOString();
@@ -546,104 +547,114 @@ export default function CheckoutPage() {
 
   // Process order (both free and paid)
   const processOrder = useCallback(async (paymentDetails = null) => {
-    setIsProcessing(true);
-    setProcessingStep(0);
-    setProcessingError(null);
+  setIsProcessing(true);
+  setProcessingStep(0);
+  setProcessingError(null);
+  
+  try {
+    setProcessingStep(1);
     
-    try {
-      setProcessingStep(1);
-      
-      if (!user || !session) {
-        throw new Error('User not authenticated');
-      }
-
-      const accessToken = session.access_token;
-      if (!accessToken) {
-        throw new Error('No access token available');
-      }
-
-      setProcessingStep(2);
-      
-      const isFreeOrder = appliedCoupon?.isFreeOrder || false;
-      
-      const orderRequestData = {
-        subtotal: totals.originalSubtotal,
-        shipping_cost: totals.shipping,
-        tax_amount: totals.tax,
-        total_amount: totals.total,
-        discount_amount: totals.discountAmount || 0,
-        coupon_code: appliedCoupon?.code || null,
-        coupon_id: appliedCoupon?.id || null,
-        is_free_order: isFreeOrder,
-        payment_method: isFreeOrder ? 'free' : 'paypal',
-        payment_reference: paymentDetails?.paypalOrderId || null,
-        shipping_address: formData.shipping,
-        billing_address: formData.shipping,
-        special_instructions: formData.specialInstructions || null,
-        items: cartItems.map(item => ({
-          test_kit_id: item.test_kit_id,
-          quantity: item.quantity,
-          unit_price: item.test_kits.price,
-          product_name: item.test_kits.name,
-          product_description: item.test_kits.description
-        }))
-      };
-
-      setProcessingStep(3);
-      
-      const response = await withTimeout(
-        fetch('/.netlify/functions/process-order', {
-          method: 'POST',
-          headers: {
-            'Content-Type': 'application/json',
-            'Authorization': `Bearer ${accessToken}`
-          },
-          body: JSON.stringify(orderRequestData)
-        }),
-        30000,
-        'Backend request timed out'
-      );
-
-      if (!response.ok) {
-        const errorData = await response.json();
-        throw new Error(errorData.error || `Server error: ${response.status}`);
-      }
-
-      const responseData = await response.json();
-      
-      // Refresh cart
-      forceRefreshCart().catch(refreshError => {
-        debugLog('CART', 'Cart refresh failed, but backend cleared it', { 
-          error: refreshError.message 
-        });
-      });
-
-      // UPDATED: Determine redirect path based on user role
-      let redirectPath = '/dashboard';
-      try {
-        const { data: userRole } = await supabase.rpc('get_user_role', {
-          user_uuid: user.id
-        });
-        
-        if (userRole === 'admin' || userRole === 'super_admin') {
-          redirectPath = '/admin-dashboard';
-        }
-      } catch (roleError) {
-        debugLog('ROLE', 'Failed to get user role, defaulting to user dashboard', { 
-          error: roleError.message 
-        });
-        // Default to user dashboard if role check fails
-      }
-
-      // Navigate to appropriate dashboard with success
-      window.location.href = `${redirectPath}?order_success=true&order_number=${responseData.order.order_number}`;
-
-    } catch (error) {
-      debugLog('ERROR', 'Order processing failed', { error: error.message });
-      setProcessingError(error.message);
-      setIsProcessing(false);
+    if (!user || !session) {
+      throw new Error('User not authenticated');
     }
-  }, [totals, formData, cartItems, user, session, appliedCoupon, forceRefreshCart]);
+
+    const accessToken = session.access_token;
+    if (!accessToken) {
+      throw new Error('No access token available');
+    }
+
+    setProcessingStep(2);
+    
+    const isFreeOrder = appliedCoupon?.isFreeOrder || false;
+    
+    const orderRequestData = {
+      subtotal: totals.originalSubtotal,
+      shipping_cost: totals.shipping,
+      tax_amount: totals.tax,
+      total_amount: totals.total,
+      discount_amount: totals.discountAmount || 0,
+      coupon_code: appliedCoupon?.code || null,
+      coupon_id: appliedCoupon?.id || null,
+      is_free_order: isFreeOrder,
+      payment_method: isFreeOrder ? 'free' : 'paypal',
+      payment_reference: paymentDetails?.paypalOrderId || null,
+      shipping_address: formData.shipping,
+      billing_address: formData.shipping,
+      special_instructions: formData.specialInstructions || null,
+      items: cartItems.map(item => ({
+        test_kit_id: item.test_kit_id,
+        quantity: item.quantity,
+        unit_price: item.test_kits.price,
+        product_name: item.test_kits.name,
+        product_description: item.test_kits.description
+      }))
+    };
+
+    setProcessingStep(3);
+    
+    const response = await withTimeout(
+      fetch('/.netlify/functions/process-order', {
+        method: 'POST',
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${accessToken}`
+        },
+        body: JSON.stringify(orderRequestData)
+      }),
+      30000,
+      'Backend request timed out'
+    );
+
+    if (!response.ok) {
+      const errorData = await response.json();
+      throw new Error(errorData.error || `Server error: ${response.status}`);
+    }
+
+    const responseData = await response.json();
+    
+    // ENHANCED: Track purchase conversion in GTM
+    try {
+      if (responseData.gtm_purchase_data) {
+        console.log('Tracking purchase conversion in GTM');
+        await trackCartEvent('purchase', responseData.gtm_purchase_data);
+      }
+    } catch (gtmError) {
+      console.error('GTM purchase tracking error (non-critical):', gtmError);
+    }
+    
+    // Refresh cart
+    forceRefreshCart().catch(refreshError => {
+      debugLog('CART', 'Cart refresh failed, but backend cleared it', { 
+        error: refreshError.message 
+      });
+    });
+
+    // UPDATED: Determine redirect path based on user role
+    let redirectPath = '/dashboard';
+    try {
+      const { data: userRole } = await supabase.rpc('get_user_role', {
+        user_uuid: user.id
+      });
+      
+      if (userRole === 'admin' || userRole === 'super_admin') {
+        redirectPath = '/admin-dashboard';
+      }
+    } catch (roleError) {
+      debugLog('ROLE', 'Failed to get user role, defaulting to user dashboard', { 
+        error: roleError.message 
+      });
+      // Default to user dashboard if role check fails
+    }
+
+    // Navigate to appropriate dashboard with success
+    window.location.href = `${redirectPath}?order_success=true&order_number=${responseData.order.order_number}`;
+
+  } catch (error) {
+    debugLog('ERROR', 'Order processing failed', { error: error.message });
+    setProcessingError(error.message);
+    setIsProcessing(false);
+  }
+}, [totals, formData, cartItems, user, session, appliedCoupon, forceRefreshCart]);
 
   const handlePaymentSuccess = useCallback(async (paymentDetails) => {
     // debugLog('PAYPAL', 'Payment success received', { paymentDetails });

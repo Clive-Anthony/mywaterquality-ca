@@ -206,6 +206,55 @@ Email: ${shippingAddress.email}${shippingAddress.phone ? `\nPhone: ${shippingAdd
   }
 }
 
+async function sendPurchaseConversionData(orderData, orderItems, userId, requestId) {
+  try {
+    log('info', `📊 Preparing purchase conversion data for GTM [${requestId}]`);
+    
+    // Calculate conversion value
+    const conversionValue = parseFloat(orderData.total_amount) || 0;
+    const isFreeOrder = conversionValue === 0;
+    
+    // Prepare item data for enhanced e-commerce
+    const items = orderItems?.map(item => ({
+      item_id: item.test_kit_id,
+      item_name: item.product_name,
+      item_category: 'water_test_kit',
+      quantity: item.quantity,
+      price: parseFloat(item.unit_price) || 0
+    })) || [];
+
+    const purchaseData = {
+      transaction_id: orderData.order_number,
+      value: conversionValue,
+      currency: 'CAD',
+      items: items,
+      coupon: orderData.coupon_code || undefined,
+      shipping: parseFloat(orderData.shipping_cost) || 0,
+      tax: parseFloat(orderData.tax_amount) || 0,
+      is_free_order: isFreeOrder,
+      user_id: userId,
+      order_id: orderData.id,
+      timestamp: new Date().toISOString()
+    };
+
+    log('info', `📊 Purchase conversion data prepared successfully [${requestId}]`, {
+      orderNumber: orderData.order_number,
+      value: conversionValue,
+      itemCount: items.length,
+      isFreeOrder: isFreeOrder
+    });
+
+    return { success: true, purchaseData };
+
+  } catch (error) {
+    log('error', `❌ Failed to prepare purchase conversion data: ${error.message}`, {
+      orderNumber: orderData?.order_number,
+      error: error.message
+    });
+    return { success: false, error: error.message };
+  }
+}
+
 // Record coupon usage in the database
 async function recordCouponUsage(supabaseAdmin, couponId, userId, orderId, discountAmount, requestId) {
   try {
@@ -685,6 +734,21 @@ try {
           is_free_order: orderResult.order.total_amount === 0,
           created_at: orderResult.order.created_at
         },
+        // Purchase conversion data for GTM
+        gtm_purchase_data: {
+          transaction_id: orderResult.order.order_number,
+          value: orderResult.order.total_amount,
+          currency: 'CAD',
+          items: orderData.items.map(item => ({
+            item_id: item.test_kit_id,
+            item_name: item.product_name,
+            item_category: 'water_test_kit',
+            quantity: item.quantity,
+            price: item.unit_price
+          })),
+          coupon: orderResult.order.coupon_code || undefined,
+          is_free_order: orderResult.order.total_amount === 0
+        },
         message: orderResult.order.total_amount === 0 ? 
           'Free order created successfully!' : 
           'Order created successfully',
@@ -713,6 +777,8 @@ try {
     };
   }
 };
+
+
 
 // Enhanced order creation with coupon support
 async function createOrderWithRetry(supabaseAdmin, orderData, user, requestId, maxRetries = 2) {

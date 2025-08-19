@@ -6,6 +6,7 @@ import QuantitySelector from '../components/QuantitySelector';
 import { supabase } from '../lib/supabaseClient';
 import { useAuth } from '../contexts/AuthContext';
 import { useCartActions } from '../hooks/useCartActions';
+import { useShopPageTracking } from '../hooks/useGTM';
 import { 
   formatPrice, 
   getStockStatus, 
@@ -44,6 +45,9 @@ export default function TestKitsPage() {
     getAddToCartButtonProps,
     isAddingToCart
   } = useCartActions();
+
+  // Add GTM tracking for shop page view
+  useShopPageTracking('Water Testing Kits - Shop', null, 2.0);
 
   // Fetch test kits from Supabase with priority ordering
   useEffect(() => {
