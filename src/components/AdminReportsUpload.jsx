@@ -536,7 +536,7 @@ const handleApprovalChange = async (kit, isApproved) => {
   }
 
   // Update approval status immediately (works for both true and false)
-  await updateApprovalStatus(kit.report_id, isApproved);
+  await updateApprovalStatus(kit.kit_id, kit.kit_type, isApproved);
 
   // Only show email modal when approving (not when disapproving)
   if (isApproved) {
@@ -555,17 +555,30 @@ const handleApprovalChange = async (kit, isApproved) => {
 };
 
 // NEW: Update approval status in database
-const updateApprovalStatus = async (reportId, approvalStatus) => {
+const updateApprovalStatus = async (kitId, kitType, approvalStatus) => {
   try {
     const { data: { session } } = await supabase.auth.getSession();
     if (!session) {
       throw new Error('Authentication required');
     }
 
-    const { error } = await supabase
-      .from('reports')
-      .update({ approval_status: approvalStatus })
-      .eq('report_id', reportId);
+    let error;
+
+    if (kitType === 'regular') {
+      const { error: updateError } = await supabase
+        .from('kit_registrations')
+        .update({ approval_status: approvalStatus })
+        .eq('kit_registration_id', kitId);
+      error = updateError;
+    } else if (kitType === 'legacy') {
+      const { error: updateError } = await supabase
+        .from('legacy_kit_registrations')
+        .update({ approval_status: approvalStatus })
+        .eq('id', kitId);
+      error = updateError;
+    } else {
+      throw new Error('Invalid kit type');
+    }
 
     if (error) {
       throw new Error(`Failed to update approval status: ${error.message}`);
