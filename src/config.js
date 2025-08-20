@@ -39,7 +39,7 @@ export const config = {
   
   // GTM Configuration
   gtm: {
-    containerId: import.meta.env.VITE_GTM_CONTAINER_ID || 'GTM-XXXXXXX',
+    containerId: import.meta.env.VITE_GTM_CONTAINER_ID || 'GTM-GTM-5MKLRHX',
     googleAds: {
       conversionId: import.meta.env.VITE_GOOGLE_ADS_CONVERSION_ID || 'AW-10938159955',
       signupLabel: import.meta.env.VITE_GOOGLE_ADS_SIGNUP_LABEL,

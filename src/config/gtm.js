@@ -1,7 +1,7 @@
 // src/config/gtm.js - GTM configuration
 export const GTM_CONFIG = {
   // GTM Container ID - Replace GTM-XXXXXXX with your actual container ID
-  CONTAINER_ID: 'GTM-XXXXXXX',
+  CONTAINER_ID: 'GTM-GTM-5MKLRHX',
   
   // Google Ads Configuration
   GOOGLE_ADS: {
@@ -11,12 +11,12 @@ export const GTM_CONFIG = {
     // Conversion labels - These will be provided by Google Ads when you create the conversions
     CONVERSIONS: {
       SIGNUP: {
-        LABEL: 'SIGNUP_CONVERSION_LABEL', // Replace with actual label from Google Ads
+        LABEL: '8ralCLzR040YENOm3N8o', // Replace with actual label from Google Ads
         VALUE: 1.0,
         CURRENCY: 'USD'
       },
       SHOP_PAGE_VIEW: {
-        LABEL: 'SHOP_PAGE_VIEW_CONVERSION_LABEL', // Replace with actual label from Google Ads
+        LABEL: '8RaZCK7N1KoaENOm3N8o', // Replace with actual label from Google Ads
         DEFAULT_VALUE: 1.0,
         CURRENCY: 'CAD'
       }

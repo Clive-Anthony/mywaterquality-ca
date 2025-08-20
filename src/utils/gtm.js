@@ -329,7 +329,6 @@ export const trackAddToCart = async (item, quantity = 1) => {
   }
 };
 
-
 export default {
   pushToDataLayer,
   trackSignupConversion,
