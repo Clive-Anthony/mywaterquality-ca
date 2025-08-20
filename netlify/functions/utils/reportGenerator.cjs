@@ -250,9 +250,25 @@ const hasColiformContamination = bacteriological.some(param => {
         createSectionTitle('YOUR DRINKING WATER AESTHETIC & OPERATIONAL SCORE'),
         aoCWQI ? createCWQISection(aoCWQI, aoConcerns, 'ao') : null,
         
-        // Road Salt Assessment
-        // createSectionTitle('ROAD SALT IMPACT ASSESSMENT'),
-        // createRoadSaltAssessment(reportData)
+        // Road Salt Assessment - Only show if BOTH chloride and bromide are present
+        (() => {
+          const allParameters = [...reportData.healthParameters, ...reportData.aoParameters, ...reportData.generalParameters];
+          const hasChloride = allParameters.some(param => 
+            param.parameter_name?.toLowerCase().includes('chloride') && 
+            !param.parameter_name?.toLowerCase().includes('bromide')
+          );
+          const hasBromide = allParameters.some(param => 
+            param.parameter_name?.toLowerCase().includes('bromide')
+          );
+          
+          // Only show section if BOTH parameters exist (same logic as createRoadSaltAssessment)
+          return hasChloride && hasBromide ? (
+            React.createElement(React.Fragment, null,
+              createSectionTitle('ROAD SALT IMPACT ASSESSMENT'),
+              createRoadSaltAssessment(reportData)
+            )
+          ) : null;
+        })()
       ),
 
       // Page 4 - Health Concerns (only if there are health concerns)
@@ -533,59 +549,94 @@ function createPotentialScoreSection(cwqi) {
 }
 
 function createRoadSaltAssessment(reportData) {
-  // Find chloride parameter
+  // Find chloride and bromide parameters
   const allParameters = [...reportData.healthParameters, ...reportData.aoParameters, ...reportData.generalParameters];
+  
   const chlorideParam = allParameters.find(param => 
     param.parameter_name?.toLowerCase().includes('chloride') && 
     !param.parameter_name?.toLowerCase().includes('bromide')
   );
+  
+  const bromideParam = allParameters.find(param => 
+    param.parameter_name?.toLowerCase().includes('bromide')
+  );
 
-  const chlorideLevel = chlorideParam ? parseFloat(chlorideParam.result_numeric) : 0;
-  const hasContamination = chlorideLevel > 100;
-  const displayScore = hasContamination ? Math.round(chlorideLevel).toString() : '<100';
-  const status = hasContamination ? 'Contamination Detected' : 'No Contamination';
+  // Only show road salt assessment if both chloride and bromide are present
+  if (!chlorideParam || !bromideParam) {
+    return null; // Don't render the section if either parameter is missing
+  }
+
+  const chlorideLevel = parseFloat(chlorideParam.result_numeric) || 0;
+  const bromideLevel = parseFloat(bromideParam.result_numeric) || 0;
+  
+  // Check if chloride exceeds 100 mg/L threshold
+  const chlorideExceedsThreshold = chlorideLevel > 100;
+  
+  let hasContamination = false;
+  let clBrRatio = null;
+  let assessmentText = '';
+  
+  if (chlorideExceedsThreshold && bromideLevel > 0) {
+    // Calculate Cl:Br ratio
+    clBrRatio = Math.round(chlorideLevel / bromideLevel);
+    hasContamination = clBrRatio > 1000;
+    
+    assessmentText = `Chloride: ${chlorideLevel} mg/L, Bromide: ${bromideLevel} mg/L, Cl:Br Ratio: ${clBrRatio}`;
+  } else if (chlorideExceedsThreshold && bromideLevel === 0) {
+    assessmentText = `Chloride: ${chlorideLevel} mg/L, Bromide: ${bromideLevel} mg/L - Cannot calculate ratio (bromide = 0)`;
+  } else {
+    assessmentText = `Chloride: ${chlorideLevel} mg/L (below 100 mg/L threshold)`;
+  }
+
+  const status = hasContamination ? 'Road Salt Impact Detected' : 'No Road Salt Impact';
+  const displayScore = chlorideExceedsThreshold ? Math.round(chlorideLevel).toString() : '<100';
 
   return React.createElement(ReactPDF.View, { style: styles.cwqiContainer },
     React.createElement(ReactPDF.View, { style: styles.cwqiBox },
       React.createElement(ReactPDF.View, { style: styles.cwqiLeft },
-        React.createElement(ReactPDF.Text, { style: styles.cwqiScoreTitle }, 'Road Salt Score'),
+        React.createElement(ReactPDF.Text, { style: styles.cwqiScoreTitle }, 'Road Salt Assessment'),
         React.createElement(ReactPDF.Text, { style: [styles.cwqiScore, { color: hasContamination ? '#DC2626' : '#059669' }] }, 
-          displayScore
+          clBrRatio !== null ? clBrRatio.toString() : displayScore
         ),
         React.createElement(ReactPDF.Text, { style: [styles.cwqiRating, { color: hasContamination ? '#DC2626' : '#059669' }] }, 
           status
         ),
         React.createElement(ReactPDF.Text, { style: styles.cwqiSummary }, 
-          `Chloride: ${chlorideLevel} mg/L`
+          assessmentText
         )
       ),
       React.createElement(ReactPDF.View, { style: styles.cwqiRight },
         React.createElement(ReactPDF.Text, { style: styles.cwqiDescription },
-          'To determine if groundwater is impacted by road salt, two conditions must be met:'
+          'Road salt impact assessment requires both chloride and bromide measurements:'
         ),
         React.createElement(ReactPDF.Text, { style: styles.cwqiDescription },
-          '1. Chloride Concentration: The chloride level in the water must be greater than 100 mg/L.'
+          '1. Chloride must be greater than 100 mg/L'
         ),
         React.createElement(ReactPDF.Text, { style: styles.cwqiDescription },
-          '2. Chloride-to-Bromide Ratio (Cl:Br): If the chloride level exceeds 100 mg/L, the Cl:Br ratio is calculated. A result greater than 1,000 indicates likely contamination from road salt.'
-        )
+          '2. Chloride-to-Bromide ratio (Cl:Br) greater than 1,000 indicates likely road salt contamination'
+        ),
+        clBrRatio !== null ? React.createElement(ReactPDF.Text, { style: styles.cwqiDescription },
+          `Your Cl:Br ratio is ${clBrRatio}, which ${hasContamination ? 'exceeds' : 'is below'} the 1,000 threshold.`
+        ) : null
       )
     ),
     
-    // UPDATED: Assessment Result with proper colors
+    // Assessment Result with proper colors
     React.createElement(ReactPDF.View, { 
       style: hasContamination ? styles.recommendationsRed : styles.recommendationsGreen 
     },
       React.createElement(ReactPDF.Text, { 
         style: hasContamination ? styles.recommendationsTitleRed : styles.recommendationsTitleGreen
       },
-        `Assessment Result: ${hasContamination ? 'Road Salt Impact Detected' : 'No Road Salt Impact'}`
+        `Assessment Result: ${status}`
       )
     ),
     React.createElement(ReactPDF.Text, { style: styles.recommendationsText },
       hasContamination 
-        ? 'Your water shows signs of road salt contamination. Consider consulting with a water treatment professional about filtration options.'
-        : 'Your water does not show signs of road salt contamination. The chloride level is below the threshold that would indicate potential road salt impact.'
+        ? 'Your water shows signs of road salt contamination based on elevated chloride levels and high Cl:Br ratio. Consider consulting with a water treatment professional about filtration options.'
+        : chlorideExceedsThreshold 
+        ? 'While chloride levels are elevated, the Cl:Br ratio does not indicate road salt contamination. Other sources of chloride may be present.'
+        : 'Your water does not show signs of road salt contamination. Chloride levels are within normal ranges.'
     )
   );
 }
@@ -1656,31 +1707,58 @@ async function continueProcessing(supabase, reportId, sampleNumber, requestId, t
     }
     
     // Upload PDF to Supabase storage - use the correct kit identifier
-    const orderNumber = kitInfo.displayId || kitInfo.kitCode || kitOrderCode;
-    const pdfFileName = `My-Water-Quality-Report-${orderNumber}.pdf`;
-    const { data: pdfUpload, error: pdfUploadError } = await supabase.storage
-      .from('generated-reports')
-      .upload(pdfFileName, pdfBuffer, {
-        contentType: 'application/pdf',
-        upsert: true
-      });
-    
-    if (pdfUploadError) {
-      throw new Error(`Failed to upload PDF: ${pdfUploadError.message}`);
-    }
-    
-    // Get public URL for the PDF
-    const { data: pdfUrl } = supabase.storage
-      .from('generated-reports')
-      .getPublicUrl(pdfFileName);
-    
-    console.log(`[${requestId}] PDF report generated successfully: ${pdfFileName}`);
-    
-    return {
-      success: true,
-      pdfUrl: pdfUrl.publicUrl,
-      fileName: pdfFileName
-    };
+
+const orderNumber = kitInfo.displayId || kitInfo.kitCode || kitOrderCode;
+const now = new Date();
+const dateTimeStamp = now.toISOString().replace(/[:.]/g, '-').replace('T', '_').slice(0, -5); // 2025-08-20_14-58-22
+const mainFileName = `My-Water-Quality-Report-${orderNumber}.pdf`;
+let versionedFileName = null; // Define outside the try block
+
+// First, try to rename the existing file to preserve it
+try {
+  versionedFileName = `My-Water-Quality-Report-${orderNumber}-${dateTimeStamp}.pdf`;
+  
+  // Move/rename the existing file to create a versioned backup
+  const { error: moveError } = await supabase.storage
+    .from('generated-reports')
+    .move(mainFileName, versionedFileName);
+  
+  if (!moveError) {
+    console.log(`Moved existing report to ${versionedFileName}`);
+  } else {
+    console.log('No existing file to preserve or move failed:', moveError.message);
+    versionedFileName = null; // Reset if move failed
+  }
+} catch (moveError) {
+  console.log('No existing file to preserve or move failed:', moveError.message);
+  versionedFileName = null;
+}
+
+// Now upload the new report with the main filename
+const { data: mainUpload, error: mainUploadError } = await supabase.storage
+  .from('generated-reports')
+  .upload(mainFileName, pdfBuffer, {
+    contentType: 'application/pdf',
+    upsert: false // Since we moved the old file, this should be a new upload
+  });
+
+if (mainUploadError) {
+  throw new Error(`Failed to upload main PDF: ${mainUploadError.message}`);
+}
+
+// Get public URL for the main PDF
+const { data: pdfUrl } = supabase.storage
+  .from('generated-reports')
+  .getPublicUrl(mainFileName);
+
+console.log(`[${requestId}] PDF report generated successfully: ${mainFileName}${versionedFileName ? ` (previous version preserved as ${versionedFileName})` : ' (no previous version to preserve)'}`);
+
+return {
+  success: true,
+  pdfUrl: pdfUrl.publicUrl,
+  fileName: mainFileName,
+  versionedFileName: versionedFileName
+};
     
   } catch (error) {
     console.error(`[${requestId}] Error in continueProcessing:`, error);

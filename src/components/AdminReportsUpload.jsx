@@ -17,6 +17,7 @@ export default function AdminReportsUpload() {
 
   const [showSuccessModal, setShowSuccessModal] = useState(false);
   const [successModalMessage, setSuccessModalMessage] = useState('');
+  const [modalContext, setModalContext] = useState('approval');
 
   // Collapse/expand state
   const [isExpanded, setIsExpanded] = useState(false);
@@ -343,11 +344,17 @@ export default function AdminReportsUpload() {
 
     const result = await response.json();
     
-    setSuccessModalMessage(
-      `Report regenerated successfully! New Report ID: ${result.reportId}. ` +
-      `Health CWQI: ${result.healthCWQI || 'N/A'}, AO CWQI: ${result.aoCWQI || 'N/A'}`
-    );
-    setShowSuccessModal(true);
+    // Set context for regeneration and show customer email modal
+    setModalContext('regeneration');
+    setSelectedReportForEmail({
+      reportId: result.reportId,
+      kitCode: selectedReport.kit_code,
+      customerName: `${selectedReport.customer_first_name || ''} ${selectedReport.customer_last_name || ''}`.trim(),
+      defaultEmail: selectedReport.customer_email || ''
+    });
+    
+    setCustomerEmailAddress(selectedReport.customer_email || '');
+    setShowCustomerEmailModal(true);
     setSelectedReportForUpdate('');
     
     // Reload data
@@ -540,6 +547,7 @@ const handleApprovalChange = async (kit, isApproved) => {
 
   // Only show email modal when approving (not when disapproving)
   if (isApproved) {
+    setModalContext('approval'); // Set context for approval
     setSelectedReportForEmail({
       reportId: kit.report_id,
       kitCode: kit.kit_code,
@@ -1814,34 +1822,53 @@ const updateApprovalStatus = async (kitId, kitType, approvalStatus) => {
           <div className="relative top-20 mx-auto p-5 border w-96 shadow-lg rounded-md bg-white">
             <div className="mt-3">
               <div className="flex items-center justify-between mb-4">
-                <h3 className="text-lg font-medium text-gray-900">Send Report to Customer</h3>
-                <button
-                  onClick={() => {
-                    setShowCustomerEmailModal(false);
-                    setSelectedReportForEmail(null);
-                    setCustomerEmailAddress('');
-                  }}
-                  className="text-gray-400 hover:text-gray-600"
-                >
-                  <svg className="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M6 18L18 6M6 6l12 12" />
-                  </svg>
-                </button>
-              </div>
-              
-              <div className="mb-4 p-3 bg-green-50 border border-green-200 rounded-md">
-                <div className="flex items-start">
-                  <div className="flex-shrink-0">
-                    <svg className="h-5 w-5 text-green-400" viewBox="0 0 20 20" fill="currentColor">
-                      <path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.293a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z" clipRule="evenodd" />
+                  <h3 className="text-lg font-medium text-gray-900">
+                    {modalContext === 'regeneration' ? 'Report Regenerated - Send to Customer' : 'Send Report to Customer'}
+                  </h3>
+                  <button
+                    onClick={() => {
+                      setShowCustomerEmailModal(false);
+                      setSelectedReportForEmail(null);
+                      setCustomerEmailAddress('');
+                      setModalContext('approval'); // Reset to default
+                    }}
+                    className="text-gray-400 hover:text-gray-600"
+                  >
+                    <svg className="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M6 18L18 6M6 6l12 12" />
                     </svg>
-                  </div>
-                  <div className="ml-3">
-                    <p className="text-sm font-medium text-green-800">Report has been approved.</p>
-                    <p className="text-sm text-green-700 mt-1">Send notification email to customer (optional).</p>
+                  </button>
+                </div>
+
+                <div className="mb-4 p-3 bg-green-50 border border-green-200 rounded-md">
+                  <div className="flex items-start">
+                    <div className="flex-shrink-0">
+                      <svg className="h-5 w-5 text-green-400" viewBox="0 0 20 20" fill="currentColor">
+                        <path fillRule="evenodd" d="M10 18a8 8 0 100-16 8 8 0 000 16zm3.707-9.293a1 1 0 00-1.414-1.414L9 10.586 7.707 9.293a1 1 0 00-1.414 1.414l2 2a1 1 0 001.414 0l4-4z" clipRule="evenodd" />
+                      </svg>
+                    </div>
+                    <div className="ml-3">
+                      <p className="text-sm font-medium text-green-800">
+                        {modalContext === 'regeneration' 
+                          ? 'Report has been regenerated successfully.' 
+                          : 'Report has been approved.'}
+                      </p>
+                      <p className="text-sm text-green-700 mt-1">
+                        {modalContext === 'regeneration'
+                          ? 'Send notification email to customer (optional).'
+                          : (
+                            <>
+                              Send notification email to customer (optional).
+                              <br />
+                              <span className="text-xs text-green-600">
+                                This action will also allow customers to view the report in their Reports dashboard.
+                              </span>
+                            </>
+                          )}
+                      </p>
+                    </div>
                   </div>
                 </div>
-              </div>
               
               {selectedReportForEmail && (
                 <div className="mb-4 p-3 bg-gray-50 rounded-md">
@@ -1876,6 +1903,7 @@ const updateApprovalStatus = async (kitId, kitType, approvalStatus) => {
                     setShowCustomerEmailModal(false);
                     setSelectedReportForEmail(null);
                     setCustomerEmailAddress('');
+                    setModalContext('approval'); // Reset to default
                   }}
                   disabled={sendingToCustomer}
                   className="px-4 py-2 border border-gray-300 rounded-md text-sm font-medium text-gray-700 hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500 disabled:opacity-50"
