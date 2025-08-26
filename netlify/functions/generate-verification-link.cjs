@@ -89,10 +89,11 @@ exports.handler = async function(event, context) {
     console.log('=== VERIFICATION EMAIL DEBUG ===');
     console.log('Raw request body:', event.body);
     
-    const { email, firstName = 'Valued Customer' } = JSON.parse(event.body);
+    const { email, firstName = 'Valued Customer', returnPath = null } = JSON.parse(event.body);
     
     console.log('Processing verification email for:', email);
     console.log('First name:', firstName);
+    console.log('Return path:', returnPath);
     
     if (!email) {
       return {
@@ -114,15 +115,27 @@ exports.handler = async function(event, context) {
       process.env.VITE_SUPABASE_SERVICE_KEY
     );
     
-    // Generate verification link
+    // Generate verification link with return path
     console.log('Generating verification link...');
-    const { data, error } = await supabaseAdmin.auth.admin.generateLink({
-      type: 'signup',
-      email,
-      options: {
-        redirectTo: `${process.env.VITE_APP_URL || 'http://localhost:8888'}/auth/callback`,
-      }
-    });
+    
+    // Use production URL consistently (since Site URL overrides anyway)
+let redirectTo = `https://www.mywaterquality.ca/auth/callback`;
+if (returnPath) {
+  redirectTo += `?return_to=${encodeURIComponent(returnPath)}`;
+}
+
+console.log('📍 Using production redirectTo:', redirectTo);
+
+const { data, error } = await supabaseAdmin.auth.admin.generateLink({
+  type: 'signup',
+  email,
+  options: {
+    redirectTo: redirectTo,
+  }
+});
+
+    console.log('📍 Supabase generateLink called with redirectTo:', redirectTo);
+console.log('📍 Generated verification link:', data?.properties?.action_link);
     
     if (error) {
       console.error('Supabase error:', error);

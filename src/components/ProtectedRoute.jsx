@@ -1,9 +1,11 @@
 // src/components/ProtectedRoute.jsx
-import { Navigate } from 'react-router-dom';
+import { Navigate, useLocation } from 'react-router-dom';
 import { useAuth } from '../contexts/AuthContext';
+import { storeReturnPath } from '../utils/returnPath';
 
 export default function ProtectedRoute({ children }) {
   const { user, loading } = useAuth();
+  const location = useLocation();
   
   // Show loading spinner while checking auth status
   if (loading) {
@@ -16,7 +18,12 @@ export default function ProtectedRoute({ children }) {
   
   // Redirect to login if not authenticated
   if (!user) {
-    console.log('No authenticated user found, redirecting to login');
+    console.log('No authenticated user found, storing return path and redirecting to login');
+    
+    // Store the full path including query parameters and hash
+    const returnPath = location.pathname + location.search + location.hash;
+    storeReturnPath(returnPath);
+    
     return <Navigate to="/login" replace />;
   }
   

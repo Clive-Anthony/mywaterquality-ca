@@ -1,8 +1,9 @@
 // src/components/AdminProtectedRoute.jsx - Route protection for admin users
 import { useState, useEffect } from 'react';
-import { Navigate } from 'react-router-dom';
+import { Navigate, useLocation } from 'react-router-dom';
 import { useAuth } from '../contexts/AuthContext';
 import { supabase } from '../lib/supabaseClient';
+import { storeReturnPath } from '../utils/returnPath';
 
 export default function AdminProtectedRoute({ children }) {
   const { user, loading: authLoading, isReady } = useAuth();
@@ -82,9 +83,15 @@ export default function AdminProtectedRoute({ children }) {
   
   // Redirect to login if not authenticated
   if (!user) {
-    console.log('No authenticated user found, redirecting to login');
-    return <Navigate to="/login" replace />;
-  }
+  console.log('No authenticated user found, storing return path and redirecting to login');
+  
+  // Store the admin path for return after login
+  const location = useLocation();
+  const returnPath = location.pathname + location.search + location.hash;
+  storeReturnPath(returnPath);
+  
+  return <Navigate to="/login" replace />;
+}
 
   // Show error state
   if (error) {

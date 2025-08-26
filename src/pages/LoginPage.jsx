@@ -45,41 +45,69 @@ export default function LoginPage() {
       setError(location.state.error);
       navigate(location.pathname, { replace: true, state: {} });
     }
+
+    try {
+        const stored = sessionStorage.getItem('auth_return_to');
+        if (stored && !location.state?.message && !location.state?.error) {
+          const data = JSON.parse(stored);
+          const returnPath = data.path;
+          
+          if (returnPath.includes('/register-kit')) {
+            setSuccessMessage('Please log in to continue to kit registration.');
+          } else if (returnPath.includes('/checkout')) {
+            setSuccessMessage('Please log in to continue to checkout.');
+          } else if (returnPath.includes('/admin')) {
+            setSuccessMessage('Please log in to access the admin dashboard.');
+          } else {
+            setSuccessMessage('Please log in to continue to your destination.');
+          }
+        }
+      } catch (error) {
+        // Ignore storage errors
+      }
   }, [location, navigate]);
 
   // Handle auth state changes - navigate when user is authenticated
       useEffect(() => {
         const handleSuccessfulAuth = async () => {
-          if (waitingForAuth && user && !authLoading && isReady) { // Add isReady check
+          if (waitingForAuth && user && !authLoading && isReady) {
             console.log('Auth state updated, user is now authenticated');
           
-          try {
-            // Fetch user role to determine redirect destination
-            const { data: userRole } = await supabase.rpc('get_user_role', {
-              user_uuid: user.id
-            });
-            
-            console.log('User role:', userRole);
-            
-            // Navigate based on role
-            const redirectPath = (userRole === 'admin' || userRole === 'super_admin') 
-              ? '/admin-dashboard' 
-              : '/dashboard';
-            
-            console.log('Redirecting to:', redirectPath);
-            navigate(redirectPath, { replace: true });
-            
-          } catch (error) {
-            console.error('Error fetching user role:', error);
-            // Default to regular dashboard on error
-            navigate('/dashboard', { replace: true });
-          } finally {
-            setWaitingForAuth(false);
-            setLoading(false);
-            submissionInProgress.current = false;
+            try {
+              // Check for stored return path first
+              const { validateAndGetReturnPath } = await import('../utils/returnPath');
+              const storedPath = await validateAndGetReturnPath(user);
+              
+              if (storedPath) {
+                console.log('Using stored return path:', storedPath);
+                navigate(storedPath, { replace: true });
+              } else {
+                // Fall back to role-based redirection
+                const { data: userRole } = await supabase.rpc('get_user_role', {
+                  user_uuid: user.id
+                });
+                
+                console.log('No stored return path, using role-based redirect. User role:', userRole);
+                
+                const redirectPath = (userRole === 'admin' || userRole === 'super_admin') 
+                  ? '/admin-dashboard' 
+                  : '/dashboard';
+                
+                console.log('Redirecting to:', redirectPath);
+                navigate(redirectPath, { replace: true });
+              }
+              
+            } catch (error) {
+              console.error('Error determining redirect path:', error);
+              // Default to regular dashboard on error
+              navigate('/dashboard', { replace: true });
+            } finally {
+              setWaitingForAuth(false);
+              setLoading(false);
+              submissionInProgress.current = false;
+            }
           }
-        }
-      };
+        };
 
       handleSuccessfulAuth();
     }, [user, authLoading, waitingForAuth, navigate]);

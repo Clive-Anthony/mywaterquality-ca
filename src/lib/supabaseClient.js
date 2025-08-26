@@ -16,7 +16,7 @@ export const getSession = async () => {
 };
 
 // Enhanced Auth helper functions with Loops email integration
-export const signUp = async (email, password, firstName = '', lastName = '') => {
+export const signUp = async (email, password, firstName = '', lastName = '', returnPath = null) => {
   try {
     // Create user account with metadata
     const { data, error } = await supabase.auth.signUp({
@@ -48,7 +48,8 @@ export const signUp = async (email, password, firstName = '', lastName = '') => 
           },
           body: JSON.stringify({
             email: data.user.email,
-            firstName: firstName || 'Valued Customer'
+            firstName: firstName || 'Valued Customer',
+            returnPath: returnPath // Include return path in request
           }),
         });
 
@@ -163,13 +164,11 @@ export const resetPassword = async (email) => {
     }
 
     // Parse successful response
-    let responseData;
     try {
-      responseData = JSON.parse(responseText);
+      JSON.parse(responseText);
     } catch (jsonError) {
       console.error('Success response is not valid JSON:', jsonError);
       // If success response isn't JSON, assume it worked
-      responseData = { message: 'Password reset email sent' };
     }
 
     // console.log('Password reset email sent successfully via Loops');

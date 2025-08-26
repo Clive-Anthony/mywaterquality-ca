@@ -43,11 +43,24 @@ export default function SignupPage() {
   setLoading(true);
   
   try {
-    const { data, error } = await signUp(
+    // Get the stored return path before signup
+    let returnPath = null;
+    try {
+      const stored = sessionStorage.getItem('auth_return_to');
+      if (stored) {
+        const returnData = JSON.parse(stored);
+        returnPath = returnData.path;
+      }
+    } catch {
+      // Ignore storage errors
+    }
+
+    const { error } = await signUp(
       formData.email, 
       formData.password, 
       formData.firstName, 
-      formData.lastName
+      formData.lastName,
+      returnPath // Pass the return path to signup
     );
     
     if (error) {
@@ -66,7 +79,21 @@ export default function SignupPage() {
       console.error('GTM tracking error (non-critical):', gtmError);
     }
     
-    setSuccessMessage('Success! Please check your email for a verification link to complete your account setup.');
+    // Check if there's a return path for context message
+    let returnPathMessage = '';
+    if (returnPath) {
+      if (returnPath.includes('/register-kit')) {
+        returnPathMessage = ' Once verified, you\'ll be directed to kit registration.';
+      } else if (returnPath.includes('/checkout')) {
+        returnPathMessage = ' Once verified, you\'ll be directed to checkout.';
+      } else if (returnPath.includes('/admin')) {
+        returnPathMessage = ' Once verified, you\'ll be directed to the admin dashboard.';
+      } else {
+        returnPathMessage = ' Once verified, you\'ll be directed to your original destination.';
+      }
+    }
+    
+    setSuccessMessage(`Success! Please check your email for a verification link to complete your account setup.${returnPathMessage}`);
     
     // Clear form
     setFormData({
@@ -77,9 +104,13 @@ export default function SignupPage() {
       confirmPassword: ''
     });
     
-    // Redirect to login after 5 seconds
+    // Redirect to login after 5 seconds, preserving any stored return path
     setTimeout(() => {
-      navigate('/login');
+      navigate('/login', { 
+        state: { 
+          message: `Account created! Please check your email to verify your account.${returnPathMessage}` 
+        }
+      });
     }, 5000);
   } catch (err) {
     setError(err.message || 'An error occurred during signup');
@@ -93,7 +124,7 @@ export default function SignupPage() {
     setGoogleLoading(true);
     
     try {
-      const { data, error } = await signInWithGoogle();
+      const { error } = await signInWithGoogle();
       
       if (error) {
         throw error;
