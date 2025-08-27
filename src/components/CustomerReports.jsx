@@ -4,13 +4,11 @@ import { useAuth } from '../contexts/AuthContext';
 import { supabase } from '../lib/supabaseClient';
 import WaterQualityDashboard from './WaterQualityDashboard';
 
-export default function CustomerReports({ showTitle = true, maxHeight = "max-h-full", compact = false }) {
+export default function CustomerReports({ showTitle = true, maxHeight = "max-h-full", compact = false, onReportSelect }) {
   const { user } = useAuth();
   const [reports, setReports] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
-  const [selectedReport, setSelectedReport] = useState(null);
-  const [dashboardMode, setDashboardMode] = useState(false);
 
   const loadCustomerReports = useCallback(async () => {
     try {
@@ -44,63 +42,13 @@ export default function CustomerReports({ showTitle = true, maxHeight = "max-h-f
   }, [user, loadCustomerReports]);
 
   const handleReportSelect = (reportId) => {
-    const report = reports.find(r => r.report_id === reportId);
-    setSelectedReport(report);
-    setDashboardMode(true);
-  };
-
-  const handleBackToReports = () => {
-    setDashboardMode(false);
-    setSelectedReport(null);
-  };
-
-  const handleDownloadReport = async (reportId, kitCode, pdfFileUrl) => {
-    try {
-      if (!pdfFileUrl) {
-        setError('Report PDF not available');
-        return;
-      }
-
-      // Extract filename from URL
-      let fileName;
-      if (pdfFileUrl.includes('/')) {
-        fileName = pdfFileUrl.split('/').pop();
-      } else {
-        fileName = `My-Water-Quality-Report-${kitCode}.pdf`;
-      }
-
-      const { data: signedUrlData, error: signedUrlError } = await supabase.storage
-        .from('generated-reports')
-        .createSignedUrl(fileName, 3600);
-
-      if (signedUrlError) {
-        console.error('Error creating signed URL:', signedUrlError);
-        setError('Failed to generate download link');
-        return;
-      }
-
-      if (signedUrlData?.signedUrl) {
-        window.open(signedUrlData.signedUrl, '_blank');
-        setError(null);
-      } else {
-        setError('Failed to generate download link');
-      }
-    } catch (err) {
-      console.error('Error downloading report:', err);
-      setError('Failed to download report');
-    }
-  };
-
-  // If in dashboard mode, show the dashboard
-  if (dashboardMode && selectedReport) {
-    return (
-      <WaterQualityDashboard 
-        report={selectedReport}
-        onBack={handleBackToReports}
-        onDownloadReport={handleDownloadReport}
-      />
-    );
+  const report = reports.find(r => r.report_id === reportId);
+  if (onReportSelect) {
+    onReportSelect(reportId, report.kit_code);
   }
+};
+
+
 
   if (loading) {
     return (
@@ -193,7 +141,7 @@ export default function CustomerReports({ showTitle = true, maxHeight = "max-h-f
               </label>
               <select
                 id="report-select"
-                value={selectedReport?.report_id || ''}
+                value=""
                 onChange={(e) => {
                   if (e.target.value) {
                     handleReportSelect(e.target.value);

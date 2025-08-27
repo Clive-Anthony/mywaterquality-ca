@@ -28,12 +28,16 @@ import ReportPage from './pages/ReportPage';
 import OrderHistoryPage from './pages/OrderHistoryPage';
 import KitRegistrationPage from './pages/KitRegistrationPage';
 import AdminPage from './pages/AdminPage';
+import ReportsPage from './pages/ReportsPage';
+import ReportDetailPage from './pages/ReportDetailPage';
+import OrdersPage from './pages/OrdersPage';
+import ProfilePage from './pages/ProfilePage';
 import AdminProtectedRoute from './components/AdminProtectedRoute';
-import { useState, useEffect } from 'react';
+import { useEffect } from 'react';
 
 export default function App() {
   // Add a state to check if Tailwind is loaded
-  const [tailwindWorks, setTailwindWorks] = useState(null);
+  // const [setTailwindWorks] = useState(null);
 
   useEffect(() => {
     // Simple check to see if Tailwind styles are applied
@@ -42,13 +46,13 @@ export default function App() {
     document.body.appendChild(testElement);
     
     // Check computed style - if hidden is working, Tailwind is likely working
-    const computedStyle = window.getComputedStyle(testElement);
-    setTailwindWorks(computedStyle.display === 'none');
+    // const computedStyle = window.getComputedStyle(testElement);
+    // setTailwindWorks(computedStyle.display === 'none');
     
     document.body.removeChild(testElement);
     
     // console.log('Tailwind CSS working?', computedStyle.display === 'none');
-  }, []);
+  }, );
 
   return (
     <AuthProvider>
@@ -167,6 +171,42 @@ export default function App() {
                 </ProtectedRoute>
               } 
             />
+
+            <Route 
+  path="/orders" 
+  element={
+    <ProtectedRoute>
+      <OrdersPage />
+    </ProtectedRoute>
+  } 
+/>
+
+<Route 
+  path="/dashboard/reports" 
+  element={
+    <ProtectedRoute>
+      <ReportsPage />
+    </ProtectedRoute>
+  } 
+/>
+
+<Route 
+  path="/dashboard/reports/:kitCode" 
+  element={
+    <ProtectedRoute>
+      <ReportDetailPage />
+    </ProtectedRoute>
+  } 
+/>
+
+<Route 
+  path="/profile" 
+  element={
+    <ProtectedRoute>
+      <ProfilePage />
+    </ProtectedRoute>
+  } 
+/>
 
             {/* Protected admin dashboard */}
             <Route 

@@ -1,18 +1,10 @@
-// src/pages/UserPage.jsx - Updated with working Orders tab
-import { useState } from 'react';
+// src/pages/UserPage.jsx - Simplified dashboard main page
 import { Link } from 'react-router-dom';
-import { useAuth } from '../contexts/AuthContext';
 import PageLayout from '../components/PageLayout';
-import ProfileForm from '../components/ProfileForm';
+import DashboardTabs from '../components/DashboardTabs';
 import OrdersList from '../components/OrdersList';
-import CustomerReports from '../components/CustomerReports';
-// import KitRegistrationsSummary from '../components/KitRegistrationsSummary';
-
 
 export default function UserPage() {
-  const { user } = useAuth();
-  const [activeTab, setActiveTab] = useState('dashboard');
-  
   // Hero component for the dashboard
   const DashboardHero = () => (
     <div className="relative bg-gradient-to-r from-blue-600 to-blue-800 h-64">
@@ -29,177 +21,16 @@ export default function UserPage() {
     </div>
   );
 
-  // Function to render content based on active tab
-  const renderContent = () => {
-    switch (activeTab) {
-      case 'dashboard':
-        return <DashboardContent />;
-      case 'orders':
-        return <OrdersList showTitle={false} maxHeight="max-h-full" />;
-      case 'reports':
-        return <CustomerReports showTitle={false} maxHeight="max-h-full" />;
-      case 'profile':
-        return <ProfileForm />;
-      default:
-        return <DashboardContent />;
-    }
-  };
-  
   return (
     <PageLayout hero={<DashboardHero />}>
       <div className="max-w-7xl mx-auto py-8 px-4 sm:px-6 lg:px-8">
         <div className="flex flex-col md:flex-row gap-8">
           {/* Sidebar Navigation */}
-          <div className="w-full md:w-64 flex-shrink-0">
-            <div className="bg-white shadow rounded-lg overflow-hidden">
-              <div className="px-6 py-4 border-b border-gray-200">
-                <h3 className="text-lg font-medium text-gray-900">Menu</h3>
-              </div>
-              <nav className="py-2">
-                <ul>
-                  <li>
-                    <button
-                      onClick={() => setActiveTab('dashboard')}
-                      className={`w-full text-left px-6 py-3 flex items-center ${
-                        activeTab === 'dashboard'
-                          ? 'bg-blue-50 text-blue-600 border-l-4 border-blue-600'
-                          : 'text-gray-600 hover:bg-gray-50'
-                      }`}
-                    >
-                      <svg
-                        className={`mr-3 h-5 w-5 ${
-                          activeTab === 'dashboard' ? 'text-blue-600' : 'text-gray-400'
-                        }`}
-                        xmlns="http://www.w3.org/2000/svg"
-                        fill="none"
-                        viewBox="0 0 24 24"
-                        stroke="currentColor"
-                      >
-                        <path
-                          strokeLinecap="round"
-                          strokeLinejoin="round"
-                          strokeWidth="2"
-                          d="M3 12l2-2m0 0l7-7 7 7M5 10v10a1 1 0 001 1h3m10-11l2 2m-2-2v10a1 1 0 01-1 1h-3m-6 0a1 1 0 001-1v-4a1 1 0 011-1h2a1 1 0 011 1v4a1 1 0 001 1m-6 0h6"
-                        />
-                      </svg>
-                      Dashboard
-                    </button>
-                  </li>
-                  <li>
-                    <button
-                      onClick={() => setActiveTab('orders')}
-                      className={`w-full text-left px-6 py-3 flex items-center ${
-                        activeTab === 'orders'
-                          ? 'bg-blue-50 text-blue-600 border-l-4 border-blue-600'
-                          : 'text-gray-600 hover:bg-gray-50'
-                      }`}
-                    >
-                      <svg
-                        className={`mr-3 h-5 w-5 ${
-                          activeTab === 'orders' ? 'text-blue-600' : 'text-gray-400'
-                        }`}
-                        xmlns="http://www.w3.org/2000/svg"
-                        fill="none"
-                        viewBox="0 0 24 24"
-                        stroke="currentColor"
-                      >
-                        <path
-                          strokeLinecap="round"
-                          strokeLinejoin="round"
-                          strokeWidth="2"
-                          d="M16 11V7a4 4 0 00-8 0v4M5 9h14l1 12H4L5 9z"
-                        />
-                      </svg>
-                      Orders
-                    </button>
-                  </li>
-                    <li>
-                    <button
-                      onClick={() => setActiveTab('reports')}
-                      className={`w-full text-left px-6 py-3 flex items-center ${
-                        activeTab === 'reports'
-                          ? 'bg-blue-50 text-blue-600 border-l-4 border-blue-600'
-                          : 'text-gray-600 hover:bg-gray-50'
-                      }`}
-                    >
-                      <svg
-                        className={`mr-3 h-5 w-5 ${
-                          activeTab === 'reports' ? 'text-blue-600' : 'text-gray-400'
-                        }`}
-                        xmlns="http://www.w3.org/2000/svg"
-                        fill="none"
-                        viewBox="0 0 24 24"
-                        stroke="currentColor"
-                      >
-                        <path
-                          strokeLinecap="round"
-                          strokeLinejoin="round"
-                          strokeWidth="2"
-                          d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z"
-                        />
-                      </svg>
-                      Reports
-                    </button>
-                  </li>
-                  <li>
-                    <button
-                      onClick={() => setActiveTab('profile')}
-                      className={`w-full text-left px-6 py-3 flex items-center ${
-                        activeTab === 'profile'
-                          ? 'bg-blue-50 text-blue-600 border-l-4 border-blue-600'
-                          : 'text-gray-600 hover:bg-gray-50'
-                      }`}
-                    >
-                      <svg
-                        className={`mr-3 h-5 w-5 ${
-                          activeTab === 'profile' ? 'text-blue-600' : 'text-gray-400'
-                        }`}
-                        xmlns="http://www.w3.org/2000/svg"
-                        fill="none"
-                        viewBox="0 0 24 24"
-                        stroke="currentColor"
-                      >
-                        <path
-                          strokeLinecap="round"
-                          strokeLinejoin="round"
-                          strokeWidth="2"
-                          d="M16 7a4 4 0 11-8 0 4 4 0 018 0zM12 14a7 7 0 00-7 7h14a7 7 0 00-7-7z"
-                        />
-                      </svg>
-                      Profile
-                    </button>
-                  </li>
-                </ul>
-              </nav>
-              {/* Register Test Kit Button */}
-              <div className="px-6 py-4 border-t border-gray-200">
-                <Link
-                  to="/register-kit"
-                  className="w-full inline-flex items-center justify-center px-4 py-2 border border-transparent text-sm font-medium rounded-md text-white bg-green-600 hover:bg-green-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-green-500"
-                >
-                  <svg
-                    className="mr-2 h-4 w-4"
-                    xmlns="http://www.w3.org/2000/svg"
-                    fill="none"
-                    viewBox="0 0 24 24"
-                    stroke="currentColor"
-                  >
-                    <path
-                      strokeLinecap="round"
-                      strokeLinejoin="round"
-                      strokeWidth="2"
-                      d="M20 7l-8-4-8 4m16 0l-8 4m8-4v10l-8 4m0-10L4 7m8 4v10M4 7v10l8 4"
-                    />
-                  </svg>
-                  Register a Test Kit
-                </Link>
-              </div>
-            </div>
-          </div>
+          <DashboardTabs />
 
           {/* Main Content Area */}
           <div className="flex-1">
-            {renderContent()}
+            <DashboardContent />
           </div>
         </div>
       </div>
@@ -211,38 +42,6 @@ export default function UserPage() {
 function DashboardContent() {
   return (
     <>
-      {/* Dashboard Summary */}
-      {/* <div className="bg-white shadow rounded-lg overflow-hidden mb-8">
-        <div className="px-6 py-5 border-b border-gray-200">
-          <h3 className="text-lg leading-6 font-medium text-gray-900">
-            Your Dashboard
-          </h3>
-          <p className="mt-1 text-sm text-gray-500">
-            Quick overview of your water quality testing status.
-          </p>
-        </div>
-        <div className="p-6">
-          <dl className="grid grid-cols-1 gap-x-4 gap-y-8 sm:grid-cols-3">
-            <div className="sm:col-span-1">
-              <dt className="text-sm font-medium text-gray-500">Active Test Kits</dt>
-              <dd className="mt-1 text-2xl font-semibold text-blue-600">0</dd>
-            </div>
-            <div className="sm:col-span-1">
-              <dt className="text-sm font-medium text-gray-500">Tests Completed</dt>
-              <dd className="mt-1 text-2xl font-semibold text-blue-600">0</dd>
-            </div>
-            <div className="sm:col-span-1">
-              <dt className="text-sm font-medium text-gray-500">Subscription Status</dt>
-              <dd className="mt-1">
-                <span className="px-2 py-1 text-xs font-medium rounded-full bg-gray-100 text-gray-800">
-                  None
-                </span>
-              </dd>
-            </div>
-          </dl>
-        </div>
-      </div> */}
-
       {/* Recent Orders Preview */}
       <div className="mb-8">
         <OrdersList showTitle={true} maxHeight="max-h-80" compact={true} />
@@ -279,33 +78,6 @@ function DashboardContent() {
         </div>
 
         {/* Card 2 */}
-        {/* <div className="bg-white overflow-hidden shadow rounded-lg transition-shadow duration-300 hover:shadow-md">
-          <div className="px-4 py-5 sm:p-6">
-            <div className="flex items-center">
-              <div className="flex-shrink-0 bg-green-100 rounded-md p-3">
-                <svg className="h-6 w-6 text-green-600" xmlns="http://www.w3.org/2000/svg" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z" />
-                </svg>
-              </div>
-              <div className="ml-5">
-                <h3 className="text-lg font-medium text-gray-900">View Test Results</h3>
-                <p className="mt-2 text-sm text-gray-500">
-                  Access and analyze your previous water testing results.
-                </p>
-                <div className="mt-4">
-                  <button
-                    type="button"
-                    className="inline-flex items-center px-4 py-2 border border-transparent text-sm font-medium rounded-md text-green-700 bg-green-100 hover:bg-green-200 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-green-500 transition-colors duration-200"
-                  >
-                    View Results
-                  </button>
-                </div>
-              </div>
-            </div>
-          </div>
-        </div> */}
-
-        {/* Card 3 */}
         <div className="bg-white overflow-hidden shadow rounded-lg transition-shadow duration-300 hover:shadow-md">
           <div className="px-4 py-5 sm:p-6">
             <div className="flex items-center">
@@ -351,15 +123,6 @@ function DashboardContent() {
                 <li>Nitrates and phosphates</li>
               </ul>
             </div>
-            {/* <div className="bg-white p-4 rounded shadow-sm">
-              <h4 className="font-medium text-gray-900 mb-2">Testing Frequency</h4>
-              <ul className="list-disc pl-5 text-sm text-gray-600 space-y-1">
-                <li>Annual testing for most households</li>
-                <li>Bi-annual for homes with private wells</li>
-                <li>Quarterly for homes with water quality concerns</li>
-                <li>After major plumbing work</li>
-              </ul>
-            </div> */}
           </div>
         </div>
       </div>

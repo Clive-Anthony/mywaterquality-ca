@@ -1,4 +1,4 @@
-// src/components/WaterQualityDashboard.jsx - Interactive water quality results dashboard
+// Interactive water quality results dashboard
 import { useState, useEffect, useCallback } from 'react';
 import { supabase } from '../lib/supabaseClient';
 import { calculateCCMEWQI } from '../lib/ccmeWQI';
@@ -13,6 +13,8 @@ export default function WaterQualityDashboard({ report, onBack, onDownloadReport
   const [showModal, setShowModal] = useState(false);
   const [parameterFilter, setParameterFilter] = useState('');
   const [activeSection, setActiveSection] = useState('all');
+  const [kitRegistration, setKitRegistration] = useState(null);
+const [kitRegistrationLoading, setKitRegistrationLoading] = useState(true);
 
   const calculateRoadSaltAssessment = useCallback((allParameters) => {
     const chlorideParam = allParameters.find(param => 
@@ -56,6 +58,55 @@ export default function WaterQualityDashboard({ report, onBack, onDownloadReport
       bromideLevel
     };
   }, []);
+
+  const getConsolidatedLocation = useCallback(() => {
+  if (!kitRegistration) return 'Not specified';
+  
+  // Try to build location from address components
+  const addressParts = [
+    kitRegistration.address,
+    kitRegistration.city,
+    kitRegistration.province,
+    kitRegistration.country
+  ].filter(part => part && part.trim() !== '');
+  
+  if (addressParts.length > 0) {
+    return addressParts.join(', ');
+  }
+  
+  // If no address components, return 'Not specified'
+  return 'Not specified';
+}, [kitRegistration]);
+
+  const loadKitRegistration = useCallback(async () => {
+  try {
+    setKitRegistrationLoading(true);
+    
+    const { data, error } = await supabase
+      .from('vw_customer_kit_registration')
+      .select('*')
+      .eq('display_id', report.kit_code)
+      .single();
+
+    if (error && error.code !== 'PGRST116') {
+      console.error('Error loading kit registration:', error);
+      return;
+    }
+
+    setKitRegistration(data);
+  } catch (err) {
+    console.error('Error loading kit registration:', err);
+  } finally {
+    setKitRegistrationLoading(false);
+  }
+}, [report.kit_code]);
+
+// Add this useEffect to load kit registration data
+useEffect(() => {
+  if (report?.kit_code) {
+    loadKitRegistration();
+  }
+}, [report?.kit_code, loadKitRegistration]);
 
   const processTestResults = useCallback((rawData) => {
     if (!rawData || rawData.length === 0) return;
@@ -270,51 +321,102 @@ export default function WaterQualityDashboard({ report, onBack, onDownloadReport
 
   return (
     <div className="bg-gray-50 min-h-screen">
-      {/* Header */}
-      <div className="bg-white shadow-sm border-b border-gray-200">
-        <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
-          <div className="flex items-center justify-between h-16">
-  <button
-    onClick={onBack}
-    className="inline-flex items-center px-3 py-2 border border-gray-300 shadow-sm text-sm leading-4 font-medium rounded-md text-gray-700 bg-white hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500"
-  >
-    <svg className="h-4 w-4 mr-2" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M15 19l-7-7 7-7" />
-    </svg>
-    Back to Reports
-  </button>
-  
-  <div className="flex-1 text-center">
-    <h1 className="text-lg font-semibold text-gray-900">
-      Water Quality Results
-    </h1>
+      {/* Simplified Header with just spacing */}
+<div className="bg-gray-50">
+  <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
+    <div className="h-8"></div> {/* Just spacing */}
   </div>
-  
-  <button
-    onClick={() => onDownloadReport(report.report_id, report.kit_code, report.pdf_file_url)}
-    className="inline-flex items-center px-4 py-2 border border-transparent text-sm font-medium rounded-md text-white bg-blue-600 hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500"
-  >
-    <svg className="h-4 w-4 mr-2" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M12 10v6m0 0l-3-3m3 3l3-3m2 8H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
-    </svg>
-    Download Report
-  </button>
 </div>
-        </div>
-      </div>
+
+{/* Floating Action Buttons */}
+<div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 mb-8">
+  <div className="flex items-center justify-between">
+    <button
+      onClick={onBack}
+      className="inline-flex items-center px-4 py-2 bg-white border border-gray-300 shadow-lg text-sm font-medium rounded-lg text-gray-700 hover:bg-gray-50 hover:shadow-xl focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500 transition-all duration-200"
+    >
+      <svg className="h-4 w-4 mr-2" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M15 19l-7-7 7-7" />
+      </svg>
+      Back to Reports
+    </button>
+    
+    <button
+      onClick={() => onDownloadReport(report.report_id, report.kit_code, report.pdf_file_url)}
+      className="inline-flex items-center px-6 py-2 bg-blue-600 border border-transparent shadow-lg text-sm font-medium rounded-lg text-white hover:bg-blue-700 hover:shadow-xl focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500 transition-all duration-200"
+    >
+      <svg className="h-4 w-4 mr-2" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M12 10v6m0 0l-3-3m3 3l3-3m2 8H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
+      </svg>
+      Download Report
+    </button>
+  </div>
+</div>
 
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
-        {/* Kit Information Container */}
-        <div className="bg-white shadow rounded-lg p-6 mb-8">
-          <div className="text-center">
-            <h2 className="text-2xl font-bold text-gray-900 mb-2">
-              {report.kit_code}
-            </h2>
-            <p className="text-lg text-gray-600">
-              {report.product_name}
-            </p>
-          </div>
+        {/* Kit Information Container - Using kit registration data */}
+<div className="bg-white shadow rounded-lg p-6 mb-8">
+  {/* Main Title and Kit Code */}
+  <div className="text-center mb-6">
+    <h2 className="text-2xl font-bold text-gray-900 mb-2">
+      My Water Quality Report
+    </h2>
+    <p className="text-lg text-gray-600">
+      {report.kit_code}
+    </p>
+  </div>
+
+  {/* Detailed Kit Information - Two Column Layout */}
+  {kitRegistrationLoading ? (
+    <div className="flex justify-center items-center py-8">
+      <div className="animate-spin rounded-full h-6 w-6 border-t-2 border-b-2 border-blue-500"></div>
+      <span className="ml-3 text-gray-600">Loading kit information...</span>
+    </div>
+  ) : (
+    <div className="border-t border-gray-200 pt-6">
+      <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+  {/* Left Column */}
+  <div className="space-y-3">
+    <div className="flex">
+      <span className="text-sm font-medium text-gray-500 w-32 flex-shrink-0">Name:</span>
+      <span className="text-sm text-gray-900">
+        {kitRegistration?.person_taking_sample || 'Not specified'}
+      </span>
+    </div>
+    <div className="flex">
+      <span className="text-sm font-medium text-gray-500 w-32 flex-shrink-0">Test Kit:</span>
+      <span className="text-sm text-gray-900">
+        {kitRegistration?.test_kit_name || 'Not specified'}
+      </span>
+    </div>
+  </div>
+
+  {/* Right Column */}
+  <div className="space-y-3">
+    <div className="flex">
+      <span className="text-sm font-medium text-gray-500 w-32 flex-shrink-0">Location:</span>
+      <span className="text-sm text-gray-900">{getConsolidatedLocation()}</span>
+    </div>
+    <div className="flex">
+      <span className="text-sm font-medium text-gray-500 w-32 flex-shrink-0">Description:</span>
+      <span className="text-sm text-gray-900">
+        {kitRegistration?.sample_description || 'Water Sample'}
+      </span>
+    </div>
+  </div>
+</div>
+
+      {/* Additional Info Row */}
+      <div className="mt-4 pt-4 border-t border-gray-100">
+        <div className="flex justify-between items-center text-xs text-gray-500">
+          <span>Order #{kitRegistration?.order_number || 'Not specified'}</span>
+          <span>Work Order #{report.work_order_number}</span>
+          <span>Report generated on {new Date().toLocaleDateString()}</span>
         </div>
+      </div>
+    </div>
+  )}
+</div>
 
         {/* Summary Cards */}
         <div className="mb-8">
