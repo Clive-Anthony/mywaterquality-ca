@@ -215,21 +215,24 @@ export default function CustomerReports({ showTitle = true, maxHeight = "max-h-f
           <div className={`overflow-x-auto ${maxHeight}`}>
             <table className="min-w-full divide-y divide-gray-200">
               <thead className="bg-gray-50">
-                <tr>
-                  <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                    Order
-                  </th>
-                  <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                    Kit Code
-                  </th>
-                  <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                    Product
-                  </th>
-                  <th className="px-4 py-3 text-center text-xs font-medium text-gray-500 uppercase tracking-wider">
-                    Actions
-                  </th>
-                </tr>
-              </thead>
+  <tr>
+    <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+      Order
+    </th>
+    <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+      Kit Code
+    </th>
+    <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+      Product
+    </th>
+    <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+      Date
+    </th>
+    <th className="px-4 py-3 text-center text-xs font-medium text-gray-500 uppercase tracking-wider">
+      Actions
+    </th>
+  </tr>
+</thead>
               <tbody className="bg-white divide-y divide-gray-200">
                 {reports.map((report) => (
                   <tr key={report.report_id} className="hover:bg-gray-50">
@@ -251,32 +254,27 @@ export default function CustomerReports({ showTitle = true, maxHeight = "max-h-f
                       </div>
                     </td>
                     
-                    <td className="px-4 py-4 whitespace-nowrap text-center">
-                      <div className="flex items-center justify-center space-x-2">
-                        <button
-                          onClick={() => handleReportSelect(report.report_id)}
-                          className="inline-flex items-center px-3 py-1.5 border border-transparent text-xs font-medium rounded-md text-green-700 bg-green-100 hover:bg-green-200 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-green-500 transition-colors duration-200"
-                          title="View Interactive Results"
-                        >
-                          <svg className="h-4 w-4 mr-1" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z" />
-                          </svg>
-                          View Results
-                        </button>
-                        
-                        <button
-                          onClick={() => handleDownloadReport(report.report_id, report.kit_code, report.pdf_file_url)}
-                          className="inline-flex items-center px-3 py-1.5 border border-transparent text-xs font-medium rounded-md text-blue-700 bg-blue-100 hover:bg-blue-200 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500 transition-colors duration-200"
-                          title="Download PDF Report"
-                        >
-                          <svg className="h-4 w-4 mr-1" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M12 10v6m0 0l-3-3m3 3l3-3m2 8H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
-                          </svg>
-                          Download
-                        </button>
-                      </div>
-                    </td>
-                  </tr>
+                    {/* ADD this new Date column before Actions */}
+  <td className="px-4 py-4 whitespace-nowrap">
+    <div className="text-sm text-gray-900">
+      {new Date(report.created_at || report.order_date).toLocaleDateString()}
+    </div>
+  </td>
+  
+  <td className="px-4 py-4 whitespace-nowrap text-center">
+    {/* REPLACE the entire actions div content with just the View Results button */}
+    <button
+      onClick={() => handleReportSelect(report.report_id)}
+      className="inline-flex items-center px-3 py-1.5 border border-transparent text-xs font-medium rounded-md text-green-700 bg-green-100 hover:bg-green-200 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-green-500 transition-colors duration-200"
+      title="View Interactive Results"
+    >
+      <svg className="h-4 w-4 mr-1" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M9 19v-6a2 2 0 0 0-2-2H5a2 2 0 0 0-2 2v6a2 2 0 0 0 2 2h2a2 2 0 0 0 2-2zm0 0V9a2 2 0 0 1 2-2h2a2 2 0 0 1 2 2v10m-6 0a2 2 0 0 0 2 2h2a2 2 0 0 0 2-2m0 0V5a2 2 0 0 1 2-2h2a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2h-2a2 2 0 0 1-2-2z" />
+      </svg>
+      View Results
+    </button>
+  </td>
+</tr>
                 ))}
               </tbody>
             </table>

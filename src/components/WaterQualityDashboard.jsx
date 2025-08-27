@@ -274,37 +274,48 @@ export default function WaterQualityDashboard({ report, onBack, onDownloadReport
       <div className="bg-white shadow-sm border-b border-gray-200">
         <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
           <div className="flex items-center justify-between h-16">
-            <div className="flex items-center">
-              <button
-                onClick={onBack}
-                className="mr-4 inline-flex items-center px-3 py-2 border border-gray-300 shadow-sm text-sm leading-4 font-medium rounded-md text-gray-700 bg-white hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500"
-              >
-                <svg className="h-4 w-4 mr-2" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M15 19l-7-7 7-7" />
-                </svg>
-                Back to Reports
-              </button>
-              <div>
-                <h1 className="text-lg font-semibold text-gray-900">
-                  Water Quality Results - {report.kit_code}
-                </h1>
-                <p className="text-sm text-gray-500">{report.product_name}</p>
-              </div>
-            </div>
-            <button
-              onClick={() => onDownloadReport(report.report_id, report.kit_code, report.pdf_file_url)}
-              className="inline-flex items-center px-4 py-2 border border-transparent text-sm font-medium rounded-md text-white bg-blue-600 hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500"
-            >
-              <svg className="h-4 w-4 mr-2" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M12 10v6m0 0l-3-3m3 3l3-3m2 8H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
-              </svg>
-              Download Report
-            </button>
-          </div>
+  <button
+    onClick={onBack}
+    className="inline-flex items-center px-3 py-2 border border-gray-300 shadow-sm text-sm leading-4 font-medium rounded-md text-gray-700 bg-white hover:bg-gray-50 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500"
+  >
+    <svg className="h-4 w-4 mr-2" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M15 19l-7-7 7-7" />
+    </svg>
+    Back to Reports
+  </button>
+  
+  <div className="flex-1 text-center">
+    <h1 className="text-lg font-semibold text-gray-900">
+      Water Quality Results
+    </h1>
+  </div>
+  
+  <button
+    onClick={() => onDownloadReport(report.report_id, report.kit_code, report.pdf_file_url)}
+    className="inline-flex items-center px-4 py-2 border border-transparent text-sm font-medium rounded-md text-white bg-blue-600 hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500"
+  >
+    <svg className="h-4 w-4 mr-2" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M12 10v6m0 0l-3-3m3 3l3-3m2 8H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
+    </svg>
+    Download Report
+  </button>
+</div>
         </div>
       </div>
 
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
+        {/* Kit Information Container */}
+        <div className="bg-white shadow rounded-lg p-6 mb-8">
+          <div className="text-center">
+            <h2 className="text-2xl font-bold text-gray-900 mb-2">
+              {report.kit_code}
+            </h2>
+            <p className="text-lg text-gray-600">
+              {report.product_name}
+            </p>
+          </div>
+        </div>
+
         {/* Summary Cards */}
         <div className="mb-8">
           <h2 className="text-2xl font-bold text-gray-900 mb-4">Snapshot of Results</h2>

@@ -8,16 +8,18 @@ import AdminReportsUpload from '../components/AdminReportsUpload';
 import AdminInventoryManagement from '../components/AdminInventoryManagement';
 import AdminReportTesting from '../components/AdminReportTesting';
 import AdminKitRegistration from '../components/AdminKitRegistration';
+import AdminWaterQualityResults from '../components/AdminWaterQualityResults';
+
 
 export default function AdminPage() {
-  const { user } = useAuth();
+  const { user: _user } = useAuth();
   const location = useLocation();
   const [activeTab, setActiveTab] = useState('dashboard');
   
   // Handle URL fragments for direct tab navigation
   useEffect(() => {
     const hash = location.hash.replace('#', '');
-    if (hash && ['dashboard', 'orders', 'reports', 'report-testing', 'inventory', 'kit-registration'].includes(hash)) {
+    if (hash && ['dashboard', 'orders', 'reports', 'report-testing', 'inventory', 'kit-registration','results'].includes(hash)) {
       setActiveTab(hash);
     }
   }, [location.hash]);
@@ -60,6 +62,8 @@ export default function AdminPage() {
         return <AdminInventoryManagement />;
         case 'kit-registration':
           return <AdminKitRegistration />;
+      case 'results':
+  return <AdminWaterQualityResults />;
       default:
         return <AdminDashboardContent setActiveTab={handleTabChange} />;
     }
@@ -257,6 +261,36 @@ export default function AdminPage() {
                         <span className="truncate">Kit Registration</span>
                       </button>
                     </li>
+
+                    {/* Results */}
+<li>
+  <button
+    onClick={() => handleTabChange('results')}
+    className={`w-full text-left px-4 sm:px-6 py-3 flex items-center text-sm sm:text-base ${
+      activeTab === 'results'
+        ? 'bg-blue-50 text-blue-600 border-l-4 border-blue-600'
+        : 'text-gray-600 hover:bg-gray-50'
+    }`}
+  >
+    <svg
+      className={`mr-2 sm:mr-3 h-4 w-4 sm:h-5 sm:w-5 flex-shrink-0 ${
+        activeTab === 'results' ? 'text-blue-600' : 'text-gray-400'
+      }`}
+      xmlns="http://www.w3.org/2000/svg"
+      fill="none"
+      viewBox="0 0 24 24"
+      stroke="currentColor"
+    >
+      <path
+        strokeLinecap="round"
+        strokeLinejoin="round"
+        strokeWidth="2"
+        d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z"
+      />
+    </svg>
+    <span className="truncate">Results</span>
+  </button>
+</li>
 
                 </ul>
               </nav>
