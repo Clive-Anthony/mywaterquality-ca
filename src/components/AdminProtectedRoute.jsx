@@ -7,56 +7,56 @@ import { storeReturnPath } from '../utils/returnPath';
 
 export default function AdminProtectedRoute({ children }) {
   const { user, loading: authLoading, isReady } = useAuth();
+  const location = useLocation(); // ✅ Always call this at the top level
   const [userRole, setUserRole] = useState(null);
   const [roleLoading, setRoleLoading] = useState(true);
   const [roleFetchAttempted, setRoleFetchAttempted] = useState(false);
   const [error, setError] = useState(null);
   
   // Fetch user role when user is available and auth is ready
-  useEffect(() => {
-    const fetchUserRole = async () => {
-      // If auth is ready but there's no user, we don't need to fetch role
-      if (isReady && !user) {
-        setRoleLoading(false);
-        setRoleFetchAttempted(true); // Mark as attempted so we can redirect to login
-        return;
+  // Fetch user role when user is available and auth is ready
+useEffect(() => {
+  const fetchUserRole = async () => {
+    // If auth is ready but there's no user, we don't need to fetch role
+    if (isReady && !user) {
+      setRoleLoading(false);
+      setRoleFetchAttempted(true);
+      return;
+    }
+
+    // Wait for auth to be ready and user to be available
+    if (!isReady || !user) {
+      return;
+    }
+
+    try {
+      setRoleLoading(true);
+      setError(null);
+
+      // Call the get_user_role function to get user's role
+      const { data, error } = await supabase.rpc('get_user_role', {
+        user_uuid: user.id
+      });
+
+      if (error) {
+        throw error;
       }
 
-      // Wait for auth to be ready and user to be available
-      if (!isReady || !user) {
-        return; // Don't set roleFetchAttempted yet, keep waiting
-      }
+      console.log('User role fetched:', data);
+      setUserRole(data);
+      setRoleFetchAttempted(true);
+    } catch (err) {
+      console.error('Error fetching user role:', err);
+      setError(err.message);
+      setUserRole('user'); // Default to regular user on error
+      setRoleFetchAttempted(true);
+    } finally {
+      setRoleLoading(false);
+    }
+  };
 
-      try {
-        setRoleLoading(true);
-        setError(null);
-
-        // console.log('Fetching role for user:', user.id);
-
-        // Call the get_user_role function to get user's role
-        const { data, error } = await supabase.rpc('get_user_role', {
-          user_uuid: user.id
-        });
-
-        if (error) {
-          throw error;
-        }
-
-        console.log('User role fetched:', data);
-        setUserRole(data);
-        setRoleFetchAttempted(true);
-      } catch (err) {
-        console.error('Error fetching user role:', err);
-        setError(err.message);
-        setUserRole('user'); // Default to regular user on error
-        setRoleFetchAttempted(true);
-      } finally {
-        setRoleLoading(false);
-      }
-    };
-
-    fetchUserRole();
-  }, [user?.id, isReady]);
+  fetchUserRole();
+}, [user, isReady]); // ✅ Fixed: include 'user' since we reference it in the effect
 
   // Reset state when user changes (including sign out)
   useEffect(() => {
@@ -83,15 +83,14 @@ export default function AdminProtectedRoute({ children }) {
   
   // Redirect to login if not authenticated
   if (!user) {
-  console.log('No authenticated user found, storing return path and redirecting to login');
-  
-  // Store the admin path for return after login
-  const location = useLocation();
-  const returnPath = location.pathname + location.search + location.hash;
-  storeReturnPath(returnPath);
-  
-  return <Navigate to="/login" replace />;
-}
+    console.log('No authenticated user found, storing return path and redirecting to login');
+    
+    // Store the admin path for return after login
+    const returnPath = location.pathname + location.search + location.hash;
+    storeReturnPath(returnPath);
+    
+    return <Navigate to="/login" replace />;
+  }
 
   // Show error state
   if (error) {

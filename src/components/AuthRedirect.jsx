@@ -23,7 +23,7 @@ const AuthRedirect = () => {
   // Helper function to determine redirect path based on user role
   const getRedirectPath = async (user) => {
   try {
-    // First, check for a valid stored return path
+    // Check for a valid stored return path first
     const { validateAndGetReturnPath } = await import('../utils/returnPath');
     const storedPath = await validateAndGetReturnPath(user);
     
@@ -67,8 +67,6 @@ const AuthRedirect = () => {
       const refreshToken = searchParams.get('refresh_token');
       const errorParam = searchParams.get('error');
       const errorDescription = searchParams.get('error_description');
-      const type = searchParams.get('type'); // This will be 'signup' for verification
-      const returnTo = searchParams.get('return_to'); // Our return path
 
       // Handle OAuth errors
       if (errorParam) {
@@ -87,61 +85,6 @@ const AuthRedirect = () => {
             });
           }
         }, 2000);
-        return;
-      }
-
-      // Handle email verification (type === 'signup')
-      if (type === 'signup' && accessToken && refreshToken) {
-        console.log('Processing email verification...');
-        setStatus('verifying_email');
-
-        // Verify the email but don't log the user in
-        const { error: sessionError } = await supabase.auth.setSession({
-          access_token: accessToken,
-          refresh_token: refreshToken
-        });
-
-        if (sessionError) {
-          console.error('Verification error:', sessionError);
-          setError('Email verification failed');
-          setStatus('error');
-          
-          setTimeout(() => {
-            if (mountedRef.current) {
-              navigate('/login', { 
-                state: { 
-                  error: 'Email verification failed. Please try again.' 
-                },
-                replace: true 
-              });
-            }
-          }, 2000);
-          return;
-        }
-
-        console.log('Email verified successfully');
-        setStatus('verified');
-
-        // Store the return path if provided
-        if (returnTo) {
-          const { storeReturnPath } = await import('../utils/returnPath');
-          storeReturnPath(returnTo);
-        }
-
-        // Sign out the user (they were automatically logged in by setSession)
-        await supabase.auth.signOut();
-
-        // Redirect to login page with success message
-        setTimeout(() => {
-          if (mountedRef.current) {
-            navigate('/login', { 
-              state: { 
-                message: 'Email verified successfully! Please log in to continue.' 
-              },
-              replace: true 
-            });
-          }
-        }, 1500);
         return;
       }
 
@@ -218,10 +161,6 @@ const AuthRedirect = () => {
       return 'Processing authentication...';
     case 'setting_session':
       return 'Setting up your session...';
-    case 'verifying_email':
-      return 'Verifying your email...';
-    case 'verified':
-      return 'Email verified! Redirecting to login...';
     case 'success':
       return 'Authentication successful! Redirecting...';
     case 'error':

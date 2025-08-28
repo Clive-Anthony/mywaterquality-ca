@@ -16,7 +16,7 @@ export const getSession = async () => {
 };
 
 // Enhanced Auth helper functions with Loops email integration
-export const signUp = async (email, password, firstName = '', lastName = '', returnPath = null) => {
+export const signUp = async (email, password, firstName = '', lastName = '') => {
   try {
     // Create user account with metadata
     const { data, error } = await supabase.auth.signUp({
@@ -48,8 +48,7 @@ export const signUp = async (email, password, firstName = '', lastName = '', ret
           },
           body: JSON.stringify({
             email: data.user.email,
-            firstName: firstName || 'Valued Customer',
-            returnPath: returnPath // Include return path in request
+            firstName: firstName || 'Valued Customer'
           }),
         });
 
