@@ -14,7 +14,6 @@
   
   // Handle the case where the URL has an access_token in the hash
   const processAuthTokens = () => {
-    const currentUrl = window.location.href;
     const hash = window.location.hash;
     
     // console.log('Hash fragment:', hash);
@@ -22,18 +21,6 @@
     // Check if we have an access_token in the hash
     if (hash && hash.includes('access_token=')) {
       console.log('Found access_token in hash fragment');
-      
-      // Parse the hash parameters
-      const hashParams = new URLSearchParams(hash.substring(1)); // Remove the #
-      const accessToken = hashParams.get('access_token');
-      const tokenType = hashParams.get('type');
-      const refreshToken = hashParams.get('refresh_token');
-      
-      // console.log('Token details:', {
-      //   hasAccessToken: !!accessToken,
-      //   tokenType,
-      //   hasRefreshToken: !!refreshToken
-      // });
       
       // Check if we're already on the auth callback route
       if (window.location.pathname === '/auth/callback') {
@@ -52,8 +39,10 @@
       
       sessionStorage.setItem('auth_redirect_in_progress', 'true');
       
-      // Use history.replaceState to navigate to the callback without triggering a full page reload
-      const newUrl = `/auth/callback${hash}`;
+      // Preserve URL parameters (like return_to) when redirecting
+      const urlParams = new URLSearchParams(window.location.search);
+      const queryString = urlParams.toString();
+      const newUrl = `/auth/callback${queryString ? `?${queryString}` : ''}${hash}`;
       console.log('Navigating to:', newUrl);
       
       // Update the URL without reloading the page

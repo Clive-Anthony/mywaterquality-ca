@@ -43,7 +43,7 @@ export default function SignupPage() {
   setLoading(true);
   
   try {
-    const { data, error } = await signUp(
+    const {error } = await signUp(
       formData.email, 
       formData.password, 
       formData.firstName, 
@@ -93,7 +93,7 @@ export default function SignupPage() {
     setGoogleLoading(true);
     
     try {
-      const { data, error } = await signInWithGoogle();
+      const { error } = await signInWithGoogle();
       
       if (error) {
         throw error;

@@ -9,8 +9,8 @@ async function sendLoopsEmail({ transactionalId, to, variables }) {
       throw new Error('Loops API key not configured');
     }
 
-    console.log(`Sending email to ${to} with template ${transactionalId}`);
-    console.log('Variables:', JSON.stringify(variables, null, 2));
+    // console.log(`Sending email to ${to} with template ${transactionalId}`);
+    // console.log('Variables:', JSON.stringify(variables, null, 2));
 
     // Use the exact format that returned {"success":true} in the test
     const requestBody = {
@@ -89,10 +89,9 @@ exports.handler = async function(event, context) {
     console.log('=== VERIFICATION EMAIL DEBUG ===');
     console.log('Raw request body:', event.body);
     
-    const { email, firstName = 'Valued Customer' } = JSON.parse(event.body);
+    const { email, firstName = 'Valued Customer'} = JSON.parse(event.body);
     
     console.log('Processing verification email for:', email);
-    console.log('First name:', firstName);
     
     if (!email) {
       return {
@@ -114,15 +113,15 @@ exports.handler = async function(event, context) {
       process.env.VITE_SUPABASE_SERVICE_KEY
     );
     
-    // Generate verification link
+    // Generate verification link with return path
     console.log('Generating verification link...');
-    const { data, error } = await supabaseAdmin.auth.admin.generateLink({
-      type: 'signup',
-      email,
-      options: {
-        redirectTo: `${process.env.VITE_APP_URL || 'http://localhost:8888'}/auth/callback`,
-      }
-    });
+const { data, error } = await supabaseAdmin.auth.admin.generateLink({
+  type: 'signup',
+  email,
+  options: {
+    redirectTo: `${process.env.VITE_APP_URL || 'http://localhost:8888'}/auth/callback`,
+  }
+});
     
     if (error) {
       console.error('Supabase error:', error);

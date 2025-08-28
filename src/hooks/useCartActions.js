@@ -3,6 +3,7 @@ import { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../contexts/AuthContext';
 import { useCart } from '../contexts/CartContext';
+import { storeReturnPath } from '../utils/returnPath';
 
 export const useCartActions = () => {
   const navigate = useNavigate();
@@ -78,28 +79,34 @@ export const useCartActions = () => {
    * @param {string} returnPath - Path to return to after login
    */
   const handleLoginRedirect = (returnPath = '/shop') => {
-    setShowLoginPrompt(false);
-    navigate('/login', { 
-      state: { 
-        message: 'Please log in to add items to your cart',
-        returnTo: returnPath
-      }
-    });
-  };
+  setShowLoginPrompt(false);
+  
+  // Store the return path for after login
+  storeReturnPath(returnPath);
+  
+  navigate('/login', { 
+    state: { 
+      message: 'Please log in to add items to your cart'
+    }
+  });
+};
 
   /**
    * Handle signup redirect from auth prompt
    * @param {string} returnPath - Path to return to after signup
    */
   const handleSignupRedirect = (returnPath = '/shop') => {
-    setShowLoginPrompt(false);
-    navigate('/signup', { 
-      state: { 
-        message: 'Create an account to start shopping',
-        returnTo: returnPath
-      }
-    });
-  };
+  setShowLoginPrompt(false);
+  
+  // Store the return path for after signup/login
+  storeReturnPath(returnPath);
+  
+  navigate('/signup', { 
+    state: { 
+      message: 'Create an account to start shopping'
+    }
+  });
+};
 
   /**
    * Close login prompt

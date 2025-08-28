@@ -163,13 +163,11 @@ export const resetPassword = async (email) => {
     }
 
     // Parse successful response
-    let responseData;
     try {
-      responseData = JSON.parse(responseText);
+      JSON.parse(responseText);
     } catch (jsonError) {
       console.error('Success response is not valid JSON:', jsonError);
       // If success response isn't JSON, assume it worked
-      responseData = { message: 'Password reset email sent' };
     }
 
     // console.log('Password reset email sent successfully via Loops');

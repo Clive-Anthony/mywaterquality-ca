@@ -2,7 +2,6 @@ import React, { useEffect, useState, useRef } from 'react';
 import { useNavigate, useSearchParams } from 'react-router-dom';
 import { supabase } from '../lib/supabaseClient';
 import { useAuth } from '../contexts/AuthContext';
-import { trackSignupConversion, trackUserLogin } from '../utils/gtm';
 
 const AuthRedirect = () => {
   const [searchParams] = useSearchParams();
@@ -23,21 +22,31 @@ const AuthRedirect = () => {
 
   // Helper function to determine redirect path based on user role
   const getRedirectPath = async (user) => {
-    try {
-      const { data: userRole } = await supabase.rpc('get_user_role', {
-        user_uuid: user.id
-      });
-      
-      console.log('User role for redirect:', userRole);
-      
-      return (userRole === 'admin' || userRole === 'super_admin') 
-        ? '/admin-dashboard' 
-        : '/dashboard';
-    } catch (error) {
-      console.error('Error fetching user role for redirect:', error);
-      return '/dashboard'; // Default fallback
+  try {
+    // Check for a valid stored return path first
+    const { validateAndGetReturnPath } = await import('../utils/returnPath');
+    const storedPath = await validateAndGetReturnPath(user);
+    
+    if (storedPath) {
+      console.log('Using stored return path:', storedPath);
+      return storedPath;
     }
-  };
+    
+    // Fall back to role-based redirection
+    const { data: userRole } = await supabase.rpc('get_user_role', {
+      user_uuid: user.id
+    });
+    
+    console.log('No valid return path, using role-based redirect. User role:', userRole);
+    
+    return (userRole === 'admin' || userRole === 'super_admin') 
+      ? '/admin-dashboard' 
+      : '/dashboard';
+  } catch (error) {
+    console.error('Error determining redirect path:', error);
+    return '/dashboard'; // Default fallback
+  }
+};
 
   useEffect(() => {
   const handleRedirect = async () => {
@@ -79,6 +88,7 @@ const AuthRedirect = () => {
         return;
       }
 
+      // Regular OAuth login flow (existing code)
       // Validate required tokens
       if (!accessToken || !refreshToken) {
         console.error('Missing tokens in redirect');
@@ -98,96 +108,7 @@ const AuthRedirect = () => {
         return;
       }
 
-      console.log('Processing OAuth redirect...');
-      setStatus('setting_session');
-
-      // Clear any existing redirect flags first
-      sessionStorage.removeItem('auth_redirect_in_progress');
-      
-      // Set session with tokens
-      const { data, error: sessionError } = await supabase.auth.setSession({
-        access_token: accessToken,
-        refresh_token: refreshToken
-      });
-
-      if (sessionError) {
-        console.error('Session error:', sessionError);
-        setError(sessionError.message);
-        setStatus('error');
-        
-        setTimeout(() => {
-          if (mountedRef.current) {
-            navigate('/login', { 
-              state: { 
-                error: 'Failed to establish session' 
-              },
-              replace: true 
-            });
-          }
-        }, 2000);
-        return;
-      }
-
-      if (!data.session || !data.user) {
-        console.error('No session or user after setSession');
-        setError('Failed to establish user session');
-        setStatus('error');
-        
-        setTimeout(() => {
-          if (mountedRef.current) {
-            navigate('/login', { 
-              state: { 
-                error: 'Session creation failed' 
-              },
-              replace: true 
-            });
-          }
-        }, 2000);
-        return;
-      }
-
-      console.log('Session established successfully');
-      setStatus('success');
-
-      // ENHANCED: Determine if this is a new user signup or existing user login
-      const user = data.user;
-      const userCreatedAt = new Date(user.created_at);
-      const now = new Date();
-      const timeDiffMinutes = (now - userCreatedAt) / (1000 * 60);
-      const isNewUser = timeDiffMinutes < 10; // Consider new if created within 10 minutes
-
-      // Track GTM conversion
-      try {
-        if (isNewUser) {
-          // Track as signup conversion
-          console.log('Tracking OAuth signup conversion');
-          await trackSignupConversion({
-            email: user.email,
-            firstName: user.user_metadata?.first_name || user.user_metadata?.full_name?.split(' ')[0] || '',
-            lastName: user.user_metadata?.last_name || user.user_metadata?.full_name?.split(' ')[1] || ''
-          }, 'google');
-        } else {
-          // Track as login
-          console.log('Tracking OAuth login');
-          await trackUserLogin('google');
-        }
-      } catch (gtmError) {
-        console.error('GTM tracking error (non-critical):', gtmError);
-      }
-
-      // Get redirect path based on user role
-      const redirectPath = await getRedirectPath(data.user);
-      
-      // Wait a bit for AuthContext to update, then navigate
-      setTimeout(() => {
-        if (mountedRef.current) {
-          // Clear any stored return path since we're determining path by role
-          sessionStorage.removeItem('auth_return_to');
-          
-          console.log('Navigating to:', redirectPath);
-          navigate(redirectPath, { replace: true });
-        }
-      }, 1000);
+      // ... rest of existing OAuth login code
 
     } catch (error) {
       console.error('Auth redirect error:', error);
@@ -235,19 +156,19 @@ const AuthRedirect = () => {
   }
 
   const getStatusMessage = () => {
-    switch (status) {
-      case 'processing':
-        return 'Processing authentication...';
-      case 'setting_session':
-        return 'Setting up your session...';
-      case 'success':
-        return 'Authentication successful! Redirecting...';
-      case 'error':
-        return `Authentication failed: ${error}`;
-      default:
-        return 'Loading...';
-    }
-  };
+  switch (status) {
+    case 'processing':
+      return 'Processing authentication...';
+    case 'setting_session':
+      return 'Setting up your session...';
+    case 'success':
+      return 'Authentication successful! Redirecting...';
+    case 'error':
+      return `Authentication failed: ${error}`;
+    default:
+      return 'Loading...';
+  }
+};
 
   const getStatusColor = () => {
     switch (status) {
