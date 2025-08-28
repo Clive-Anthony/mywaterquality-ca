@@ -69,12 +69,12 @@ exports.handler = async function(event, context) {
     console.log('=== PASSWORD RESET FUNCTION ===');
     
     // Log environment for debugging
-    console.log('Environment check:', {
-      hasSupabaseUrl: !!process.env.VITE_SUPABASE_URL,
-      hasSupabaseKey: !!process.env.VITE_SUPABASE_SERVICE_KEY,
-      hasLoopsKey: !!process.env.VITE_LOOPS_API_KEY,
-      appUrl: process.env.VITE_APP_URL
-    });
+    // console.log('Environment check:', {
+    //   hasSupabaseUrl: !!process.env.VITE_SUPABASE_URL,
+    //   hasSupabaseKey: !!process.env.VITE_SUPABASE_SERVICE_KEY,
+    //   hasLoopsKey: !!process.env.VITE_LOOPS_API_KEY,
+    //   appUrl: process.env.VITE_APP_URL
+    // });
     
     let parsedBody;
     try {

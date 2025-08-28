@@ -10,7 +10,7 @@ window.dataLayer = window.dataLayer || [];
  */
 export const pushToDataLayer = (eventData) => {
   try {
-    console.log('GTM: Pushing to dataLayer:', eventData);
+    // console.log('GTM: Pushing to dataLayer:', eventData);
     window.dataLayer.push(eventData);
   } catch (error) {
     console.error('GTM: Error pushing to dataLayer:', error);
@@ -98,7 +98,7 @@ export const trackSignupConversion = async (userData, signupMethod = 'email') =>
       user_id: userData.email ? await hashEmail(userData.email) : undefined
     });
 
-    console.log('GTM: Sign-up conversion tracked successfully');
+    // console.log('GTM: Sign-up conversion tracked successfully');
   } catch (error) {
     console.error('GTM: Error tracking sign-up conversion:', error);
   }
@@ -169,7 +169,7 @@ export const trackShopPageView = async (pageData, productData = null) => {
       content_group1: 'shop'
     });
 
-    console.log('GTM: Shop page view conversion tracked successfully');
+    // console.log('GTM: Shop page view conversion tracked successfully');
   } catch (error) {
     console.error('GTM: Error tracking shop page view conversion:', error);
   }
@@ -189,7 +189,7 @@ export const trackCustomEvent = (eventName, eventParams = {}) => {
     };
 
     pushToDataLayer(eventData);
-    console.log(`GTM: Custom event '${eventName}' tracked successfully`);
+    // console.log(`GTM: Custom event '${eventName}' tracked successfully`);
   } catch (error) {
     console.error(`GTM: Error tracking custom event '${eventName}':`, error);
   }
@@ -211,7 +211,7 @@ export const trackUserLogin = async (loginMethod = 'email') => {
     };
 
     pushToDataLayer(eventData);
-    console.log('GTM: User login tracked successfully');
+    // console.log('GTM: User login tracked successfully');
   } catch (error) {
     console.error('GTM: Error tracking user login:', error);
   }
@@ -254,7 +254,7 @@ export const trackCartEvent = async (eventType, cartData) => {
     }
 
     pushToDataLayer(eventData);
-    console.log(`GTM: Cart event '${eventType}' tracked successfully`);
+    // console.log(`GTM: Cart event '${eventType}' tracked successfully`);
   } catch (error) {
     console.error(`GTM: Error tracking cart event '${eventType}':`, error);
   }
@@ -298,7 +298,7 @@ export const trackPurchaseConversion = async (purchaseData) => {
       tax: purchaseData.tax || 0
     });
 
-    console.log('GTM: Purchase conversion tracked successfully');
+    // console.log('GTM: Purchase conversion tracked successfully');
   } catch (error) {
     console.error('GTM: Error tracking purchase conversion:', error);
   }
