@@ -6,10 +6,10 @@ import QuantitySelector from '../components/QuantitySelector';
 import { supabase } from '../lib/supabaseClient';
 import { useAuth } from '../contexts/AuthContext';
 import { useCartActions } from '../hooks/useCartActions';
+import { storeReturnPath } from '../utils/returnPath';
 import { useShopPageTracking } from '../hooks/useGTM';
 import { 
-  formatPrice, 
-  getStockStatus, 
+  formatPrice,
   isInStock,
   generateSlug,
   searchTestKitsByParameters 
@@ -37,7 +37,6 @@ export default function TestKitsPage() {
     closeLoginPrompt,
     clearError,
     clearSuccessMessage,
-    loading: cartLoading,
     error: cartError,
     successMessage,
     showLoginPrompt,
@@ -327,11 +326,31 @@ export default function TestKitsPage() {
                       <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
                     </svg>
                     <p className="text-blue-800">
-                      <Link to="/login" className="font-medium underline hover:text-blue-600">
+                      <button
+                        onClick={() => {
+                          storeReturnPath('/shop');
+                          navigate('/login', { 
+                            state: { 
+                              message: 'Please log in to add items to your cart and checkout'
+                            }
+                          });
+                        }}
+                        className="font-medium underline hover:text-blue-600 bg-transparent border-none p-0 cursor-pointer text-blue-800"
+                      >
                         Log in
-                      </Link> or <Link to="/signup" className="font-medium underline hover:text-blue-600">
+                      </button> or <button
+                        onClick={() => {
+                          storeReturnPath('/shop');
+                          navigate('/signup', { 
+                            state: { 
+                              message: 'Create an account to add items to your cart and checkout'
+                            }
+                          });
+                        }}
+                        className="font-medium underline hover:text-blue-600 bg-transparent border-none p-0 cursor-pointer text-blue-800"
+                      >
                         create an account
-                      </Link> to add items to your cart and checkout.
+                      </button> to add items to your cart and checkout.
                     </p>
                   </div>
                 </div>
@@ -339,8 +358,7 @@ export default function TestKitsPage() {
             </div>
 
             <div className="grid grid-cols-1 gap-8 sm:grid-cols-2 lg:grid-cols-3 xl:grid-cols-4">
-              {testKits.map((kit, index) => {
-                const stockStatus = getStockStatus(kit.quantity);
+              {testKits.map((kit) => {
                 const buttonProps = getAddToCartButtonProps(kit, quantities[kit.id] || 1);
                 const currentQuantity = quantities[kit.id] || 1;
                 const slug = getTestKitSlug(kit);

@@ -46,26 +46,7 @@ export default function LoginPage() {
       navigate(location.pathname, { replace: true, state: {} });
     }
 
-    try {
-        const stored = sessionStorage.getItem('auth_return_to');
-        if (stored && !location.state?.message && !location.state?.error) {
-          const data = JSON.parse(stored);
-          const returnPath = data.path;
-          
-          if (returnPath.includes('/register-kit')) {
-            setSuccessMessage('Please log in to continue to kit registration.');
-          } else if (returnPath.includes('/checkout')) {
-            setSuccessMessage('Please log in to continue to checkout.');
-          } else if (returnPath.includes('/admin')) {
-            setSuccessMessage('Please log in to access the admin dashboard.');
-          } else {
-            setSuccessMessage('Please log in to continue to your destination.');
-          }
-        }
-      } catch (error) {
-        // Ignore storage errors
-      }
-  }, [location, navigate]);
+  }, [location, navigate, setSuccessMessage]);
 
   // Handle auth state changes - navigate when user is authenticated
       useEffect(() => {
@@ -110,7 +91,7 @@ export default function LoginPage() {
         };
 
       handleSuccessfulAuth();
-    }, [user, authLoading, waitingForAuth, navigate]);
+    }, [user, authLoading, waitingForAuth, navigate, isReady]);
 
   const handleSubmit = async (e) => {
   e.preventDefault();
@@ -135,7 +116,7 @@ export default function LoginPage() {
   try {
     console.log('Starting login attempt for:', email);
     
-    const { data, error } = await signIn(email.trim(), password);
+    const { error } = await signIn(email.trim(), password);
     
     if (error) {
       console.error('Login error:', error);
@@ -192,7 +173,7 @@ export default function LoginPage() {
     setGoogleLoading(true);
     
     try {
-      const { data, error } = await signInWithGoogle();
+      const { error } = await signInWithGoogle();
       
       if (error) {
         throw error;
@@ -230,7 +211,7 @@ export default function LoginPage() {
             </p>
             
             {/* Success Message */}
-            {successMessage && (
+            {/* {successMessage && (
               <div className="mb-4 bg-green-50 border-l-4 border-green-500 p-4 rounded" role="alert">
                 <div className="flex items-center">
                   <svg className="h-5 w-5 text-green-500 mr-2" fill="none" viewBox="0 0 24 24" stroke="currentColor">
@@ -239,7 +220,7 @@ export default function LoginPage() {
                   <span className="text-green-700">{successMessage}</span>
                 </div>
               </div>
-            )}
+            )} */}
             
             {/* Error Message */}
             {error && (

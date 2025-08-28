@@ -83,7 +83,7 @@ export const signIn = async (email, password) => {
 export const signInWithGoogle = async () => {
   const redirectUrl = `${config.baseUrl}auth/callback`;
   
-  console.log('Starting Google sign-in with redirect to:', redirectUrl);
+  // console.log('Starting Google sign-in with redirect to:', redirectUrl);
   
   try {
     const { data, error } = await supabase.auth.signInWithOAuth({
