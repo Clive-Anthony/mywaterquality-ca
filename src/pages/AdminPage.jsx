@@ -9,6 +9,7 @@ import AdminInventoryManagement from '../components/AdminInventoryManagement';
 import AdminReportTesting from '../components/AdminReportTesting';
 import AdminKitRegistration from '../components/AdminKitRegistration';
 import AdminWaterQualityResults from '../components/AdminWaterQualityResults';
+import { UnregisteredLegacyKitsCard, QuickLinksCard } from '../components/AdminDashboardCards';
 
 
 export default function AdminPage() {
@@ -313,6 +314,13 @@ export default function AdminPage() {
 function AdminDashboardContent({ setActiveTab }) {
   return (
     <div className="space-y-6 lg:space-y-8">
+
+      {/* New Dashboard Cards - Legacy Kits & Quick Links */}
+      <div className="grid grid-cols-1 lg:grid-cols-2 gap-6">
+        <UnregisteredLegacyKitsCard />
+        <QuickLinksCard setActiveTab={setActiveTab} />
+      </div>
+
       {/* Recent Orders Preview */}
       <div className="w-full">
         <AdminOrdersList showTitle={true} maxHeight="max-h-80" compact={true} />
