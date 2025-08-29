@@ -243,6 +243,38 @@ export default function AdminOrdersList({
     setShowCancelDialog(false);
   };
 
+  // Helper function to create smart summarization of test kit names
+const getTestKitSummary = (items) => {
+  if (!items || items.length === 0) {
+    return 'No items';
+  }
+  
+  if (items.length === 1) {
+    return items[0].product_name || 'Unknown Product';
+  }
+  
+  // Group items by product name
+  const productCounts = items.reduce((acc, item) => {
+    const name = item.product_name || 'Unknown Product';
+    acc[name] = (acc[name] || 0) + (item.quantity || 1);
+    return acc;
+  }, {});
+  
+  const uniqueProducts = Object.keys(productCounts);
+  
+  if (uniqueProducts.length === 1) {
+    // Multiple of the same product
+    const productName = uniqueProducts[0];
+    const totalQuantity = productCounts[productName];
+    return `${productName} (${totalQuantity}x)`;
+  } else {
+    // Multiple different products
+    const firstProduct = uniqueProducts[0];
+    const remainingCount = uniqueProducts.length - 1;
+    return `${firstProduct} + ${remainingCount} more`;
+  }
+};
+
   // Load admin orders from vw_admin_orders
   useEffect(() => {
     const loadAdminOrders = async () => {
@@ -485,10 +517,10 @@ export default function AdminOrdersList({
                       Customer
                     </th>
                     <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                      Status
+                      Date
                     </th>
                     <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                      Date
+                      Status
                     </th>
                     <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
                       Actions
@@ -504,7 +536,7 @@ export default function AdminOrdersList({
                             #{order.order_number}
                           </div>
                           <div className="text-sm text-gray-500">
-                            {order.items?.length || 0} item{(order.items?.length || 0) !== 1 ? 's' : ''}
+                              {getTestKitSummary(order.items)}
                           </div>
                         </div>
                       </td>
@@ -517,6 +549,9 @@ export default function AdminOrdersList({
                             {order.customer_email}
                           </div>
                         </div>
+                      </td>
+                      <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
+                        {formatDate(order.created_at)}
                       </td>
                       <td className="px-6 py-4 whitespace-nowrap">
                         <div className="space-y-1">
@@ -540,9 +575,6 @@ export default function AdminOrdersList({
                       {/* <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900">
                         {order.source === 'legacy' ? 'Legacy Kit' : formatPrice(order.total_amount)}
                       </td> */}
-                      <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-500">
-                        {formatDate(order.created_at)}
-                      </td>
                       <td className="px-6 py-4 whitespace-nowrap text-middle text-sm font-medium">
                         <button
                           onClick={() => showOrderDetailsModal(order)}
@@ -588,7 +620,7 @@ export default function AdminOrdersList({
                             {order.customer_first_name} {order.customer_last_name}
                           </div>
                           <div className="text-xs text-gray-500">
-                            {order.items?.length || 0} item{(order.items?.length || 0) !== 1 ? 's' : ''}
+                              {getTestKitSummary(order.items)}
                           </div>
                         </div>
                       </td>
@@ -680,7 +712,7 @@ export default function AdminOrdersList({
                   </div>
 
                   <div className="text-xs text-gray-500 border-t border-gray-100 pt-3">
-                    {order.items?.length || 0} item{(order.items?.length || 0) !== 1 ? 's' : ''}
+                    {getTestKitSummary(order.items)}
                   </div>
                 </div>
               ))}
