@@ -680,7 +680,7 @@ async function sendLabNotificationEmail(supabase, kitData, orderInfo, shippingAd
     }
 
     // Lab email configuration
-    const labEmail = 'customer.service@testmark.ca'; // Placeholder lab email
+    const labEmail = 'david.phillips@bookerhq.ca'; // Placeholder lab email
     const transactionalId = 'cmd3gjdkx24n40o0i7zkv95it';
 
     // Format sample date and time to match your template expectation
