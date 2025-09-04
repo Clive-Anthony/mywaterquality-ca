@@ -679,7 +679,7 @@ async function sendLabNotificationEmail(supabase, kitData, orderInfo, shippingAd
     }
 
     // Lab email configuration
-    const labEmail = 'david.phillips@bookerhq.ca'; // Placeholder lab email
+    const labEmail = 'customer.service@testmark.ca'; // Placeholder lab email
     const transactionalId = 'cmd3gjdkx24n40o0i7zkv95it';
 
     // Format sample date and time to match your template expectation
@@ -795,7 +795,7 @@ async function sendKitRegistrationEmail(kitData, orderInfo, shippingAddress, ema
     const emailConfig = {
       admin: {
         transactionalId: 'cmcb0nosp16ha110iygtfk839',
-        email: 'bookerhq@gmail.com',
+        email: 'orders@mywaterquality.ca',
         description: 'admin notification'
       },
       customer: {
