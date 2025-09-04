@@ -425,7 +425,6 @@ async function processKitRegistration(supabase, user, registrationData, kitInfo,
     sample_date: registrationData.sample_date,
     sample_time: registrationData.sample_time,
     sample_description: registrationData.sample_description || null,
-    number_of_containers: registrationData.number_of_containers || 1,
     person_taking_sample: registrationData.person_taking_sample,
     location_name: registrationData.location_name || null,
     address: registrationData.address || null,
@@ -796,7 +795,7 @@ async function sendKitRegistrationEmail(kitData, orderInfo, shippingAddress, ema
     const emailConfig = {
       admin: {
         transactionalId: 'cmcb0nosp16ha110iygtfk839',
-        email: 'orders@mywaterquality.ca',
+        email: 'bookerhq@gmail.com',
         description: 'admin notification'
       },
       customer: {
@@ -830,7 +829,6 @@ async function sendKitRegistrationEmail(kitData, orderInfo, shippingAddress, ema
         orderNumber: orderInfo.order_number,
         sampleDate: sampleDate,
         sampleTime: sampleTime,
-        numContainers: (kitData.number_of_containers || 1).toString(),
         sampler: kitData.person_taking_sample,
         SampleDescription: kitData.sample_description || 'No description provided',
         locationName: kitData.location_name || 'Not specified',
@@ -879,10 +877,6 @@ function validateRegistrationData(data) {
   if (!data.sample_date) errors.push('sample_date is required');
   if (!data.sample_time) errors.push('sample_time is required');
   if (!data.person_taking_sample) errors.push('person_taking_sample is required');
-  
-  if (data.number_of_containers && data.number_of_containers < 1) {
-    errors.push('number_of_containers must be at least 1');
-  }
   
   if (data.sample_date && !/^\d{4}-\d{2}-\d{2}$/.test(data.sample_date)) {
     errors.push('sample_date must be in YYYY-MM-DD format');

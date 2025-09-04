@@ -257,16 +257,30 @@ async function populateChainOfCustody(templateBuffer, registrationData) {
     
     // Client Project Number - displayID (cells AC8:AH8)
     if (registrationData.display_id) {
-      const projectCell = worksheet.getCell('AC8');
-      projectCell.value = registrationData.display_id;
-      try {
-        if (!projectCell.isMerged) {
-          worksheet.mergeCells('AC8:AH8');
-        }
-      } catch (mergeError) {
-        console.log('Warning: Could not merge cells AC8:AH8:', mergeError.message);
-      }
+  const projectCell = worksheet.getCell('AC8');
+  
+  // Read existing content from the cell (should be "Package #{package_number}_Order #")
+  const existingContent = projectCell.value || '';
+  
+  // Append the display_id to the existing content
+  const updatedContent = existingContent.toString() + registrationData.display_id;
+  
+  projectCell.value = updatedContent;
+  
+  console.log('Client Project Number updated:', { 
+    existingContent, 
+    displayId: registrationData.display_id, 
+    updatedContent 
+  });
+  
+  try {
+    if (!projectCell.isMerged) {
+      worksheet.mergeCells('AC8:AH8');
     }
+  } catch (mergeError) {
+    console.log('Warning: Could not merge cells AC8:AH8:', mergeError.message);
+  }
+}
     
     console.log('Chain of Custody populated successfully');
     

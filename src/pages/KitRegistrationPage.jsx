@@ -23,7 +23,6 @@ export default function KitRegistrationPage() {
     sample_date: '',
     sample_time: '',
     sample_description: '',
-    number_of_containers: 1,
     person_taking_sample: ''
   });
   const [locationData, setLocationData] = useState({
@@ -245,7 +244,6 @@ export default function KitRegistrationPage() {
         sample_date: '',
         sample_time: '',
         sample_description: '',
-        number_of_containers: 1,
         person_taking_sample: ''
       });
       setLocationData({
@@ -422,21 +420,6 @@ export default function KitRegistrationPage() {
                         id="sample-time"
                         value={sampleData.sample_time}
                         onChange={(e) => handleSampleDataChange('sample_time', e.target.value)}
-                        className="block w-full border-gray-300 rounded-md shadow-sm focus:ring-green-500 focus:border-green-500"
-                        required
-                      />
-                    </div>
-                    
-                    <div>
-                      <label htmlFor="containers" className="block text-sm font-medium text-gray-700 mb-1">
-                        Number of Containers *
-                      </label>
-                      <input
-                        type="number"
-                        id="containers"
-                        min="1"
-                        value={sampleData.number_of_containers}
-                        onChange={(e) => handleSampleDataChange('number_of_containers', parseInt(e.target.value) || 1)}
                         className="block w-full border-gray-300 rounded-md shadow-sm focus:ring-green-500 focus:border-green-500"
                         required
                       />
