@@ -32,6 +32,7 @@ import ReportsPage from './pages/ReportsPage';
 import ReportDetailPage from './pages/ReportDetailPage';
 import OrdersPage from './pages/OrdersPage';
 import ProfilePage from './pages/ProfilePage';
+import InsightsPage from './pages/InsightsPage';
 import AdminProtectedRoute from './components/AdminProtectedRoute';
 import { useEffect } from 'react';
 
@@ -171,6 +172,15 @@ export default function App() {
                 </ProtectedRoute>
               } 
             />
+
+            <Route 
+  path="/dashboard/insights" 
+  element={
+    <ProtectedRoute>
+      <InsightsPage />
+    </ProtectedRoute>
+  } 
+/>
 
             <Route 
   path="/orders" 
