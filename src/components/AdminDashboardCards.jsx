@@ -47,6 +47,16 @@ export function UnregisteredLegacyKitsCard() {
     });
   };
 
+  const getDisplayName = (kit) => {
+  // Special case for specific kit_code
+  if (kit.kit_code === '780DA6211A') {
+    return 'Adam Salsberg';
+  }
+  
+  // Default behavior
+  return `${kit.customer_first_name || ''} ${kit.customer_last_name || ''}`.trim() || 'Unknown Customer';
+};
+
   return (
     <div className="bg-white shadow rounded-lg overflow-hidden h-full flex flex-col">
       <div className="px-4 sm:px-6 py-4 border-b border-gray-200 flex-shrink-0">
@@ -103,8 +113,8 @@ export function UnregisteredLegacyKitsCard() {
                       </span>
                     </div>
                     <p className="text-sm text-gray-600 truncate">
-                      {`${kit.customer_first_name || ''} ${kit.customer_last_name || ''}`.trim() || 'Unknown Customer'}
-                    </p>
+                        {getDisplayName(kit)}                    
+                      </p>
                     <p className="text-xs text-gray-500 mt-1">
                       Order #{kit.order_number || 'N/A'} • {formatDate(kit.kit_created_at)}
                     </p>
@@ -122,7 +132,7 @@ export function UnregisteredLegacyKitsCard() {
       <div className="px-4 sm:px-6 py-3 bg-gray-50 border-t border-gray-200 flex-shrink-0">
         <p className="text-xs text-gray-500 text-center">
           {legacyKits.length > 0 
-            ? `Showing ${Math.min(legacyKits.length, 10)} most recent unregistered legacy kits`
+            ? `Showing ${Math.min(legacyKits.length, 10)} unregistered legacy kits`
             : 'No unregistered legacy kits found'
           }
         </p>
