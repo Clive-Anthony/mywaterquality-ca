@@ -1,4 +1,4 @@
-// src/pages/InsightsPage.jsx - Complete Water Quality Insights Dashboard
+// src/pages/InsightsPage.jsx - Complete Water Quality Insights Dashboard - update
 import { useState, useEffect, useCallback, useMemo } from 'react';
 import { Link } from 'react-router-dom';
 import { useAuth } from '../contexts/AuthContext';
