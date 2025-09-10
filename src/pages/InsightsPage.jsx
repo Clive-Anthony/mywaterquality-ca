@@ -1,4 +1,4 @@
-// src/pages/InsightsPage.jsx - Complete Water Quality Insights Dashboard - update
+// src/pages/InsightsPage.jsx - Complete Water Quality Insights Dashboard
 import { useState, useEffect, useCallback, useMemo } from 'react';
 import { Link } from 'react-router-dom';
 import { useAuth } from '../contexts/AuthContext';
@@ -37,8 +37,7 @@ export default function InsightsPage() {
   const [error, setError] = useState(null);
   const [selectedParameter, setSelectedParameter] = useState('');
   const [timeRange, setTimeRange] = useState('all');
-  const [parameterSearchTerm, setParameterSearchTerm] = useState('');
-  const [showParameterSuggestions, setShowParameterSuggestions] = useState(false);
+
 
   // Load all reports for the user
   const loadUserReports = useCallback(async () => {
@@ -241,24 +240,6 @@ export default function InsightsPage() {
     };
   }, [allTestResults, timeRange]);
 
-  // Filter parameters based on search term
-  const filteredParameters = useMemo(() => {
-    if (!processedInsights) return [];
-    return processedInsights.uniqueParameters.filter(param =>
-      param.toLowerCase().includes(parameterSearchTerm.toLowerCase())
-    );
-  }, [processedInsights, parameterSearchTerm]);
-
-  const handleParameterSearch = (value) => {
-    setParameterSearchTerm(value);
-    setShowParameterSuggestions(value.length > 0);
-  };
-
-  const handleParameterSelect = (parameter) => {
-    setSelectedParameter(parameter);
-    setParameterSearchTerm('');
-    setShowParameterSuggestions(false);
-  };
 
   if (loading) {
     return (
@@ -386,46 +367,34 @@ export default function InsightsPage() {
             )}
 
             {/* Parameter-Specific Analysis */}
-            <div className="mb-8">
-              <h2 className="text-xl font-bold text-gray-900 mb-4">Parameter Analysis</h2>
-              <div className="mb-4">
-                <label className="block text-sm font-medium text-gray-700 mb-2">
-                  Search Parameter
-                </label>
-                <div className="relative">
-                  <input
-                    type="text"
-                    value={parameterSearchTerm}
-                    onChange={(e) => handleParameterSearch(e.target.value)}
-                    onBlur={() => setTimeout(() => setShowParameterSuggestions(false), 200)}
-                    onFocus={() => setShowParameterSuggestions(parameterSearchTerm.length > 0)}
-                    placeholder="Start typing to search parameters..."
-                    className="block w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-blue-500 focus:border-blue-500"
-                  />
-                  {showParameterSuggestions && filteredParameters.length > 0 && (
-                    <div className="absolute z-10 w-full bg-white border border-gray-300 rounded-md mt-1 max-h-48 overflow-y-auto shadow-lg">
-                      {filteredParameters.slice(0, 10).map(param => (
-                        <button
-                          key={param}
-                          onClick={() => handleParameterSelect(param)}
-                          className="block w-full px-3 py-2 text-left hover:bg-gray-100 focus:bg-gray-100 text-sm"
-                        >
-                          {param}
-                        </button>
-                      ))}
-                    </div>
-                  )}
-                </div>
-              </div>
-              
-              {selectedParameter && (
-                <ParameterTrendChart
-                  parameter={selectedParameter}
-                  reportScores={processedInsights.reportScores}
-                  onClose={() => setSelectedParameter('')}
-                />
-              )}
-            </div>
+<div className="mb-8">
+  <h2 className="text-xl font-bold text-gray-900 mb-4">Parameter Analysis</h2>
+  <div className="mb-4">
+    <label className="block text-sm font-medium text-gray-700 mb-2">
+      Select Parameter
+    </label>
+    <select
+      value={selectedParameter}
+      onChange={(e) => setSelectedParameter(e.target.value)}
+      className="block w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-blue-500 focus:border-blue-500"
+    >
+      <option value="">Choose a parameter to view trends...</option>
+      {processedInsights.uniqueParameters.map(param => (
+        <option key={param} value={param}>
+          {param}
+        </option>
+      ))}
+    </select>
+  </div>
+  
+  {selectedParameter && (
+    <ParameterTrendChart
+      parameter={selectedParameter}
+      reportScores={processedInsights.reportScores}
+      onClose={() => setSelectedParameter('')}
+    />
+  )}
+</div>
 
             {/* Parameter Trends Table */}
             {Object.keys(processedInsights.parameterTrends).length > 0 && (
@@ -435,7 +404,7 @@ export default function InsightsPage() {
             )}
 
             {/* Reports Summary */}
-            <div className="bg-white rounded-lg shadow p-6">
+            <div className="bg-white rounded-lg shadow p-6 mb-8">
               <h2 className="text-xl font-bold text-gray-900 mb-4">Your Reports</h2>
               <div className="space-y-3">
                 {processedInsights.reportScores.map(report => (
@@ -478,6 +447,9 @@ export default function InsightsPage() {
                 ))}
               </div>
             </div>
+
+            {/* Recommended Next Steps */}
+            <RecommendedNextSteps reportScores={processedInsights.reportScores} />
           </div>
         </div>
       </div>
@@ -793,6 +765,177 @@ function ParameterTrendsTable({ trends }) {
             )) : (
               <p className="text-sm text-gray-500">No concerning changes to display</p>
             )}
+          </div>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+// Recommended Next Steps Component
+function RecommendedNextSteps({ reportScores }) {
+  // Analyze all parameters across all reports to find exceedances
+  const analysisResults = useMemo(() => {
+    const allParameters = reportScores.flatMap(report => [
+      ...report.healthParameters,
+      ...report.aoParameters
+    ]);
+
+    // Find parameters that exceed limits
+    const healthExceedances = allParameters.filter(param => 
+      param.parameter_category === 'health' && param.compliance_status === 'EXCEEDS_MAC'
+    );
+
+    const aoExceedances = allParameters.filter(param => 
+      param.parameter_category === 'ao' && 
+      (param.compliance_status === 'EXCEEDS_AO' || 
+       (param.compliance_status === 'AO_RANGE_VALUE' && param.overall_compliance_status === 'WARNING'))
+    );
+
+    // Check specifically for coliform contamination
+    const coliformExceedances = healthExceedances.filter(param =>
+      param.parameter_name?.toLowerCase().includes('coliform') ||
+      param.parameter_name?.toLowerCase().includes('e. coli') ||
+      param.parameter_name?.toLowerCase().includes('e.coli')
+    );
+
+    return {
+      hasHealthExceedances: healthExceedances.length > 0,
+      hasAOExceedances: aoExceedances.length > 0,
+      hasColiformExceedances: coliformExceedances.length > 0,
+      healthExceedances,
+      aoExceedances,
+      coliformExceedances
+    };
+  }, [reportScores]);
+
+  const getRecommendationMessage = () => {
+    const { hasHealthExceedances, hasAOExceedances, hasColiformExceedances } = analysisResults;
+
+    // Highest priority: Coliform contamination
+    if (hasColiformExceedances) {
+      return {
+        type: 'danger',
+        title: 'Immediate Action Required: Bacteria Detected',
+        message: 'E. coli or Total Coliform bacteria have been detected in your water. Your water is not safe to drink until treated. Contact a water treatment professional immediately and consider disinfecting your well system.',
+        bgColor: 'white',
+        borderColor: 'border-red-200',
+        textColor: 'text-black-200',
+        iconColor: 'text-red-400'
+      };
+    }
+
+    // Both health and aesthetic issues
+    if (hasHealthExceedances && hasAOExceedances) {
+      return {
+        type: 'warning',
+        title: 'Health and Aesthetic Concerns Detected',
+        message: 'Your water shows both health-related and aesthetic concerns. We strongly recommend consulting with a water treatment expert to address health risks. Additionally, the taste, odor, and appearance of your water may be affected.',
+        bgColor: 'white',
+        borderColor: 'border-yellow-200',
+        textColor: 'text-black-200',
+        iconColor: 'text-yellow-400'
+      };
+    }
+
+    // Only health issues
+    if (hasHealthExceedances) {
+      return {
+        type: 'warning',
+        title: 'Health-Related Concerns Detected',
+        message: 'Health-related parameters in your water exceed safe limits. Your water should be treated as leaving water untreated could pose health risks. We strongly recommend consulting with a water treatment expert.',
+        bgColor: 'white',
+        borderColor: 'border-orange-200',
+        textColor: 'text-black-200',
+        iconColor: 'text-orange-400'
+      };
+    }
+
+    // Only aesthetic issues
+    if (hasAOExceedances) {
+      return {
+        type: 'info',
+        title: 'Aesthetic Concerns Detected',
+        message: 'Some parameters exceed aesthetic guidelines. While not necessarily health concerns, the taste, odor, and appearance of your water may be affected. Consider treatment options to improve water quality.',
+        bgColor: 'white',
+        borderColor: 'border-blue-200',
+        textColor: 'text-black-200',
+        iconColor: 'text-blue-400'
+      };
+    }
+
+    // No issues detected
+    return {
+      type: 'success',
+      title: 'Water Quality Looks Good',
+      message: 'Your current water quality results show no significant concerns. Continue monitoring your water quality to maintain these excellent results.',
+      bgColor: 'white',
+      borderColor: 'border-green-200',
+      textColor: 'text-black-200',
+      iconColor: 'text-green-400'
+    };
+  };
+
+  const recommendation = getRecommendationMessage();
+
+  return (
+    <div className="bg-white rounded-lg shadow p-6">
+      <h2 className="text-xl font-bold text-gray-900 mb-6">Recommended Next Steps</h2>
+      
+      {/* Primary Recommendation */}
+      <div className={`rounded-lg p-4 mb-6 ${recommendation.bgColor} border ${recommendation.borderColor}`}>
+        <div className="flex">
+          <div className="flex-shrink-0">
+            <svg className={`h-5 w-5 ${recommendation.iconColor}`} viewBox="0 0 20 20" fill="currentColor">
+              {recommendation.type === 'success' ? (
+                <path fillRule="evenodd" d="M16.707 5.293a1 1 0 010 1.414l-8 8a1 1 0 01-1.414 0l-4-4a1 1 0 011.414-1.414L8 12.586l7.293-7.293a1 1 0 011.414 0z" clipRule="evenodd" />
+              ) : (
+                <path fillRule="evenodd" d="M8.257 3.099c.765-1.36 2.722-1.36 3.486 0l5.58 9.92c.75 1.334-.213 2.98-1.742 2.98H4.42c-1.53 0-2.493-1.646-1.743-2.98l5.58-9.92zM11 13a1 1 0 11-2 0 1 1 0 012 0zm-1-8a1 1 0 00-1 1v3a1 1 0 002 0V6a1 1 0 00-1-1z" clipRule="evenodd" />
+              )}
+            </svg>
+          </div>
+          <div className="ml-3">
+            <h3 className={`text-lg font-medium ${recommendation.textColor}`}>
+              {recommendation.title}
+            </h3>
+            <div className={`mt-1 text-sm ${recommendation.textColor}`}>
+              {recommendation.message}
+            </div>
+          </div>
+        </div>
+      </div>
+
+      {/* Annual Testing Recommendation */}
+      <div className="white rounded-lg p-4 border border-blue-200">
+        <div className="flex">
+          <div className="flex-shrink-0">
+            <svg className="h-5 w-5 text-blue-400" viewBox="0 0 20 20" fill="currentColor">
+              <path fillRule="evenodd" d="M18 10a8 8 0 11-16 0 8 8 0 0116 0zm-7-4a1 1 0 11-2 0 1 1 0 012 0zM9 9a1 1 0 000 2v3a1 1 0 001 1h1a1 1 0 100-2v-3a1 1 0 00-1-1H9z" clipRule="evenodd" />
+            </svg>
+          </div>
+          <div className="ml-3">
+            <h3 className="text-lg font-medium text-black-200">
+              Annual Water Testing Recommended
+            </h3>
+            <div className="mt-1 text-sm text-black-200">
+              <p className="mb-2">
+                It is recommended that you test your drinking water quality on an annual basis. Annual testing is important because:
+              </p>
+              <ul className="list-disc pl-5 space-y-1">
+                <li>Water quality can change over time due to weather, nearby construction, agricultural activity, or road salt use.</li>
+                <li>Private wells are not monitored by government agencies, so owners are responsible for ensuring safety.</li>
+                <li>Health risks may be invisible, including bacteria, nitrates, lead, and other contaminants that don't affect taste or clarity.</li>
+                <li>Testing annually provides peace of mind and ensures that any problems are detected early—before they become serious health risks.</li>
+              </ul>
+            </div>
+            <div className="mt-4">
+              <Link
+                to="/shop"
+                className="inline-flex items-center px-4 py-2 border border-transparent text-sm font-medium rounded-md text-white bg-blue-600 hover:bg-blue-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500"
+              >
+                Order Your Next Test Kit
+              </Link>
+            </div>
           </div>
         </div>
       </div>
