@@ -29,7 +29,7 @@ ChartJS.register(
 
 export default function AdminInsights() {
   const navigate = useNavigate();
-  const [customers, setCustomers] = useState([]);
+  const [availableResults, setAvailableResults] = useState([]);
   const [selectedCustomerEmail, setSelectedCustomerEmail] = useState('');
   const [allTestResults, setAllTestResults] = useState([]);
   const [loading, setLoading] = useState(true);
@@ -37,24 +37,34 @@ export default function AdminInsights() {
   const [selectedParameter, setSelectedParameter] = useState('');
   const [timeRange, setTimeRange] = useState('all');
 
-  // Load all customers
-  const loadCustomers = useCallback(async () => {
+  // Load all available results using the same logic as AdminWaterQualityResults
+  const loadAvailableResults = useCallback(async () => {
     try {
-      const { data: customersData, error: customersError } = await supabase
-        .from('vw_admin_reports')
-        .select('customer_email, customer_first_name, customer_last_name')
-        .order('customer_first_name');
+      setLoading(true);
+      setError(null);
 
-      if (customersError) throw customersError;
+      // Load all test kits that have completed test results
+      const { data, error: resultsError } = await supabase
+        .from('vw_test_kits_admin')
+        .select('*')
+        .not('work_order_number', 'is', null)
+        .not('sample_number', 'is', null)
+        .order('kit_created_at', { ascending: false });
 
-      // Get unique customers
-      const uniqueCustomers = customersData.reduce((acc, customer) => {
-        if (!acc.find(c => c.customer_email === customer.customer_email)) {
+      if (resultsError) {
+        throw new Error(`Failed to load test results: ${resultsError.message}`);
+      }
+
+      setAvailableResults(data || []);
+
+      // Get unique customers for dropdown
+      const uniqueCustomers = (data || []).reduce((acc, result) => {
+        if (!acc.find(c => c.customer_email === result.customer_email)) {
           acc.push({
-            customer_email: customer.customer_email,
-            customer_first_name: customer.customer_first_name,
-            customer_last_name: customer.customer_last_name,
-            display_name: `${customer.customer_first_name || ''} ${customer.customer_last_name || ''}`.trim() || customer.customer_email
+            customer_email: result.customer_email,
+            customer_first_name: result.customer_first_name,
+            customer_last_name: result.customer_last_name,
+            display_name: `${result.customer_first_name || ''} ${result.customer_last_name || ''}`.trim() || result.customer_email
           });
         }
         return acc;
@@ -62,87 +72,84 @@ export default function AdminInsights() {
 
       setCustomers(uniqueCustomers);
     } catch (err) {
-      console.error('Error loading customers:', err);
+      console.error('Error loading available results:', err);
       setError(err.message);
+    } finally {
+      setLoading(false);
     }
   }, []);
 
-  // Load reports for selected customer (or all customers)
-  const loadReportsData = useCallback(async () => {
+  const [customers, setCustomers] = useState([]);
+
+  // Load test results for selected customer (or all customers)
+  const loadTestResultsData = useCallback(async () => {
     try {
-      setLoading(true);
-      setError(null);
-
-      let reportsQuery = supabase
-        .from('vw_admin_reports')
-        .select('*')
-        .order('created_at', { ascending: false });
-
-      // Filter by customer if one is selected
-      if (selectedCustomerEmail) {
-        reportsQuery = reportsQuery.eq('customer_email', selectedCustomerEmail);
-      }
-
-      const { data: reportsData, error: reportsError } = await reportsQuery;
-
-      if (reportsError) throw reportsError;
-
-      if (!reportsData || reportsData.length === 0) {
+      if (availableResults.length === 0) {
         setAllTestResults([]);
-        setLoading(false);
         return;
       }
 
-      // Load test results for all reports
+      let filteredResults = availableResults;
+
+      // Filter by customer if one is selected
+      if (selectedCustomerEmail) {
+        filteredResults = availableResults.filter(result => 
+          result.customer_email === selectedCustomerEmail
+        );
+      }
+
+      if (filteredResults.length === 0) {
+        setAllTestResults([]);
+        return;
+      }
+
+      // Load test results for filtered results
       const allResults = [];
-      for (const report of reportsData) {
+      for (const result of filteredResults) {
         try {
           const { data: testData, error: testError } = await supabase
             .from('vw_test_results_with_parameters')
             .select('*')
-            .eq('work_order_number', report.work_order_number)
+            .eq('work_order_number', result.work_order_number)
             .order('parameter_name');
 
           if (testError) {
-            console.error(`Error loading test results for ${report.work_order_number}:`, testError);
+            console.error(`Error loading test results for ${result.work_order_number}:`, testError);
             continue;
           }
 
           if (testData && testData.length > 0) {
-            // Add report metadata to each test result
-            const enhancedResults = testData.map(result => ({
-              ...result,
-              report_id: report.report_id,
-              kit_code: report.kit_code,
-              report_date: report.created_at,
-              test_kit_name: report.test_kit_name,
-              customer_email: report.customer_email,
-              customer_first_name: report.customer_first_name,
-              customer_last_name: report.customer_last_name
+            // Add result metadata to each test result
+            const enhancedResults = testData.map(testResult => ({
+              ...testResult,
+              kit_code: result.kit_code,
+              report_date: result.kit_created_at,
+              test_kit_name: result.test_kit_name,
+              customer_email: result.customer_email,
+              customer_first_name: result.customer_first_name,
+              customer_last_name: result.customer_last_name
             }));
             allResults.push(...enhancedResults);
           }
         } catch (err) {
-          console.error(`Failed to load test results for report ${report.report_id}:`, err);
+          console.error(`Failed to load test results for kit ${result.kit_code}:`, err);
         }
       }
 
       setAllTestResults(allResults);
     } catch (err) {
-      console.error('Error loading reports data:', err);
+      console.error('Error loading test results data:', err);
       setError(err.message);
-    } finally {
-      setLoading(false);
     }
-  }, [selectedCustomerEmail]);
+  }, [availableResults, selectedCustomerEmail]);
 
   useEffect(() => {
-    loadCustomers();
-  }, [loadCustomers]);
+    loadAvailableResults();
+  }, [loadAvailableResults]);
 
   useEffect(() => {
-    loadReportsData();
-  }, [loadReportsData]);
+    loadTestResultsData();
+  }, [loadTestResultsData]);
 
   // Navigate to report detail page
   const handleViewReport = (kitCode) => {
@@ -169,25 +176,25 @@ export default function AdminInsights() {
       return resultDate >= cutoffDate;
     });
 
-    // Group results by report
-    const resultsByReport = filteredResults.reduce((acc, result) => {
-      if (!acc[result.report_id]) {
-        acc[result.report_id] = {
-          report_id: result.report_id,
+    // Group results by kit_code for report-level analysis
+    const resultsByKit = filteredResults.reduce((acc, result) => {
+      if (!acc[result.kit_code]) {
+        acc[result.kit_code] = {
           kit_code: result.kit_code,
           report_date: result.report_date,
           test_kit_name: result.test_kit_name,
           customer_email: result.customer_email,
           customer_first_name: result.customer_first_name,
           customer_last_name: result.customer_last_name,
+          work_order_number: result.work_order_number,
           results: []
         };
       }
-      acc[result.report_id].results.push(result);
+      acc[result.kit_code].results.push(result);
       return acc;
     }, {});
 
-    const reportGroups = Object.values(resultsByReport);
+    const reportGroups = Object.values(resultsByKit);
 
     // Calculate CWQI scores for each report
     const reportScores = reportGroups.map(group => {
@@ -336,68 +343,6 @@ export default function AdminInsights() {
     );
   }
 
-  if (!processedInsights || processedInsights.totalReports === 0) {
-    return (
-      <div className="space-y-6">
-        {/* Header and Filters */}
-        <div className="bg-white shadow rounded-lg p-6">
-          <div className="mb-6">
-            <h1 className="text-2xl font-bold text-gray-900">Water Quality Insights</h1>
-            <p className="text-gray-600">
-              Monitor water quality trends across all customers or select a specific customer for detailed analysis.
-            </p>
-          </div>
-
-          {/* Filters */}
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-            <div>
-              <label className="block text-sm font-medium text-gray-700 mb-2">Customer</label>
-              <select
-                value={selectedCustomerEmail}
-                onChange={(e) => setSelectedCustomerEmail(e.target.value)}
-                className="block w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-blue-500 focus:border-blue-500"
-              >
-                <option value="">All Customers</option>
-                {customers.map(customer => (
-                  <option key={customer.customer_email} value={customer.customer_email}>
-                    {customer.display_name}
-                  </option>
-                ))}
-              </select>
-            </div>
-
-            <div>
-              <label className="block text-sm font-medium text-gray-700 mb-2">Time Range</label>
-              <select
-                value={timeRange}
-                onChange={(e) => setTimeRange(e.target.value)}
-                className="block w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-blue-500 focus:border-blue-500"
-              >
-                <option value="all">All Time</option>
-                <option value="3months">Last 3 Months</option>
-                <option value="6months">Last 6 Months</option>
-                <option value="1year">Last Year</option>
-              </select>
-            </div>
-          </div>
-        </div>
-
-        <div className="text-center py-12">
-          <svg className="mx-auto h-12 w-12 text-gray-400" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z" />
-          </svg>
-          <h3 className="mt-2 text-sm font-medium text-gray-900">No Reports Available</h3>
-          <p className="mt-1 text-sm text-gray-500">
-            {selectedCustomerEmail 
-              ? `No water quality reports found for ${getSelectedCustomerName()}.`
-              : 'No water quality reports found in the system.'
-            }
-          </p>
-        </div>
-      </div>
-    );
-  }
-
   return (
     <div className="space-y-6">
       {/* Header and Filters */}
@@ -405,15 +350,32 @@ export default function AdminInsights() {
         <div className="mb-6">
           <h1 className="text-2xl font-bold text-gray-900">Water Quality Insights</h1>
           <p className="text-gray-600">
-            {selectedCustomerEmail 
-              ? `Analyzing water quality trends for ${getSelectedCustomerName()} across ${processedInsights.totalReports} test kit${processedInsights.totalReports !== 1 ? 's' : ''}`
-              : `Viewing most recent reports for ${processedInsights.totalReports} test kit${processedInsights.totalReports !== 1 ? 's' : ''} across all customers`
-            }
-            {processedInsights.dateRange && (
-              <> from {processedInsights.dateRange.earliest.toLocaleDateString()} to {processedInsights.dateRange.latest.toLocaleDateString()}</>
-            )}
+            Monitor water quality trends across all customers or select a specific customer for detailed analysis.
           </p>
+          {/* Informational line */}
+          <div className="mt-3 p-3 bg-blue-50 border border-blue-200 rounded-md">
+            <p className="text-sm text-blue-700">
+              <svg className="inline-block w-4 h-4 mr-1" fill="currentColor" viewBox="0 0 20 20">
+                <path fillRule="evenodd" d="M18 10a8 8 0 11-16 0 8 8 0 0116 0zm-7-4a1 1 0 11-2 0 1 1 0 012 0zM9 9a1 1 0 000 2v3a1 1 0 001 1h1a1 1 0 100-2v-3a1 1 0 00-1-1H9z" clipRule="evenodd" />
+              </svg>
+              Please select a customer to view detailed analytics and trends
+            </p>
+          </div>
         </div>
+
+        {processedInsights && (
+          <div className="mb-6">
+            <p className="text-gray-600">
+              {selectedCustomerEmail 
+                ? `Analyzing water quality trends for ${getSelectedCustomerName()} across ${processedInsights.totalReports} test kit${processedInsights.totalReports !== 1 ? 's' : ''}`
+                : `Viewing most recent reports for ${processedInsights.totalReports} test kit${processedInsights.totalReports !== 1 ? 's' : ''} across all customers`
+              }
+              {processedInsights.dateRange && (
+                <> from {processedInsights.dateRange.earliest.toLocaleDateString()} to {processedInsights.dateRange.latest.toLocaleDateString()}</>
+              )}
+            </p>
+          </div>
+        )}
 
         {/* Filters */}
         <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
@@ -449,114 +411,131 @@ export default function AdminInsights() {
         </div>
       </div>
 
-      {/* Only show detailed analysis when a customer is selected */}
-      {selectedCustomerEmail && (
+      {!processedInsights || processedInsights.totalReports === 0 ? (
+        <div className="text-center py-12">
+          <svg className="mx-auto h-12 w-12 text-gray-400" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M9 19v-6a2 2 0 00-2-2H5a2 2 0 00-2 2v6a2 2 0 002 2h2a2 2 0 002-2zm0 0V9a2 2 0 012-2h2a2 2 0 012 2v10m-6 0a2 2 0 002 2h2a2 2 0 002-2m0 0V5a2 2 0 012-2h2a2 2 0 012 2v14a2 2 0 01-2 2h-2a2 2 0 01-2-2z" />
+          </svg>
+          <h3 className="mt-2 text-sm font-medium text-gray-900">No Reports Available</h3>
+          <p className="mt-1 text-sm text-gray-500">
+            {selectedCustomerEmail 
+              ? `No water quality reports found for ${getSelectedCustomerName()}.`
+              : 'No water quality reports found in the system.'
+            }
+          </p>
+        </div>
+      ) : (
         <>
-          {/* Overall CWQI Score Cards */}
-          <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
-            <CWQIScoreCard
-              title="Overall Health Score"
-              cwqi={processedInsights.overallHealthCWQI}
-            />
-            <CWQIScoreCard
-              title="Overall Aesthetic & Operational Score"
-              cwqi={processedInsights.overallAoCWQI}
-            />
-          </div>
+          {/* Only show detailed analysis when a customer is selected */}
+          {selectedCustomerEmail && (
+            <>
+              {/* Overall CWQI Score Cards */}
+              <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+                <CWQIScoreCard
+                  title="Overall Health Score"
+                  cwqi={processedInsights.overallHealthCWQI}
+                />
+                <CWQIScoreCard
+                  title="Overall Aesthetic & Operational Score"
+                  cwqi={processedInsights.overallAoCWQI}
+                />
+              </div>
 
-          {/* CWQI Trends Over Time */}
-          {processedInsights.totalReports > 1 && (
-            <CWQITrendsChart reportScores={processedInsights.reportScores} />
+              {/* CWQI Trends Over Time */}
+              {processedInsights.totalReports > 1 && (
+                <CWQITrendsChart reportScores={processedInsights.reportScores} />
+              )}
+
+              {/* Parameter-Specific Analysis */}
+              <div className="bg-white shadow rounded-lg p-6">
+                <h2 className="text-xl font-bold text-gray-900 mb-4">Parameter Analysis</h2>
+                <div className="mb-4">
+                  <label className="block text-sm font-medium text-gray-700 mb-2">
+                    Select Parameter
+                  </label>
+                  <select
+                    value={selectedParameter}
+                    onChange={(e) => setSelectedParameter(e.target.value)}
+                    className="block w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-blue-500 focus:border-blue-500"
+                  >
+                    <option value="">Choose a parameter to view trends...</option>
+                    {processedInsights.uniqueParameters.map(param => (
+                      <option key={param} value={param}>
+                        {param}
+                      </option>
+                    ))}
+                  </select>
+                </div>
+                
+                {selectedParameter && (
+                  <ParameterTrendChart
+                    parameter={selectedParameter}
+                    reportScores={processedInsights.reportScores}
+                    onClose={() => setSelectedParameter('')}
+                  />
+                )}
+              </div>
+
+              {/* Parameter Trends Table */}
+              {Object.keys(processedInsights.parameterTrends).length > 0 && (
+                <ParameterTrendsTable trends={processedInsights.parameterTrends} />
+              )}
+            </>
           )}
 
-          {/* Parameter-Specific Analysis */}
-          <div className="bg-white shadow rounded-lg p-6">
-            <h2 className="text-xl font-bold text-gray-900 mb-4">Parameter Analysis</h2>
-            <div className="mb-4">
-              <label className="block text-sm font-medium text-gray-700 mb-2">
-                Select Parameter
-              </label>
-              <select
-                value={selectedParameter}
-                onChange={(e) => setSelectedParameter(e.target.value)}
-                className="block w-full px-3 py-2 border border-gray-300 rounded-md shadow-sm focus:outline-none focus:ring-blue-500 focus:border-blue-500"
-              >
-                <option value="">Choose a parameter to view trends...</option>
-                {processedInsights.uniqueParameters.map(param => (
-                  <option key={param} value={param}>
-                    {param}
-                  </option>
-                ))}
-              </select>
+          {/* Reports Summary - Always visible with View Report buttons */}
+          <div className="bg-white rounded-lg shadow p-6">
+            <h2 className="text-xl font-bold text-gray-900 mb-4">
+              {selectedCustomerEmail ? 'Customer Reports' : 'Most Recent Reports by Test Kit'}
+            </h2>
+            <div className="space-y-3">
+              {processedInsights.reportScores.map(report => (
+                <div key={`${report.kit_code}-${report.work_order_number}`} className="flex items-center justify-between py-3 border-b border-gray-200 last:border-b-0">
+                  <div>
+                    <h3 className="font-medium text-gray-900">
+                      {`${report.customer_first_name || ''} ${report.customer_last_name || ''}`.trim() || 'Unknown Customer'} - {report.test_kit_name} - {new Date(report.report_date).toLocaleDateString()}
+                    </h3>
+                    <p className="text-sm text-gray-500">
+                      {report.kit_code}
+                    </p>
+                  </div>
+                  <div className="flex items-center space-x-4">
+                    {report.healthCWQI && (
+                      <div className="text-center">
+                        <div className="text-sm font-medium text-gray-900">
+                          Health: {Math.round(report.healthCWQI.score)}
+                        </div>
+                        <div className={`text-xs ${report.healthCWQI.color}`}>
+                          {report.healthCWQI.rating}
+                        </div>
+                      </div>
+                    )}
+                    {report.aoCWQI && (
+                      <div className="text-center">
+                        <div className="text-sm font-medium text-gray-900">
+                          A&O: {Math.round(report.aoCWQI.score)}
+                        </div>
+                        <div className={`text-xs ${report.aoCWQI.color}`}>
+                          {report.aoCWQI.rating}
+                        </div>
+                      </div>
+                    )}
+                    <button
+                      onClick={() => handleViewReport(report.kit_code)}
+                      className="inline-flex items-center px-3 py-1 border border-transparent text-sm font-medium rounded text-blue-700 bg-blue-100 hover:bg-blue-200 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500 transition-colors duration-200"
+                    >
+                      <svg className="h-4 w-4 mr-1" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M9 19v-6a2 2 0 0 0-2-2H5a2 2 0 0 0-2 2v6a2 2 0 0 0 2 2h2a2 2 0 0 0 2-2zm0 0V9a2 2 0 0 1 2-2h2a2 2 0 0 1 2 2v10m-6 0a2 2 0 0 0 2 2h2a2 2 0 0 0 2-2m0 0V5a2 2 0 0 1 2-2h2a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2h-2a2 2 0 0 1-2-2z" />
+                      </svg>
+                      View Report
+                    </button>
+                  </div>
+                </div>
+              ))}
             </div>
-            
-            {selectedParameter && (
-              <ParameterTrendChart
-                parameter={selectedParameter}
-                reportScores={processedInsights.reportScores}
-                onClose={() => setSelectedParameter('')}
-              />
-            )}
           </div>
-
-          {/* Parameter Trends Table */}
-          {Object.keys(processedInsights.parameterTrends).length > 0 && (
-            <ParameterTrendsTable trends={processedInsights.parameterTrends} />
-          )}
         </>
       )}
-
-      {/* Reports Summary - Always visible with View Report buttons */}
-      <div className="bg-white rounded-lg shadow p-6">
-        <h2 className="text-xl font-bold text-gray-900 mb-4">
-          {selectedCustomerEmail ? 'Customer Reports' : 'Most Recent Reports by Test Kit'}
-        </h2>
-        <div className="space-y-3">
-          {processedInsights.reportScores.map(report => (
-            <div key={report.report_id} className="flex items-center justify-between py-3 border-b border-gray-200 last:border-b-0">
-              <div>
-                <h3 className="font-medium text-gray-900">
-                  {`${report.customer_first_name || ''} ${report.customer_last_name || ''}`.trim() || 'Unknown Customer'} - {report.test_kit_name} - {new Date(report.report_date).toLocaleDateString()}
-                </h3>
-                <p className="text-sm text-gray-500">
-                  {report.kit_code}
-                </p>
-              </div>
-              <div className="flex items-center space-x-4">
-                {report.healthCWQI && (
-                  <div className="text-center">
-                    <div className="text-sm font-medium text-gray-900">
-                      Health: {Math.round(report.healthCWQI.score)}
-                    </div>
-                    <div className={`text-xs ${report.healthCWQI.color}`}>
-                      {report.healthCWQI.rating}
-                    </div>
-                  </div>
-                )}
-                {report.aoCWQI && (
-                  <div className="text-center">
-                    <div className="text-sm font-medium text-gray-900">
-                      A&O: {Math.round(report.aoCWQI.score)}
-                    </div>
-                    <div className={`text-xs ${report.aoCWQI.color}`}>
-                      {report.aoCWQI.rating}
-                    </div>
-                  </div>
-                )}
-                <button
-                  onClick={() => handleViewReport(report.kit_code)}
-                  className="inline-flex items-center px-3 py-1 border border-transparent text-sm font-medium rounded text-blue-700 bg-blue-100 hover:bg-blue-200 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500 transition-colors duration-200"
-                >
-                  <svg className="h-4 w-4 mr-1" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M9 19v-6a2 2 0 0 0-2-2H5a2 2 0 0 0-2 2v6a2 2 0 0 0 2 2h2a2 2 0 0 0 2-2zm0 0V9a2 2 0 0 1 2-2h2a2 2 0 0 1 2 2v10m-6 0a2 2 0 0 0 2 2h2a2 2 0 0 0 2-2m0 0V5a2 2 0 0 1 2-2h2a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2h-2a2 2 0 0 1-2-2z" />
-                  </svg>
-                  View Report
-                </button>
-              </div>
-            </div>
-          ))}
-        </div>
-      </div>
     </div>
   );
 }

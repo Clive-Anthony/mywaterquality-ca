@@ -8,6 +8,7 @@ const allowedReturnPaths = [
   '/orders',
   '/dashboard',
   '/admin-dashboard',
+  '/admin-dashboard/*',
   '/shop',
   '/shop/*', // Allow shop sub-pages
   '/claim-kit',
