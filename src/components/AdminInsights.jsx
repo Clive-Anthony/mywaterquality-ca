@@ -1,5 +1,6 @@
-// src/components/AdminInsights.jsx - Admin Water Quality Insights Dashboard
+// src/components/AdminInsights.jsx - Admin Water Quality Insights Dashboard with Report Links
 import { useState, useEffect, useCallback, useMemo } from 'react';
+import { useNavigate } from 'react-router-dom';
 import { supabase } from '../lib/supabaseClient';
 import { calculateCCMEWQI } from '../lib/ccmeWQI';
 import {
@@ -27,6 +28,7 @@ ChartJS.register(
 );
 
 export default function AdminInsights() {
+  const navigate = useNavigate();
   const [customers, setCustomers] = useState([]);
   const [selectedCustomerEmail, setSelectedCustomerEmail] = useState('');
   const [allTestResults, setAllTestResults] = useState([]);
@@ -141,6 +143,11 @@ export default function AdminInsights() {
   useEffect(() => {
     loadReportsData();
   }, [loadReportsData]);
+
+  // Navigate to report detail page
+  const handleViewReport = (kitCode) => {
+    navigate(`/dashboard/reports/${kitCode}`);
+  };
 
   // Process data for insights
   const processedInsights = useMemo(() => {
@@ -499,7 +506,7 @@ export default function AdminInsights() {
         </>
       )}
 
-      {/* Reports Summary - Always visible */}
+      {/* Reports Summary - Always visible with View Report buttons */}
       <div className="bg-white rounded-lg shadow p-6">
         <h2 className="text-xl font-bold text-gray-900 mb-4">
           {selectedCustomerEmail ? 'Customer Reports' : 'Most Recent Reports by Test Kit'}
@@ -536,6 +543,15 @@ export default function AdminInsights() {
                     </div>
                   </div>
                 )}
+                <button
+                  onClick={() => handleViewReport(report.kit_code)}
+                  className="inline-flex items-center px-3 py-1 border border-transparent text-sm font-medium rounded text-blue-700 bg-blue-100 hover:bg-blue-200 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500 transition-colors duration-200"
+                >
+                  <svg className="h-4 w-4 mr-1" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                    <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M9 19v-6a2 2 0 0 0-2-2H5a2 2 0 0 0-2 2v6a2 2 0 0 0 2 2h2a2 2 0 0 0 2-2zm0 0V9a2 2 0 0 1 2-2h2a2 2 0 0 1 2 2v10m-6 0a2 2 0 0 0 2 2h2a2 2 0 0 0 2-2m0 0V5a2 2 0 0 1 2-2h2a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2h-2a2 2 0 0 1-2-2z" />
+                  </svg>
+                  View Report
+                </button>
               </div>
             </div>
           ))}

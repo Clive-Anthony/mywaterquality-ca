@@ -1,14 +1,13 @@
-// Admin interface for viewing water quality results
+// Admin interface for viewing water quality results - Updated to use customer report URLs
 import { useState, useEffect } from 'react';
+import { useNavigate } from 'react-router-dom';
 import { supabase } from '../lib/supabaseClient';
-import WaterQualityDashboard from './WaterQualityDashboard';
 
 export default function AdminWaterQualityResults() {
+  const navigate = useNavigate();
   const [availableResults, setAvailableResults] = useState([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState(null);
-  const [selectedReport, setSelectedReport] = useState(null);
-  const [dashboardMode, setDashboardMode] = useState(false);
   const [searchQuery, setSearchQuery] = useState('');
 
   useEffect(() => {
@@ -41,26 +40,9 @@ export default function AdminWaterQualityResults() {
     }
   };
 
-  const handleReportSelect = (report) => {
-    // Transform the admin data to match the format expected by WaterQualityDashboard
-    const transformedReport = {
-      report_id: report.report_id,
-      kit_code: report.kit_code,
-      product_name: report.test_kit_name,
-      work_order_number: report.work_order_number,
-      sample_number: report.sample_number,
-      test_kit_id: report.test_kit_id,
-      pdf_file_url: report.pdf_file_url,
-      order_number: report.order_number
-    };
-    
-    setSelectedReport(transformedReport);
-    setDashboardMode(true);
-  };
-
-  const handleBackToResults = () => {
-    setDashboardMode(false);
-    setSelectedReport(null);
+  const handleReportSelect = (result) => {
+    // Navigate to the same URL structure that customers use
+    navigate(`/dashboard/reports/${result.kit_code}`);
   };
 
   const handleDownloadReport = async (reportId, kitCode, pdfFileUrl) => {
@@ -115,17 +97,6 @@ export default function AdminWaterQualityResults() {
     );
   });
 
-  // If in dashboard mode, show the dashboard
-  if (dashboardMode && selectedReport) {
-    return (
-      <WaterQualityDashboard 
-        report={selectedReport}
-        onBack={handleBackToResults}
-        onDownloadReport={handleDownloadReport}
-      />
-    );
-  }
-
   return (
     <div className="space-y-6">
       {/* Header */}
@@ -140,7 +111,7 @@ export default function AdminWaterQualityResults() {
             </h3>
           </div>
           <p className="mt-1 text-sm text-gray-500">
-            View detailed water quality analysis for all completed test kits.
+            View detailed water quality analysis for all completed test kits. Click "View Results" to access the same interactive dashboard that customers see.
           </p>
         </div>
 
@@ -208,72 +179,87 @@ export default function AdminWaterQualityResults() {
           <div className="overflow-x-auto">
             <table className="min-w-full divide-y divide-gray-200">
               <thead className="bg-gray-50">
-  <tr>
-    <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-      Customer
-    </th>
-    <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-      Kit Details
-    </th>
-    <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-      Date
-    </th>
-    <th className="px-4 py-3 text-center text-xs font-medium text-gray-500 uppercase tracking-wider">
-      Actions
-    </th>
-  </tr>
-</thead>
+                <tr>
+                  <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                    Customer
+                  </th>
+                  <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                    Kit Details
+                  </th>
+                  <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                    Date
+                  </th>
+                  <th className="px-4 py-3 text-center text-xs font-medium text-gray-500 uppercase tracking-wider">
+                    Actions
+                  </th>
+                </tr>
+              </thead>
               <tbody className="bg-white divide-y divide-gray-200">
                 {filteredResults.map((result) => (
                   <tr key={result.kit_id} className="hover:bg-gray-50">
-  {/* Customer Column */}
-  <td className="px-4 py-4 whitespace-nowrap">
-    <div>
-      <div className="text-sm font-medium text-gray-900">
-        {`${result.customer_first_name || ''} ${result.customer_last_name || ''}`.trim() || 'Unknown Customer'}
-      </div>
-      <div className="text-sm text-gray-500">
-        {result.customer_email || 'No email'}
-      </div>
-    </div>
-  </td>
+                    {/* Customer Column */}
+                    <td className="px-4 py-4 whitespace-nowrap">
+                      <div>
+                        <div className="text-sm font-medium text-gray-900">
+                          {`${result.customer_first_name || ''} ${result.customer_last_name || ''}`.trim() || 'Unknown Customer'}
+                        </div>
+                        <div className="text-sm text-gray-500">
+                          {result.customer_email || 'No email'}
+                        </div>
+                      </div>
+                    </td>
 
-  {/* Kit Details Column */}
-  <td className="px-4 py-4 whitespace-nowrap">
-    <div>
-      <div className="text-sm font-medium text-gray-900">
-        {result.kit_code}
-      </div>
-      <div className="text-sm text-gray-500">
-        Order #{result.order_number}
-      </div>
-      <div className="text-xs text-gray-400">
-        {result.test_kit_name}
-      </div>
-    </div>
-  </td>
+                    {/* Kit Details Column */}
+                    <td className="px-4 py-4 whitespace-nowrap">
+                      <div>
+                        <div className="text-sm font-medium text-gray-900">
+                          {result.kit_code}
+                        </div>
+                        <div className="text-sm text-gray-500">
+                          Order #{result.order_number}
+                        </div>
+                        <div className="text-xs text-gray-400">
+                          {result.test_kit_name}
+                        </div>
+                      </div>
+                    </td>
 
-  {/* Date Column */}
-  <td className="px-4 py-4 whitespace-nowrap">
-    <div className="text-sm text-gray-900">
-      {new Date(result.kit_created_at).toLocaleDateString()}
-    </div>
-  </td>
+                    {/* Date Column */}
+                    <td className="px-4 py-4 whitespace-nowrap">
+                      <div className="text-sm text-gray-900">
+                        {new Date(result.kit_created_at).toLocaleDateString()}
+                      </div>
+                    </td>
 
-  {/* Actions Column */}
-  <td className="px-4 py-4 whitespace-nowrap text-center">
-    <button
-      onClick={() => handleReportSelect(result)}
-      className="inline-flex items-center px-3 py-1.5 border border-transparent text-xs font-medium rounded-md text-green-700 bg-green-100 hover:bg-green-200 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-green-500 transition-colors duration-200"
-      title="View Interactive Results Dashboard"
-    >
-      <svg className="h-4 w-4 mr-1" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M9 19v-6a2 2 0 0 0-2-2H5a2 2 0 0 0-2 2v6a2 2 0 0 0 2 2h2a2 2 0 0 0 2-2zm0 0V9a2 2 0 0 1 2-2h2a2 2 0 0 1 2 2v10m-6 0a2 2 0 0 0 2 2h2a2 2 0 0 0 2-2m0 0V5a2 2 0 0 1 2-2h2a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2h-2a2 2 0 0 1-2-2z" />
-      </svg>
-      View Results
-    </button>
-  </td>
-</tr>
+                    {/* Actions Column */}
+                    <td className="px-4 py-4 whitespace-nowrap text-center">
+                      <div className="flex justify-center space-x-2">
+                        <button
+                          onClick={() => handleReportSelect(result)}
+                          className="inline-flex items-center px-3 py-1.5 border border-transparent text-xs font-medium rounded-md text-green-700 bg-green-100 hover:bg-green-200 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-green-500 transition-colors duration-200"
+                          title="View Interactive Results Dashboard"
+                        >
+                          <svg className="h-4 w-4 mr-1" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M9 19v-6a2 2 0 0 0-2-2H5a2 2 0 0 0-2 2v6a2 2 0 0 0 2 2h2a2 2 0 0 0 2-2zm0 0V9a2 2 0 0 1 2-2h2a2 2 0 0 1 2 2v10m-6 0a2 2 0 0 0 2 2h2a2 2 0 0 0 2-2m0 0V5a2 2 0 0 1 2-2h2a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2h-2a2 2 0 0 1-2-2z" />
+                          </svg>
+                          View Results
+                        </button>
+                        
+                        {result.pdf_file_url && (
+                          <button
+                            onClick={() => handleDownloadReport(result.report_id, result.kit_code, result.pdf_file_url)}
+                            className="inline-flex items-center px-3 py-1.5 border border-transparent text-xs font-medium rounded-md text-blue-700 bg-blue-100 hover:bg-blue-200 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500 transition-colors duration-200"
+                            title="Download PDF Report"
+                          >
+                            <svg className="h-4 w-4 mr-1" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M12 10v6m0 0l-3-3m3 3l3-3m2 8H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
+                            </svg>
+                            Download PDF
+                          </button>
+                        )}
+                      </div>
+                    </td>
+                  </tr>
                 ))}
               </tbody>
             </table>
@@ -285,7 +271,7 @@ export default function AdminWaterQualityResults() {
           <div className="px-4 sm:px-6 py-3 bg-gray-50 border-t border-gray-200">
             <p className="text-xs text-gray-500 text-center">
               Showing {filteredResults.length} of {availableResults.length} available test results.
-              Click "View Results" to see the interactive water quality dashboard for any test kit.
+              Click "View Results" to access the same interactive water quality dashboard that customers see.
             </p>
           </div>
         )}

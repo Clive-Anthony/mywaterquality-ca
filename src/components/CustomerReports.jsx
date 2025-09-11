@@ -1,8 +1,7 @@
-// Updated with dashboard functionality
+// Updated to use standard routing instead of embedded dashboard
 import { useState, useEffect, useCallback } from 'react';
 import { useAuth } from '../contexts/AuthContext';
 import { supabase } from '../lib/supabaseClient';
-import WaterQualityDashboard from './WaterQualityDashboard';
 
 export default function CustomerReports({ showTitle = true, maxHeight = "max-h-full", compact = false, onReportSelect }) {
   const { user } = useAuth();
@@ -42,13 +41,48 @@ export default function CustomerReports({ showTitle = true, maxHeight = "max-h-f
   }, [user, loadCustomerReports]);
 
   const handleReportSelect = (reportId) => {
-  const report = reports.find(r => r.report_id === reportId);
-  if (onReportSelect) {
-    onReportSelect(reportId, report.kit_code);
-  }
-};
+    const report = reports.find(r => r.report_id === reportId);
+    if (onReportSelect) {
+      onReportSelect(reportId, report.kit_code);
+    }
+  };
 
+  const handleDownloadReport = async (reportId, kitCode, pdfFileUrl) => {
+    try {
+      if (!pdfFileUrl) {
+        setError('Report PDF not available');
+        return;
+      }
 
+      // Extract filename from URL
+      let fileName;
+      if (pdfFileUrl.includes('/')) {
+        fileName = pdfFileUrl.split('/').pop();
+      } else {
+        fileName = `My-Water-Quality-Report-${kitCode}.pdf`;
+      }
+
+      const { data: signedUrlData, error: signedUrlError } = await supabase.storage
+        .from('generated-reports')
+        .createSignedUrl(fileName, 3600);
+
+      if (signedUrlError) {
+        console.error('Error creating signed URL:', signedUrlError);
+        setError('Failed to generate download link');
+        return;
+      }
+
+      if (signedUrlData?.signedUrl) {
+        window.open(signedUrlData.signedUrl, '_blank');
+        setError(null);
+      } else {
+        setError('Failed to generate download link');
+      }
+    } catch (err) {
+      console.error('Error downloading report:', err);
+      setError('Failed to download report');
+    }
+  };
 
   if (loading) {
     return (
@@ -163,24 +197,24 @@ export default function CustomerReports({ showTitle = true, maxHeight = "max-h-f
           <div className={`overflow-x-auto ${maxHeight}`}>
             <table className="min-w-full divide-y divide-gray-200">
               <thead className="bg-gray-50">
-  <tr>
-    <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-      Order
-    </th>
-    <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-      Kit Code
-    </th>
-    <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-      Product
-    </th>
-    <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-      Date
-    </th>
-    <th className="px-4 py-3 text-center text-xs font-medium text-gray-500 uppercase tracking-wider">
-      Actions
-    </th>
-  </tr>
-</thead>
+                <tr>
+                  <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                    Order
+                  </th>
+                  <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                    Kit Code
+                  </th>
+                  <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                    Product
+                  </th>
+                  <th className="px-4 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
+                    Date
+                  </th>
+                  <th className="px-4 py-3 text-center text-xs font-medium text-gray-500 uppercase tracking-wider">
+                    Actions
+                  </th>
+                </tr>
+              </thead>
               <tbody className="bg-white divide-y divide-gray-200">
                 {reports.map((report) => (
                   <tr key={report.report_id} className="hover:bg-gray-50">
@@ -202,27 +236,40 @@ export default function CustomerReports({ showTitle = true, maxHeight = "max-h-f
                       </div>
                     </td>
                     
-                    {/* ADD this new Date column before Actions */}
-  <td className="px-4 py-4 whitespace-nowrap">
-    <div className="text-sm text-gray-900">
-      {new Date(report.created_at || report.order_date).toLocaleDateString()}
-    </div>
-  </td>
-  
-  <td className="px-4 py-4 whitespace-nowrap text-center">
-    {/* REPLACE the entire actions div content with just the View Results button */}
-    <button
-      onClick={() => handleReportSelect(report.report_id)}
-      className="inline-flex items-center px-3 py-1.5 border border-transparent text-xs font-medium rounded-md text-green-700 bg-green-100 hover:bg-green-200 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-green-500 transition-colors duration-200"
-      title="View Interactive Results"
-    >
-      <svg className="h-4 w-4 mr-1" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M9 19v-6a2 2 0 0 0-2-2H5a2 2 0 0 0-2 2v6a2 2 0 0 0 2 2h2a2 2 0 0 0 2-2zm0 0V9a2 2 0 0 1 2-2h2a2 2 0 0 1 2 2v10m-6 0a2 2 0 0 0 2 2h2a2 2 0 0 0 2-2m0 0V5a2 2 0 0 1 2-2h2a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2h-2a2 2 0 0 1-2-2z" />
-      </svg>
-      View Results
-    </button>
-  </td>
-</tr>
+                    <td className="px-4 py-4 whitespace-nowrap">
+                      <div className="text-sm text-gray-900">
+                        {new Date(report.created_at || report.order_date).toLocaleDateString()}
+                      </div>
+                    </td>
+                    
+                    <td className="px-4 py-4 whitespace-nowrap text-center">
+                      <div className="flex justify-center space-x-2">
+                        <button
+                          onClick={() => handleReportSelect(report.report_id)}
+                          className="inline-flex items-center px-3 py-1.5 border border-transparent text-xs font-medium rounded-md text-green-700 bg-green-100 hover:bg-green-200 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-green-500 transition-colors duration-200"
+                          title="View Interactive Results"
+                        >
+                          <svg className="h-4 w-4 mr-1" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M9 19v-6a2 2 0 0 0-2-2H5a2 2 0 0 0-2 2v6a2 2 0 0 0 2 2h2a2 2 0 0 0 2-2zm0 0V9a2 2 0 0 1 2-2h2a2 2 0 0 1 2 2v10m-6 0a2 2 0 0 0 2 2h2a2 2 0 0 0 2-2m0 0V5a2 2 0 0 1 2-2h2a2 2 0 0 1 2 2v14a2 2 0 0 1-2 2h-2a2 2 0 0 1-2-2z" />
+                          </svg>
+                          View Results
+                        </button>
+                        
+                        {report.pdf_file_url && (
+                          <button
+                            onClick={() => handleDownloadReport(report.report_id, report.kit_code, report.pdf_file_url)}
+                            className="inline-flex items-center px-3 py-1.5 border border-transparent text-xs font-medium rounded-md text-blue-700 bg-blue-100 hover:bg-blue-200 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500 transition-colors duration-200"
+                            title="Download PDF Report"
+                          >
+                            <svg className="h-4 w-4 mr-1" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M12 10v6m0 0l-3-3m3 3l3-3m2 8H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" />
+                            </svg>
+                            Download PDF
+                          </button>
+                        )}
+                      </div>
+                    </td>
+                  </tr>
                 ))}
               </tbody>
             </table>

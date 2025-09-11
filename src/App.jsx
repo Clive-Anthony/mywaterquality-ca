@@ -1,4 +1,4 @@
-// src/App.jsx - Add the UpdatePasswordPage route
+// src/App.jsx - Complete version with updated routing
 import { BrowserRouter as Router, Routes, Route, Navigate } from 'react-router-dom';
 import { AuthProvider } from './contexts/AuthContext';
 import { CartProvider } from './contexts/CartContext';
@@ -11,7 +11,7 @@ import TestKitDetailPage from './pages/TestKitDetailPage';
 import SignupPage from './pages/SignupPage';
 import LoginPage from './pages/LoginPage';
 import ResetPasswordPage from './pages/ResetPasswordPage';
-import UpdatePasswordPage from './pages/UpdatePasswordPage'; // ADD THIS IMPORT
+import UpdatePasswordPage from './pages/UpdatePasswordPage';
 import HomePage from './pages/HomePage';
 import UserPage from './pages/UserPage';
 import TestKitsPage from './pages/TestKitsPage';
@@ -174,49 +174,60 @@ export default function App() {
             />
 
             <Route 
-  path="/dashboard/insights" 
-  element={
-    <ProtectedRoute>
-      <InsightsPage />
-    </ProtectedRoute>
-  } 
-/>
+              path="/dashboard/insights" 
+              element={
+                <ProtectedRoute>
+                  <InsightsPage />
+                </ProtectedRoute>
+              } 
+            />
 
             <Route 
-  path="/orders" 
-  element={
-    <ProtectedRoute>
-      <OrdersPage />
-    </ProtectedRoute>
-  } 
-/>
+              path="/orders" 
+              element={
+                <ProtectedRoute>
+                  <OrdersPage />
+                </ProtectedRoute>
+              } 
+            />
 
-<Route 
-  path="/dashboard/reports" 
-  element={
-    <ProtectedRoute>
-      <ReportsPage />
-    </ProtectedRoute>
-  } 
-/>
+            <Route 
+              path="/dashboard/reports" 
+              element={
+                <ProtectedRoute>
+                  <ReportsPage />
+                </ProtectedRoute>
+              } 
+            />
 
-<Route 
-  path="/dashboard/reports/:kitCode" 
-  element={
-    <ProtectedRoute>
-      <ReportDetailPage />
-    </ProtectedRoute>
-  } 
-/>
+            {/* Shared report detail page - accessible by both customers and admins */}
+            <Route 
+              path="/dashboard/reports/:kitCode" 
+              element={
+                <ProtectedRoute>
+                  <ReportDetailPage />
+                </ProtectedRoute>
+              } 
+            />
 
-<Route 
-  path="/profile" 
-  element={
-    <ProtectedRoute>
-      <ProfilePage />
-    </ProtectedRoute>
-  } 
-/>
+            {/* Admin-accessible report detail page - same component, different context */}
+            <Route 
+              path="/admin/reports/:kitCode" 
+              element={
+                <AdminProtectedRoute>
+                  <ReportDetailPage />
+                </AdminProtectedRoute>
+              } 
+            />
+
+            <Route 
+              path="/profile" 
+              element={
+                <ProtectedRoute>
+                  <ProfilePage />
+                </ProtectedRoute>
+              } 
+            />
 
             {/* Protected admin dashboard */}
             <Route 
@@ -233,7 +244,7 @@ export default function App() {
             <Route path="/login" element={<LoginPage />} />
             <Route path="/reset-password" element={<ResetPasswordPage />} />
             
-            {/* ADD THIS ROUTE - Update Password Page */}
+            {/* Update Password Page */}
             <Route path="/update-password" element={<UpdatePasswordPage />} />
             
             {/* Auth redirect handler - This handles both URL parameters and hash fragments */}
