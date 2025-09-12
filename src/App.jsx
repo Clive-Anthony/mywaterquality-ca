@@ -34,6 +34,7 @@ import OrdersPage from './pages/OrdersPage';
 import ProfilePage from './pages/ProfilePage';
 import InsightsPage from './pages/InsightsPage';
 import AdminProtectedRoute from './components/AdminProtectedRoute';
+import NewsletterPage from './pages/NewsletterPage';
 import { useEffect } from 'react';
 
 export default function App() {
@@ -243,7 +244,10 @@ export default function App() {
             <Route path="/signup" element={<SignupPage />} />
             <Route path="/login" element={<LoginPage />} />
             <Route path="/reset-password" element={<ResetPasswordPage />} />
-            
+
+            {/* Public Newsletter page */}
+<Route path="/newsletter" element={<NewsletterPage />} />
+
             {/* Update Password Page */}
             <Route path="/update-password" element={<UpdatePasswordPage />} />
             

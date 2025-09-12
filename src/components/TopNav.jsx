@@ -334,6 +334,21 @@ useEffect(() => {
               {showLearnDropdown && (
                 <div className="absolute left-0 mt-2 w-64 bg-white rounded-lg shadow-lg border border-gray-200 z-50">
                   <div className="py-2">
+
+                    <Link
+                      to="/newsletter"
+                      onClick={() => setShowLearnDropdown(false)}
+                      className="block px-4 py-3 text-sm text-gray-700 hover:bg-blue-50 hover:text-blue-600 transition-colors duration-200"
+                    >
+                      <div className="flex items-center">
+                        <span className="text-lg mr-3">📧</span>
+                        <div>
+                          <div className="font-medium">Newsletter</div>
+                          <div className="text-xs text-gray-500">Water quality tips</div>
+                        </div>
+                      </div>
+                    </Link>
+
                     <Link
                       to="/sampling-instructions"
                       onClick={() => setShowLearnDropdown(false)}
@@ -734,6 +749,17 @@ useEffect(() => {
                 {/* Learn Submenu */}
                 {showMobileLearnSubmenu && (
                   <div className="bg-gray-50 border-l-4 border-gray-200">
+                    <Link
+                      to="/newsletter"
+                      onClick={() => handleMobileMenuClick()}
+                      className="block px-8 py-3 text-sm text-gray-700 hover:text-blue-600 hover:bg-blue-50 transition-colors duration-200"
+                    >
+                      <div>
+                        <div className="font-medium">Newsletter</div>
+                        <div className="text-xs text-gray-500 mt-1">Water quality tips</div>
+                      </div>
+                    </Link>
+                    
                     <Link
                       to="/sampling-instructions"
                       onClick={() => handleMobileMenuClick()}
