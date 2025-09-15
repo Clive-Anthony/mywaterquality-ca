@@ -147,7 +147,7 @@ Email: ${shippingAddress.email}${shippingAddress.phone ? `\nPhone: ${shippingAdd
     // Use the correct admin template ID
     const emailData = {
       transactionalId: 'cmbax4sey1n651h0it0rm6f8k', // Admin notification template ID
-      email: 'david.phillips@bookerhq.ca', //orders@mywaterquality.ca
+      email: 'orders@mywaterquality.ca', //orders@mywaterquality.ca
       dataVariables: {
         customerName: customerName,
         orderNumber: orderData.order_number,

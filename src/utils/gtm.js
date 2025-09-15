@@ -358,24 +358,24 @@ export const trackPurchaseConversion = async (purchaseData) => {
     pushToDataLayer(ga4EventData);
 
     // Log success (filter PII in development mode)
-    const isDevelopment = import.meta.env.DEV || window.location.hostname === 'localhost';
+    // const isDevelopment = import.meta.env.DEV || window.location.hostname === 'localhost';
     
-    if (isDevelopment) {
-      console.log('GTM: Purchase conversion tracked successfully', {
-        transaction_id: transactionId,
-        value: purchaseData.value,
-        currency: purchaseData.currency,
-        has_user_email: !!(user?.email),
-        user_data_fields: Object.keys(userData),
-        is_free_order: purchaseData.is_free_order
-      });
-    } else {
-      console.log('GTM: Purchase conversion tracked', {
-        transaction_id: transactionId,
-        value: purchaseData.value,
-        has_enhanced_data: Object.keys(userData).length > 0
-      });
-    }
+    // if (isDevelopment) {
+    //   console.log('GTM: Purchase conversion tracked successfully', {
+    //     transaction_id: transactionId,
+    //     value: purchaseData.value,
+    //     currency: purchaseData.currency,
+    //     has_user_email: !!(user?.email),
+    //     user_data_fields: Object.keys(userData),
+    //     is_free_order: purchaseData.is_free_order
+    //   });
+    // } else {
+    //   console.log('GTM: Purchase conversion tracked', {
+    //     transaction_id: transactionId,
+    //     value: purchaseData.value,
+    //     has_enhanced_data: Object.keys(userData).length > 0
+    //   });
+    // }
     
   } catch (error) {
     console.error('GTM: Error tracking purchase conversion:', error);
