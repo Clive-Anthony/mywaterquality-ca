@@ -2,6 +2,7 @@
 import { Link } from 'react-router-dom';
 import { useState } from 'react';
 import { config } from '../config';
+import { trackNewsletterSignupConversion } from '../utils/gtm';
 
 export default function Footer() {
   const [email, setEmail] = useState('');
@@ -58,71 +59,75 @@ export default function Footer() {
 
   // Handle form submission
   const handleSubmit = async (e) => {
-    e.preventDefault();
-    
-    // Validate email
-    const error = validateEmail(email);
-    if (error) {
-      setEmailError(error);
-      return;
-    }
-    
-    setEmailError('');
-    setStatus('loading');
-    setMessage('');
-    
-    try {
-      // Call your Supabase Edge Function
-      const response = await fetch(
-        `${config.supabaseUrl}/functions/v1/newsletter-signup`,
-        {
-          method: 'POST',
-          headers: {
-            'Authorization': `Bearer ${config.supabaseAnonKey}`,
-            'Content-Type': 'application/json'
-          },
-          body: JSON.stringify({
-            email: email.toLowerCase().trim(),
-            source: 'footer',
-            metadata: {
-              page_url: window.location.href,
-              referrer: document.referrer || 'direct',
-              user_agent: navigator.userAgent,
-              timestamp: new Date().toISOString()
-            }
-          })
-        }
-      );
+  e.preventDefault();
+  
+  // Validate email
+  const error = validateEmail(email);
+  if (error) {
+    setEmailError(error);
+    return;
+  }
+  
+  setEmailError('');
+  setStatus('loading');
+  setMessage('');
+  
+  try {
+    // Call your Supabase Edge Function
+    const response = await fetch(
+      `${config.supabaseUrl}/functions/v1/newsletter-signup`,
+      {
+        method: 'POST',
+        headers: {
+          'Authorization': `Bearer ${config.supabaseAnonKey}`,
+          'Content-Type': 'application/json'
+        },
+        body: JSON.stringify({
+          email: email.toLowerCase().trim(),
+          source: 'footer',
+          metadata: {
+            page_url: window.location.href,
+            referrer: document.referrer || 'direct',
+            user_agent: navigator.userAgent,
+            timestamp: new Date().toISOString()
+          }
+        })
+      }
+    );
 
-      const result = await response.json();
+    const result = await response.json();
+    
+    if (response.ok && result.success) {
+      setStatus('success');
+      setMessage(result.alreadySubscribed 
+        ? 'You\'re already subscribed!' 
+        : 'Thanks for subscribing!'
+      );
       
-      if (response.ok && result.success) {
-        setStatus('success');
-        setMessage(result.alreadySubscribed 
-          ? 'You\'re already subscribed!' 
-          : 'Thanks for subscribing!'
-        );
-        setEmail(''); // Clear form on success
-        
-        // Track signup for analytics (if you have GTM/GA set up)
-        if (window.gtag) {
-          window.gtag('event', 'newsletter_signup', {
-            event_category: 'engagement',
-            event_label: 'footer'
-          });
-        }
-        
-      } else {
-        setStatus('error');
-        setMessage(result.error || 'Something went wrong. Please try again.');
+      // Track newsletter signup conversion in GTM
+      try {
+        await trackNewsletterSignupConversion({
+          email: email.toLowerCase().trim(),
+          source: 'footer',
+          alreadySubscribed: result.alreadySubscribed || false
+        });
+      } catch (gtmError) {
+        console.error('GTM newsletter signup tracking error (non-critical):', gtmError);
       }
       
-    } catch (error) {
-      console.error('Newsletter signup error:', error);
+      setEmail(''); // Clear form on success
+      
+    } else {
       setStatus('error');
-      setMessage('Network error. Please check your connection and try again.');
+      setMessage(result.error || 'Something went wrong. Please try again.');
     }
-  };
+    
+  } catch (error) {
+    console.error('Newsletter signup error:', error);
+    setStatus('error');
+    setMessage('Network error. Please check your connection and try again.');
+  }
+};
 
   return (
     <footer className="bg-gray-900">

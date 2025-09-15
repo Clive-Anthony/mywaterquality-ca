@@ -37,6 +37,7 @@ export const GTM_CONFIG = {
     SIGNUP_CONVERSION: 'signup_conversion',
     SHOP_PAGE_VIEW_CONVERSION: 'shop_page_view_conversion',
     PURCHASE_CONVERSION: 'purchase_conversion',
+    NEWSLETTER_SIGNUP_CONVERSION: 'newsletter_signup_conversion',
     USER_LOGIN: 'login',
     PAGE_VIEW: 'page_view',
     ADD_TO_CART: 'add_to_cart',

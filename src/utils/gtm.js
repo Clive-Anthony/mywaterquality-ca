@@ -382,6 +382,73 @@ export const trackPurchaseConversion = async (purchaseData) => {
   }
 };
 
+/**
+ * Track newsletter signup conversion
+ * @param {Object} signupData - Newsletter signup data
+ * @param {string} signupData.email - User email
+ * @param {string} signupData.source - Source of signup (footer, newsletter_page, etc.)
+ * @param {boolean} signupData.alreadySubscribed - Whether user was already subscribed
+ */
+export const trackNewsletterSignupConversion = async (signupData) => {
+  try {
+    const { email, source, alreadySubscribed } = signupData;
+    
+    // Only track as conversion if it's a new subscription
+    if (alreadySubscribed) {
+      console.log('GTM: Newsletter signup not tracked - user already subscribed');
+      return;
+    }
+    
+    // Get enhanced user data (minimal for newsletter signups)
+    const userData = {
+      email: email.toLowerCase().trim()
+    };
+    
+    // Push newsletter signup conversion event
+    const conversionEventData = {
+      event: 'newsletter_signup_conversion',
+      event_category: 'conversion',
+      event_label: 'newsletter_signup',
+      
+      // Conversion tracking data
+      conversion_value: 1.0, // Fixed value for newsletter signups
+      currency: 'CAD',
+      
+      // User data for Enhanced Conversions
+      user_data: userData,
+      
+      // Newsletter signup context
+      signup_source: source || 'unknown',
+      conversion_source: 'newsletter',
+      timestamp: new Date().toISOString(),
+      
+      // Unique event ID for deduplication
+      gtm_uniqueEventId: `newsletter_signup_${email.replace('@', '_at_')}_${Date.now()}`
+    };
+
+    pushToDataLayer(conversionEventData);
+    
+    // Also track as standard GA4 event
+    const ga4EventData = {
+      event: 'sign_up',
+      method: 'newsletter',
+      source: source || 'unknown',
+      event_category: 'engagement'
+    };
+
+    pushToDataLayer(ga4EventData);
+
+    console.log('GTM: Newsletter signup conversion tracked', {
+      email: email,
+      source: source,
+      conversion_value: 1.0
+    });
+    
+  } catch (error) {
+    console.error('GTM: Error tracking newsletter signup conversion:', error);
+  }
+};
+
 
 /**
  * Track add to cart events specifically
