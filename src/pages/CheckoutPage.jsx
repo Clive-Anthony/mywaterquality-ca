@@ -6,7 +6,7 @@ import { useCart } from '../contexts/CartContext';
 import PageLayout from '../components/PageLayout';
 import PayPalPayment from '../components/PayPalPayment';
 import { supabase } from '../lib/supabaseClient';
-import { trackCartEvent } from '../utils/gtm';
+import { trackCartEvent, trackPurchaseConversion } from '../utils/gtm';
 
 const debugLog = (step, message, data = null) => {
   const timestamp = new Date().toISOString();
@@ -612,15 +612,34 @@ export default function CheckoutPage() {
 
     const responseData = await response.json();
     
-    // ENHANCED: Track purchase conversion in GTM
-    try {
-      if (responseData.gtm_purchase_data) {
-        console.log('Tracking purchase conversion in GTM');
-        await trackCartEvent('purchase', responseData.gtm_purchase_data);
-      }
-    } catch (gtmError) {
-      console.error('GTM purchase tracking error (non-critical):', gtmError);
-    }
+    // ENHANCED: Track purchase conversion in GTM with proper data structure
+try {
+  // Prepare purchase data for GTM tracking
+  const gtmPurchaseData = {
+    transaction_id: responseData.order.order_number,
+    value: totals.total,
+    currency: 'CAD',
+    items: cartItems.map(item => ({
+      item_id: item.test_kit_id,
+      item_name: item.test_kits.name,
+      item_category: 'water_test_kit',
+      quantity: item.quantity,
+      price: item.test_kits.price
+    })),
+    coupon: appliedCoupon?.code || null,
+    shipping_cost: totals.shipping,
+    tax: totals.tax,
+    is_free_order: isFreeOrder,
+    payment_method: isFreeOrder ? 'free' : 'paypal',
+    shipping: formData.shipping // Pass shipping info for Enhanced Conversions
+  };
+
+  console.log('Tracking purchase conversion in GTM');
+  await trackPurchaseConversion(gtmPurchaseData);
+  
+} catch (gtmError) {
+  console.error('GTM purchase tracking error (non-critical):', gtmError);
+}
     
     // Refresh cart
     forceRefreshCart().catch(refreshError => {

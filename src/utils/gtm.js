@@ -260,49 +260,128 @@ export const trackCartEvent = async (eventType, cartData) => {
   }
 };
 
+// Track which transactions have already been recorded
+const trackedTransactions = new Set();
+
 /**
- * Track purchase conversion specifically
+ * Track purchase conversion with Enhanced Conversions support
  * @param {Object} purchaseData - Purchase data from order completion
  */
 export const trackPurchaseConversion = async (purchaseData) => {
   try {
-    const enhancedData = await getEnhancedConversionData();
+    const transactionId = purchaseData.transaction_id;
     
-    const eventData = {
+    // Prevent duplicate tracking for the same transaction
+    if (trackedTransactions.has(transactionId)) {
+      console.log(`GTM: Purchase conversion already tracked for transaction ${transactionId}`);
+      return;
+    }
+    
+    // Mark this transaction as tracked
+    trackedTransactions.add(transactionId);
+    
+    // Get user data for Enhanced Conversions
+    const { data: { user } } = await supabase.auth.getUser();
+    
+    // Build user data object for Enhanced Conversions (unhashed - GTM will hash)
+    const userData = {};
+    
+    // Add email if available (required for Enhanced Conversions)
+    if (user?.email) {
+      userData.email = user.email;
+    }
+    
+    // Add shipping/billing info if available (from checkout form)
+    if (purchaseData.shipping) {
+      if (purchaseData.shipping.firstName) userData.first_name = purchaseData.shipping.firstName;
+      if (purchaseData.shipping.lastName) userData.last_name = purchaseData.shipping.lastName;
+      if (purchaseData.shipping.phone) userData.phone_number = purchaseData.shipping.phone;
+      if (purchaseData.shipping.address) userData.street = purchaseData.shipping.address;
+      if (purchaseData.shipping.city) userData.city = purchaseData.shipping.city;
+      if (purchaseData.shipping.province) userData.region = purchaseData.shipping.province;
+      if (purchaseData.shipping.postalCode) userData.postal_code = purchaseData.shipping.postalCode;
+      if (purchaseData.shipping.country) userData.country = purchaseData.shipping.country;
+    }
+    
+    // Set default country if not provided
+    if (!userData.country) userData.country = 'CA';
+    
+    // Push purchase conversion event to data layer
+    const conversionEventData = {
       event: 'purchase_conversion',
-      event_category: 'conversion',
-      event_label: 'purchase_complete',
-      transaction_id: purchaseData.transaction_id,
+      
+      // Standard conversion data (for existing DLV variables)
       conversion_value: purchaseData.value || 0,
       currency: purchaseData.currency || 'CAD',
-      user_data: enhancedData,
+      transaction_id: transactionId,
+      event_category: 'conversion',
+      event_label: 'purchase_complete',
+      
+      // User data for Enhanced Conversions (single object)
+      user_data: userData,
+      
+      // Product data for additional tracking
+      product_data: {
+        items: purchaseData.items || [],
+        coupon: purchaseData.coupon || null,
+        shipping: purchaseData.shipping_cost || 0,
+        tax: purchaseData.tax || 0
+      },
+      
+      // Order context
       is_free_order: purchaseData.is_free_order || false,
-      coupon_code: purchaseData.coupon || null,
-      items: purchaseData.items || [],
-      shipping: purchaseData.shipping || 0,
-      tax: purchaseData.tax || 0,
-      timestamp: new Date().toISOString()
+      payment_method: purchaseData.payment_method || 'paypal',
+      timestamp: new Date().toISOString(),
+      
+      // Deduplication identifier
+      gtm_uniqueEventId: `purchase_${transactionId}_${Date.now()}`
     };
 
-    pushToDataLayer(eventData);
+    pushToDataLayer(conversionEventData);
     
     // Also track as standard GA4 purchase event
-    pushToDataLayer({
+    const ga4EventData = {
       event: 'purchase',
-      transaction_id: purchaseData.transaction_id,
+      transaction_id: transactionId,
       value: purchaseData.value || 0,
       currency: purchaseData.currency || 'CAD',
       items: purchaseData.items || [],
       coupon: purchaseData.coupon || undefined,
-      shipping: purchaseData.shipping || 0,
-      tax: purchaseData.tax || 0
-    });
+      shipping: purchaseData.shipping_cost || 0,
+      tax: purchaseData.tax || 0,
+      
+      // Additional GA4 parameters
+      payment_method: purchaseData.payment_method || 'paypal',
+      order_type: purchaseData.is_free_order ? 'free' : 'paid'
+    };
 
-    // console.log('GTM: Purchase conversion tracked successfully');
+    pushToDataLayer(ga4EventData);
+
+    // Log success (filter PII in development mode)
+    const isDevelopment = import.meta.env.DEV || window.location.hostname === 'localhost';
+    
+    if (isDevelopment) {
+      console.log('GTM: Purchase conversion tracked successfully', {
+        transaction_id: transactionId,
+        value: purchaseData.value,
+        currency: purchaseData.currency,
+        has_user_email: !!(user?.email),
+        user_data_fields: Object.keys(userData),
+        is_free_order: purchaseData.is_free_order
+      });
+    } else {
+      console.log('GTM: Purchase conversion tracked', {
+        transaction_id: transactionId,
+        value: purchaseData.value,
+        has_enhanced_data: Object.keys(userData).length > 0
+      });
+    }
+    
   } catch (error) {
     console.error('GTM: Error tracking purchase conversion:', error);
   }
 };
+
 
 /**
  * Track add to cart events specifically
@@ -328,6 +407,7 @@ export const trackAddToCart = async (item, quantity = 1) => {
     console.error('GTM: Error tracking add to cart:', error);
   }
 };
+
 
 export default {
   pushToDataLayer,
