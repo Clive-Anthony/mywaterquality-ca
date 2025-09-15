@@ -21,7 +21,7 @@ export const GTM_CONFIG = {
         CURRENCY: 'CAD'
       },
       PURCHASE: {
-        LABEL: 'REPLACE_WITH_ACTUAL_PURCHASE_LABEL', // Replace with label from Step 2
+        LABEL: 'BdB5CPeBoJsbENOm3N8o', // Replace with label from Step 2
         CURRENCY: 'CAD'
       }
     }
