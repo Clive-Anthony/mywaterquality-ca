@@ -86,8 +86,8 @@ exports.handler = async function(event, context) {
   }
 
   try {
-    console.log('=== VERIFICATION EMAIL DEBUG ===');
-    console.log('Raw request body:', event.body);
+    // console.log('=== VERIFICATION EMAIL DEBUG ===');
+    // console.log('Raw request body:', event.body);
     
     const { email, firstName = 'Valued Customer'} = JSON.parse(event.body);
     

@@ -22,116 +22,212 @@ const AuthRedirect = () => {
 
   // Helper function to determine redirect path based on user role
   const getRedirectPath = async (user) => {
-  try {
-    // Check for a valid stored return path first
-    const { validateAndGetReturnPath } = await import('../utils/returnPath');
-    const storedPath = await validateAndGetReturnPath(user);
-    
-    if (storedPath) {
-      console.log('Using stored return path:', storedPath);
-      return storedPath;
-    }
-    
-    // Fall back to role-based redirection
-    const { data: userRole } = await supabase.rpc('get_user_role', {
-      user_uuid: user.id
-    });
-    
-    console.log('No valid return path, using role-based redirect. User role:', userRole);
-    
-    return (userRole === 'admin' || userRole === 'super_admin') 
-      ? '/admin-dashboard' 
-      : '/dashboard';
-  } catch (error) {
-    console.error('Error determining redirect path:', error);
-    return '/dashboard'; // Default fallback
-  }
-};
-
-  useEffect(() => {
-  const handleRedirect = async () => {
-    // Prevent multiple simultaneous processing
-    if (processingRef.current || !mountedRef.current) {
-      return;
-    }
-
-    // Wait for AuthContext to be ready
-    if (!isReady) {
-      return;
-    }
-
-    processingRef.current = true;
-
     try {
-      const accessToken = searchParams.get('access_token');
-      const refreshToken = searchParams.get('refresh_token');
-      const errorParam = searchParams.get('error');
-      const errorDescription = searchParams.get('error_description');
-
-      // Handle OAuth errors
-      if (errorParam) {
-        console.error('OAuth error:', errorParam, errorDescription);
-        setError(errorDescription || errorParam);
-        setStatus('error');
-        
-        // Navigate to login with error after delay
-        setTimeout(() => {
-          if (mountedRef.current) {
-            navigate('/login', { 
-              state: { 
-                error: errorDescription || 'Authentication failed' 
-              },
-              replace: true 
-            });
-          }
-        }, 2000);
-        return;
-      }
-
-      // Regular OAuth login flow (existing code)
-      // Validate required tokens
-      if (!accessToken || !refreshToken) {
-        console.error('Missing tokens in redirect');
-        setError('Invalid authentication response');
-        setStatus('error');
-        
-        setTimeout(() => {
-          if (mountedRef.current) {
-            navigate('/login', { 
-              state: { 
-                error: 'Authentication failed - missing tokens' 
-              },
-              replace: true 
-            });
-          }
-        }, 2000);
-        return;
-      }
-
-      // ... rest of existing OAuth login code
-
-    } catch (error) {
-      console.error('Auth redirect error:', error);
-      setError(error.message);
-      setStatus('error');
+      // Check for a valid stored return path first
+      const { validateAndGetReturnPath } = await import('../utils/returnPath');
+      const storedPath = await validateAndGetReturnPath(user);
       
-      setTimeout(() => {
-        if (mountedRef.current) {
-          navigate('/login', { 
-            state: { 
-              error: 'Authentication processing failed' 
-            },
-            replace: true 
-          });
-        }
-      }, 2000);
-    } finally {
-      processingRef.current = false;
+      if (storedPath) {
+        console.log('Using stored return path:', storedPath);
+        return storedPath;
+      }
+      
+      // Fall back to role-based redirection
+      const { data: userRole } = await supabase.rpc('get_user_role', {
+        user_uuid: user.id
+      });
+      
+      console.log('No valid return path, using role-based redirect. User role:', userRole);
+      
+      return (userRole === 'admin' || userRole === 'super_admin') 
+        ? '/admin-dashboard' 
+        : '/dashboard';
+    } catch (error) {
+      console.error('Error determining redirect path:', error);
+      return '/dashboard'; // Default fallback
     }
   };
 
-  handleRedirect();
-}, [searchParams, navigate, isReady]);
+  // Helper function to handle pending newsletter signups for OAuth users
+  const handlePendingNewsletterSignup = async (user) => {
+    const newsletterOptInPending = localStorage.getItem('newsletter_opt_in_pending');
+    
+    if (newsletterOptInPending === 'true' && user?.email) {
+      try {
+        console.log('Processing pending newsletter signup for Google OAuth user:', user.email);
+        
+        const { config } = await import('../config');
+        const { trackNewsletterSignupConversion } = await import('../utils/gtm');
+        
+        const response = await fetch(
+          `${config.supabaseUrl}/functions/v1/newsletter-signup`,
+          {
+            method: 'POST',
+            headers: {
+              'Authorization': `Bearer ${config.supabaseAnonKey}`,
+              'Content-Type': 'application/json'
+            },
+            body: JSON.stringify({
+              email: user.email.toLowerCase().trim(),
+              source: 'google_oauth_signup',
+              metadata: {
+                page_url: window.location.href,
+                referrer: document.referrer || 'direct',
+                user_agent: navigator.userAgent,
+                timestamp: new Date().toISOString(),
+                first_name: user.user_metadata?.first_name || user.user_metadata?.name?.split(' ')[0] || '',
+                oauth_provider: 'google',
+                opted_in_during_signup: true
+              }
+            })
+          }
+        );
+
+        const result = await response.json();
+        
+        if (response.ok && result.success) {
+          console.log('Newsletter signup successful for OAuth user');
+          
+          try {
+            await trackNewsletterSignupConversion({
+              email: user.email.toLowerCase().trim(),
+              source: 'google_oauth_signup',
+              alreadySubscribed: result.alreadySubscribed || false,
+              opted_in_during_signup: true,
+              oauth_provider: 'google'
+            });
+          } catch (gtmError) {
+            console.error('GTM newsletter signup tracking error (non-critical):', gtmError);
+          }
+        } else {
+          console.error('Newsletter signup failed for OAuth user:', result.error);
+        }
+        
+      } catch (error) {
+        console.error('Error processing newsletter signup for OAuth user:', error);
+      } finally {
+        localStorage.removeItem('newsletter_opt_in_pending');
+      }
+    }
+  };
+
+  useEffect(() => {
+    const handleRedirect = async () => {
+      // Prevent multiple simultaneous processing
+      if (processingRef.current || !mountedRef.current) {
+        return;
+      }
+
+      // Wait for AuthContext to be ready
+      if (!isReady) {
+        return;
+      }
+
+      processingRef.current = true;
+
+      try {
+        const accessToken = searchParams.get('access_token');
+        const refreshToken = searchParams.get('refresh_token');
+        const errorParam = searchParams.get('error');
+        const errorDescription = searchParams.get('error_description');
+
+        // Handle OAuth errors
+        if (errorParam) {
+          console.error('OAuth error:', errorParam, errorDescription);
+          setError(errorDescription || errorParam);
+          setStatus('error');
+          
+          // Navigate to login with error after delay
+          setTimeout(() => {
+            if (mountedRef.current) {
+              navigate('/login', { 
+                state: { 
+                  error: errorDescription || 'Authentication failed' 
+                },
+                replace: true 
+              });
+            }
+          }, 2000);
+          return;
+        }
+
+        // Regular OAuth login flow
+        // Validate required tokens
+        if (!accessToken || !refreshToken) {
+          console.error('Missing tokens in redirect');
+          setError('Invalid authentication response');
+          setStatus('error');
+          
+          setTimeout(() => {
+            if (mountedRef.current) {
+              navigate('/login', { 
+                state: { 
+                  error: 'Authentication failed - missing tokens' 
+                },
+                replace: true 
+              });
+            }
+          }, 2000);
+          return;
+        }
+
+        // Set session with OAuth tokens
+        console.log('Setting session with OAuth tokens...');
+        setStatus('setting_session');
+
+        const { data, error: sessionError } = await supabase.auth.setSession({
+          access_token: accessToken,
+          refresh_token: refreshToken
+        });
+
+        if (sessionError) {
+          console.error('Session error:', sessionError);
+          throw sessionError;
+        }
+
+        if (!data?.user) {
+          throw new Error('No user data returned from session');
+        }
+
+        console.log('OAuth session set successfully for user:', data.user.email);
+
+        // Handle pending newsletter signup for OAuth users
+        await handlePendingNewsletterSignup(data.user);
+
+        setStatus('success');
+
+        // Get redirect path and navigate
+        const redirectPath = await getRedirectPath(data.user);
+        console.log('Redirecting OAuth user to:', redirectPath);
+        
+        setTimeout(() => {
+          if (mountedRef.current) {
+            navigate(redirectPath, { replace: true });
+          }
+        }, 1000);
+
+      } catch (error) {
+        console.error('Auth redirect error:', error);
+        setError(error.message);
+        setStatus('error');
+        
+        setTimeout(() => {
+          if (mountedRef.current) {
+            navigate('/login', { 
+              state: { 
+                error: 'Authentication processing failed' 
+              },
+              replace: true 
+            });
+          }
+        }, 2000);
+      } finally {
+        processingRef.current = false;
+      }
+    };
+
+    handleRedirect();
+  }, [searchParams, navigate, isReady]);
 
   // Don't render anything if already authenticated (avoid interference)
   if (isAuthenticated && isReady) {
@@ -156,19 +252,19 @@ const AuthRedirect = () => {
   }
 
   const getStatusMessage = () => {
-  switch (status) {
-    case 'processing':
-      return 'Processing authentication...';
-    case 'setting_session':
-      return 'Setting up your session...';
-    case 'success':
-      return 'Authentication successful! Redirecting...';
-    case 'error':
-      return `Authentication failed: ${error}`;
-    default:
-      return 'Loading...';
-  }
-};
+    switch (status) {
+      case 'processing':
+        return 'Processing authentication...';
+      case 'setting_session':
+        return 'Setting up your session...';
+      case 'success':
+        return 'Authentication successful! Redirecting...';
+      case 'error':
+        return `Authentication failed: ${error}`;
+      default:
+        return 'Loading...';
+    }
+  };
 
   const getStatusColor = () => {
     switch (status) {

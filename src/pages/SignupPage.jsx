@@ -1,7 +1,9 @@
-// src/pages/SignupPage.jsx
+// src/pages/SignupPage.jsx - Updated with newsletter opt-in checkbox
 import { useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
 import { signUp, signInWithGoogle } from '../lib/supabaseClient';
+import { config } from '../config';
+import { trackNewsletterSignupConversion } from '../utils/gtm';
 
 export default function SignupPage() {
   const navigate = useNavigate();
@@ -12,6 +14,7 @@ export default function SignupPage() {
     password: '',
     confirmPassword: ''
   });
+  const [newsletterOptIn, setNewsletterOptIn] = useState(false);
   const [loading, setLoading] = useState(false);
   const [googleLoading, setGoogleLoading] = useState(false);
   const [error, setError] = useState(null);
@@ -25,68 +28,147 @@ export default function SignupPage() {
     }));
   };
 
-  const handleSubmit = async (e) => {
-  e.preventDefault();
-  setError(null);
-  
-  // Form validation
-  if (formData.password !== formData.confirmPassword) {
-    setError('Passwords do not match');
-    return;
-  }
-  
-  if (formData.password.length < 6) {
-    setError('Password must be at least 6 characters');
-    return;
-  }
-  
-  setLoading(true);
-  
-  try {
-    const {error } = await signUp(
-      formData.email, 
-      formData.password, 
-      formData.firstName, 
-      formData.lastName
-    );
-    
-    if (error) {
-      throw error;
-    }
-    
-    // Track sign-up conversion after successful account creation
+  const handleNewsletterOptIn = (e) => {
+    setNewsletterOptIn(e.target.checked);
+  };
+
+  // Function to handle newsletter signup
+  const handleNewsletterSignup = async (email, firstName = '') => {
     try {
-      const { trackSignupConversion } = await import('../utils/gtm');
-      await trackSignupConversion({
-        email: formData.email,
-        firstName: formData.firstName,
-        lastName: formData.lastName
-      }, 'email');
-    } catch (gtmError) {
-      console.error('GTM tracking error (non-critical):', gtmError);
+      console.log('Attempting newsletter signup for:', email);
+      
+      const response = await fetch(
+        `${config.supabaseUrl}/functions/v1/newsletter-signup`,
+        {
+          method: 'POST',
+          headers: {
+            'Authorization': `Bearer ${config.supabaseAnonKey}`,
+            'Content-Type': 'application/json'
+          },
+          body: JSON.stringify({
+            email: email.toLowerCase().trim(),
+            source: 'signup_page',
+            metadata: {
+              page_url: window.location.href,
+              referrer: document.referrer || 'direct',
+              user_agent: navigator.userAgent,
+              timestamp: new Date().toISOString(),
+              first_name: firstName || '',
+              opted_in_during_signup: true
+            }
+          })
+        }
+      );
+
+      const result = await response.json();
+      
+      if (response.ok && result.success) {
+        console.log('Newsletter signup successful:', result.alreadySubscribed ? 'Already subscribed' : 'New subscription');
+        
+        // Track newsletter signup conversion in GTM
+        try {
+          await trackNewsletterSignupConversion({
+            email: email.toLowerCase().trim(),
+            source: 'signup_page',
+            alreadySubscribed: result.alreadySubscribed || false,
+            opted_in_during_signup: true
+          });
+        } catch (gtmError) {
+          console.error('GTM newsletter signup tracking error (non-critical):', gtmError);
+        }
+        
+        return { success: true, alreadySubscribed: result.alreadySubscribed };
+      } else {
+        console.error('Newsletter signup failed:', result.error);
+        return { success: false, error: result.error };
+      }
+      
+    } catch (error) {
+      console.error('Newsletter signup error:', error);
+      return { success: false, error: error.message };
+    }
+  };
+
+  const handleSubmit = async (e) => {
+    e.preventDefault();
+    setError(null);
+    
+    // Form validation
+    if (formData.password !== formData.confirmPassword) {
+      setError('Passwords do not match');
+      return;
     }
     
-    setSuccessMessage('Success! Please check your email for a verification link to complete your account setup.');
+    if (formData.password.length < 6) {
+      setError('Password must be at least 6 characters');
+      return;
+    }
     
-    // Clear form
-    setFormData({
-      firstName: '',
-      lastName: '',
-      email: '',
-      password: '',
-      confirmPassword: ''
-    });
+    setLoading(true);
     
-    // Redirect to login after 5 seconds
-    setTimeout(() => {
-      navigate('/login');
-    }, 5000);
-  } catch (err) {
-    setError(err.message || 'An error occurred during signup');
-  } finally {
-    setLoading(false);
-  }
-};
+    try {
+      const { error } = await signUp(
+        formData.email, 
+        formData.password, 
+        formData.firstName, 
+        formData.lastName
+      );
+      
+      if (error) {
+        throw error;
+      }
+      
+      // Track sign-up conversion after successful account creation
+      try {
+        const { trackSignupConversion } = await import('../utils/gtm');
+        await trackSignupConversion({
+          email: formData.email,
+          firstName: formData.firstName,
+          lastName: formData.lastName,
+          newsletterOptIn: newsletterOptIn
+        }, 'email');
+      } catch (gtmError) {
+        console.error('GTM tracking error (non-critical):', gtmError);
+      }
+      
+      // Handle newsletter signup if user opted in
+      let newsletterMessage = '';
+      if (newsletterOptIn) {
+        const newsletterResult = await handleNewsletterSignup(formData.email, formData.firstName);
+        
+        if (newsletterResult.success) {
+          newsletterMessage = newsletterResult.alreadySubscribed 
+            ? ' You\'re already subscribed to our newsletter.' 
+            : ' You\'ve been subscribed to our newsletter.';
+        } else {
+          // Don't fail the entire signup if newsletter fails, just log it
+          console.error('Newsletter signup failed but account creation succeeded:', newsletterResult.error);
+          newsletterMessage = ' Note: There was an issue subscribing you to our newsletter, but your account was created successfully.';
+        }
+      }
+      
+      setSuccessMessage(`Success! Please check your email for a verification link to complete your account setup.${newsletterMessage}`);
+      
+      // Clear form
+      setFormData({
+        firstName: '',
+        lastName: '',
+        email: '',
+        password: '',
+        confirmPassword: ''
+      });
+      setNewsletterOptIn(false);
+      
+      // Redirect to login after 6 seconds (increased to account for longer message)
+      setTimeout(() => {
+        navigate('/login');
+      }, 6000);
+    } catch (err) {
+      setError(err.message || 'An error occurred during signup');
+    } finally {
+      setLoading(false);
+    }
+  };
 
   const handleGoogleSignUp = async () => {
     setError(null);
@@ -97,6 +179,13 @@ export default function SignupPage() {
       
       if (error) {
         throw error;
+      }
+      
+      // Note: For Google OAuth, we can't easily handle newsletter signup here
+      // because the redirect happens immediately. We could store the preference 
+      // in localStorage and handle it in the AuthRedirect component if needed.
+      if (newsletterOptIn) {
+        localStorage.setItem('newsletter_opt_in_pending', 'true');
       }
       
       // OAuth redirect will handle navigation
@@ -139,8 +228,8 @@ export default function SignupPage() {
             
             {successMessage && (
               <div className="mb-4 bg-green-50 border-l-4 border-green-500 p-4 rounded" role="alert">
-                <div className="flex items-center">
-                  <svg className="h-5 w-5 text-green-500 mr-2" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                <div className="flex items-start">
+                  <svg className="h-5 w-5 text-green-500 mr-2 mt-0.5 flex-shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor">
                     <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M5 13l4 4L19 7" />
                   </svg>
                   <span className="text-green-700">{successMessage}</span>
@@ -284,6 +373,28 @@ export default function SignupPage() {
                   value={formData.confirmPassword}
                   onChange={handleInputChange}
                 />
+              </div>
+
+              {/* Newsletter Opt-in Checkbox */}
+              <div className="flex items-start space-x-3">
+                <div className="flex items-center h-6">
+                  <input
+                    id="newsletter-opt-in"
+                    name="newsletter-opt-in"
+                    type="checkbox"
+                    checked={newsletterOptIn}
+                    onChange={handleNewsletterOptIn}
+                    className="h-4 w-4 text-blue-600 focus:ring-blue-500 border-gray-300 rounded transition-colors duration-200"
+                  />
+                </div>
+                <div className="text-sm">
+                  <label htmlFor="newsletter-opt-in" className="text-gray-700 cursor-pointer">
+                    Subscribe to our newsletter for water quality tips, testing insights, and health updates
+                  </label>
+                  <p className="text-gray-500 text-xs mt-1">
+                    Optional - you can unsubscribe at any time
+                  </p>
+                </div>
               </div>
 
               <div>
