@@ -35,6 +35,7 @@ import ProfilePage from './pages/ProfilePage';
 import InsightsPage from './pages/InsightsPage';
 import AdminProtectedRoute from './components/AdminProtectedRoute';
 import NewsletterPage from './pages/NewsletterPage';
+import BlogPage from './pages/BlogPage';
 import { useEffect } from 'react';
 
 export default function App() {
@@ -119,6 +120,10 @@ export default function App() {
 
             {/* Public Water Sampling Instructions */}
             <Route path="/sampling-instructions" element={<WaterSamplingInstructionsPage />} />
+
+            {/* Public Blog page */}
+<Route path="/blog" element={<BlogPage />} />
+
 
             {/* PAYPAL TEST ROUTE - Add this temporarily */}
             {/* <Route path="/paypal-test" element={<PayPalTest />} /> */}
