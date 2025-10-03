@@ -290,12 +290,12 @@ useEffect(() => {
             </Link>
 
             {/* Demo Report - Always visible */}
-            <Link 
+            {/* <Link 
               to="/demo-report" 
               className={getLinkClassName('/demo-report')}
             >
               Demo Report
-            </Link>
+            </Link> */}
 
             {/* Dashboard - Navigate to admin dashboard if user is admin */}
             {user && (
@@ -718,13 +718,13 @@ useEffect(() => {
               </Link>
 
               {/* Demo Report */}
-              <Link
+              {/* <Link
                 to="/demo-report"
                 onClick={() => handleMobileMenuClick()}
                 className={getMobileLinkClassName('/demo-report')}
               >
                 Demo Report
-              </Link>
+              </Link> */}
 
               {/* Dashboard - Only show when logged in */}
                 {user && (

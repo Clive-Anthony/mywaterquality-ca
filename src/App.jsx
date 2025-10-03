@@ -24,7 +24,7 @@ import FAQPage from './pages/FAQPage';
 import WaterQualityStandardsPage from './pages/WaterQualityStandardsPage';
 import TermsConditionsPage from './pages/TermsConditionsPage';
 import ProcessPage from './pages/ProcessPage';
-import ReportPage from './pages/ReportPage';
+// import ReportPage from './pages/ReportPage';
 import OrderHistoryPage from './pages/OrderHistoryPage';
 import KitRegistrationPage from './pages/KitRegistrationPage';
 import AdminPage from './pages/AdminPage';
@@ -110,7 +110,7 @@ export default function App() {
             <Route path="/faq" element={<FAQPage />} />
 
             {/* Demo Report Page (Public) */}
-            <Route path="/demo-report" element={<ReportPage />} />
+            {/* <Route path="/demo-report" element={<ReportPage />} /> */}
             
             {/* Public Terms and Conditions page */}
             <Route path="/terms-and-conditions" element={<TermsConditionsPage/>} />
