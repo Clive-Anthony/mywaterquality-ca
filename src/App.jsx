@@ -35,7 +35,9 @@ import ProfilePage from './pages/ProfilePage';
 import InsightsPage from './pages/InsightsPage';
 import AdminProtectedRoute from './components/AdminProtectedRoute';
 import NewsletterPage from './pages/NewsletterPage';
-import BlogPage from './pages/BlogPage';
+import BlogIndexPage from './pages/BlogIndexPage';  
+import PfasBlogPage from './pages/PfasBlogPage';    
+import LeadBlogPage from './pages/LeadBlogPage';
 import { useEffect } from 'react';
 
 export default function App() {
@@ -121,8 +123,12 @@ export default function App() {
             {/* Public Water Sampling Instructions */}
             <Route path="/sampling-instructions" element={<WaterSamplingInstructionsPage />} />
 
-            {/* Public Blog page */}
-<Route path="/blog" element={<BlogPage />} />
+            {/* Public Blog Index page - Landing page for all blog articles */}
+            <Route path="/blog" element={<BlogIndexPage />} />
+
+            {/* Individual Blog Articles */}
+            <Route path="/blog/pfas-in-canadian-water" element={<PfasBlogPage />} />
+            <Route path="/blog/lead-in-canadian-water" element={<LeadBlogPage />} />
 
 
             {/* PAYPAL TEST ROUTE - Add this temporarily */}

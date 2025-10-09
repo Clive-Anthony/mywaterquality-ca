@@ -2,7 +2,7 @@
 import TopNav from '../components/TopNav';
 import Footer from '../components/Footer';
 
-export default function BlogPage() {
+export default function PfasBlogPage() {
   return (
     <div className="min-h-screen bg-gradient-to-br from-blue-50 via-white to-indigo-50">
       {/* Header */}
