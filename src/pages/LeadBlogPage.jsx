@@ -105,7 +105,7 @@ export default function LeadBlogPage() {
                 <h2 className="text-2xl font-bold text-gray-900 mt-8 mb-4">The Hidden Threat in Our Pipes</h2>
 
                 <p className="mb-6">
-                  Lead is a heavy metal that occurs naturally in the earth's crust, but it doesn't naturally appear in our water sources. Instead, it enters our drinking water through the corrosion of lead-bearing materials in service lines, plumbing systems, and fixtures. This contamination is particularly concerning because lead cannot be seen, smelled, or tasted in water – making testing the only way to detect its presence.
+                  Lead is a heavy metal that occurs naturally in the earth's crust. It's also present in water but at very low concentrations (typically below 1 ug/L). It could be higher in regions with metal-rich geological formations but if elevated, it is most likely from other sources like lead pipes. This contamination is particularly concerning because lead cannot be seen, smelled, or tasted in water – making testing the only way to detect its presence.
                 </p>
 
                 <p className="mb-4">The health consequences of lead exposure are serious, especially for vulnerable populations. Children and developing fetuses face the greatest risk, as lead can cause:</p>
@@ -124,7 +124,7 @@ export default function LeadBlogPage() {
                 <h2 className="text-2xl font-bold text-gray-900 mt-8 mb-4">Understanding Lead Levels: What the Numbers Mean</h2>
 
                 <p className="mb-6">
-                  Health Canada originally set the safety threshold at 10 parts per billion (ppb) back in 1992. However, as research revealed that health effects could occur at much lower levels than previously thought, the standard was tightened. In 2019, Health Canada lowered the maximum acceptable concentration to just 5 ppb – recognizing that even low-level lead exposure can be harmful.
+                  Health Canada originally set the safety threshold at 10 ug/L back in 1992. However, as research revealed that health effects could occur at much lower levels than previously thought, the standard was tightened. In 2019, Health Canada lowered the maximum acceptable concentration to just 5 ug/L – recognizing that even low-level lead exposure can be harmful.
                 </p>
 
                 {/* First Image Placeholder - Lead Pipes/Testing */}
@@ -169,9 +169,9 @@ export default function LeadBlogPage() {
                 <p className="mb-4">After the phosphate treatment was implemented:</p>
 
                 <ul className="list-disc pl-6 mb-6 space-y-2">
-                  <li><strong>98.73% of water samples</strong> contained lead concentrations below the old 10 ppb limit – a dramatic improvement from the original 87%</li>
-                  <li><strong>97.14% of samples</strong> met the more stringent 5 ppb standard introduced in 2019</li>
-                  <li>Mean lead concentrations consistently declined from 1.53 ppb in 2015 to just 0.15 ppb by 2024</li>
+                  <li><strong>98.73% of water samples</strong> contained lead concentrations below the old 10 ug/L limit – a dramatic improvement from the original 87%</li>
+                  <li><strong>97.14% of samples</strong> met the more stringent 5 ug/L standard introduced in 2019</li>
+                  <li>Mean lead concentrations consistently declined from 1.53 ug/L in 2015 to just 0.15 ug/L by 2024</li>
                   <li>The improvement was consistent across all Toronto neighborhoods, indicating that location doesn't significantly impact the likelihood of elevated lead levels</li>
                 </ul>
 
