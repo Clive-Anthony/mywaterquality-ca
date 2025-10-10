@@ -1,6 +1,7 @@
-// src/pages/SignupPage.jsx - Updated with newsletter opt-in checkbox
+// src/pages/SignupPage.jsx - WITH TURNSTILE BOT PROTECTION
 import { useState } from 'react';
 import { Link, useNavigate } from 'react-router-dom';
+import { Turnstile } from '@marsidev/react-turnstile';
 import { signUp, signInWithGoogle } from '../lib/supabaseClient';
 import { config } from '../config';
 import { trackNewsletterSignupConversion } from '../utils/gtm';
@@ -15,6 +16,10 @@ export default function SignupPage() {
     confirmPassword: ''
   });
   const [newsletterOptIn, setNewsletterOptIn] = useState(false);
+  
+  // Turnstile state
+  const [turnstileToken, setTurnstileToken] = useState(null);
+  
   const [loading, setLoading] = useState(false);
   const [googleLoading, setGoogleLoading] = useState(false);
   const [error, setError] = useState(null);
@@ -93,6 +98,12 @@ export default function SignupPage() {
     e.preventDefault();
     setError(null);
     
+    // Check for Turnstile token
+    if (!turnstileToken) {
+      setError('Please complete the verification challenge');
+      return;
+    }
+    
     // Form validation
     if (formData.password !== formData.confirmPassword) {
       setError('Passwords do not match');
@@ -107,6 +118,24 @@ export default function SignupPage() {
     setLoading(true);
     
     try {
+      // Verify Turnstile token on backend
+      console.log('Verifying Turnstile token...');
+      const verifyResponse = await fetch('/.netlify/functions/verify-turnstile', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ token: turnstileToken })
+      });
+
+      const verifyResult = await verifyResponse.json();
+      
+      if (!verifyResult.success) {
+        console.error('Turnstile verification failed:', verifyResult);
+        throw new Error('Verification failed. Please try again.');
+      }
+
+      console.log('Turnstile verification successful');
+
+      // Continue with signup
       const { error } = await signUp(
         formData.email, 
         formData.password, 
@@ -141,7 +170,6 @@ export default function SignupPage() {
             ? ' You\'re already subscribed to our newsletter.' 
             : ' You\'ve been subscribed to our newsletter.';
         } else {
-          // Don't fail the entire signup if newsletter fails, just log it
           console.error('Newsletter signup failed but account creation succeeded:', newsletterResult.error);
           newsletterMessage = ' Note: There was an issue subscribing you to our newsletter, but your account was created successfully.';
         }
@@ -158,8 +186,9 @@ export default function SignupPage() {
         confirmPassword: ''
       });
       setNewsletterOptIn(false);
+      setTurnstileToken(null);
       
-      // Redirect to login after 6 seconds (increased to account for longer message)
+      // Redirect to login after 6 seconds
       setTimeout(() => {
         navigate('/login');
       }, 6000);
@@ -181,9 +210,7 @@ export default function SignupPage() {
         throw error;
       }
       
-      // Note: For Google OAuth, we can't easily handle newsletter signup here
-      // because the redirect happens immediately. We could store the preference 
-      // in localStorage and handle it in the AuthRedirect component if needed.
+      // Store newsletter preference for OAuth flow
       if (newsletterOptIn) {
         localStorage.setItem('newsletter_opt_in_pending', 'true');
       }
@@ -256,22 +283,10 @@ export default function SignupPage() {
                 ) : (
                   <>
                     <svg className="h-5 w-5 mr-2" viewBox="0 0 24 24">
-                      <path
-                        d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92c-.26 1.37-1.04 2.53-2.21 3.31v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.09z"
-                        fill="#4285F4"
-                      />
-                      <path
-                        d="M12 23c2.97 0 5.46-.98 7.28-2.66l-3.57-2.77c-.98.66-2.23 1.06-3.71 1.06-2.86 0-5.29-1.93-6.16-4.53H2.18v2.84C3.99 20.53 7.7 23 12 23z"
-                        fill="#34A853"
-                      />
-                      <path
-                        d="M5.84 14.09c-.22-.66-.35-1.36-.35-2.09s.13-1.43.35-2.09V7.07H2.18C1.43 8.55 1 10.22 1 12s.43 3.45 1.18 4.93l2.85-2.22.81-.62z"
-                        fill="#FBBC05"
-                      />
-                      <path
-                        d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.07l3.66 2.84c.87-2.6 3.3-4.53 6.16-4.53z"
-                        fill="#EA4335"
-                      />
+                      <path d="M22.56 12.25c0-.78-.07-1.53-.2-2.25H12v4.26h5.92c-.26 1.37-1.04 2.53-2.21 3.31v2.77h3.57c2.08-1.92 3.28-4.74 3.28-8.09z" fill="#4285F4" />
+                      <path d="M12 23c2.97 0 5.46-.98 7.28-2.66l-3.57-2.77c-.98.66-2.23 1.06-3.71 1.06-2.86 0-5.29-1.93-6.16-4.53H2.18v2.84C3.99 20.53 7.7 23 12 23z" fill="#34A853" />
+                      <path d="M5.84 14.09c-.22-.66-.35-1.36-.35-2.09s.13-1.43.35-2.09V7.07H2.18C1.43 8.55 1 10.22 1 12s.43 3.45 1.18 4.93l2.85-2.22.81-.62z" fill="#FBBC05" />
+                      <path d="M12 5.38c1.62 0 3.06.56 4.21 1.64l3.15-3.15C17.45 2.09 14.97 1 12 1 7.7 1 3.99 3.47 2.18 7.07l3.66 2.84c.87-2.6 3.3-4.53 6.16-4.53z" fill="#EA4335" />
                       <path d="M1 1h22v22H1z" fill="none" />
                     </svg>
                     Sign up with Google
@@ -397,10 +412,31 @@ export default function SignupPage() {
                 </div>
               </div>
 
+              {/* Turnstile Widget */}
+              <div>
+                <Turnstile
+                  siteKey={import.meta.env.VITE_TURNSTILE_SITE_KEY}
+                  onSuccess={(token) => {
+                    setTurnstileToken(token);
+                    console.log('Turnstile challenge completed');
+                  }}
+                  onError={() => {
+                    setTurnstileToken(null);
+                    console.error('Turnstile error occurred');
+                  }}
+                  onExpire={() => {
+                    setTurnstileToken(null);
+                    console.log('Turnstile token expired');
+                  }}
+                  theme="light"
+                  size="normal"
+                />
+              </div>
+
               <div>
                 <button
                   type="submit"
-                  disabled={loading}
+                  disabled={loading || !turnstileToken}
                   className="w-full flex justify-center py-3 px-4 border border-transparent rounded-lg shadow-sm text-sm font-medium text-white bg-gradient-to-r from-blue-500 to-blue-600 hover:from-blue-600 hover:to-blue-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-blue-500 disabled:opacity-50 transition-colors duration-200"
                 >
                   {loading ? (
