@@ -72,7 +72,7 @@ export default function PfasBlogPage() {
                   </div>
                   <div>
                     <p className="text-sm font-medium text-gray-900">My Water Quality Team</p>
-                    <p className="text-xs text-gray-500">Published January 2025</p>
+                    <p className="text-xs text-gray-500">Published October 2025</p>
                   </div>
                 </div>
                 <div className="text-right">

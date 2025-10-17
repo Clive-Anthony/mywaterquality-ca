@@ -11,10 +11,19 @@ import Footer from '../components/Footer';
 export default function BlogIndexPage() {
   const blogArticles = [
     {
+    title: "Arsenic in Canadian Drinking Water: The Silent Threat in Your Well",
+    excerpt: "When Newfoundland tested over 1,000 private wells, 10% exceeded Health Canada's arsenic limits. Learn about this colorless, odorless threat and how to protect your family.",
+    readTime: "3 min read",
+    date: "October 2025",
+    slug: "/blog/arsenic-in-canadian-water",
+    image: "/images/blog/arsenic-featured-image.jpg",
+    tags: ["Arsenic", "Well Water", "Health"]
+    },
+    {
       title: "PFAS in Canadian Water: What You Need to Know About 'Forever Chemicals'",
       excerpt: "Recent CBC News investigations reveal PFAS contamination is more widespread across Canada than many realize. Learn about these 'forever chemicals' and what you can do to protect your family.",
       readTime: "2-3 min read",
-      date: "January 2025",
+      date: "October 2025",
       slug: "/blog/pfas-in-canadian-water",
       image: "/images/blog/pfas-featured-image.jpg",
       tags: ["PFAS", "Water Quality", "Health"]
@@ -23,7 +32,7 @@ export default function BlogIndexPage() {
       title: "Lead in Canadian Drinking Water: What You Need to Know",
       excerpt: "Toronto's success story shows how phosphate treatment dramatically reduced lead levels. Discover what's being done across Canada and how to protect your home from lead contamination.",
       readTime: "3 min read",
-      date: "January 2025",
+      date: "October 2025",
       slug: "/blog/lead-in-canadian-water",
       image: "/images/blog/lead-featured-image.jpg",
       tags: ["Lead", "Water Testing", "Public Health"]

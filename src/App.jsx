@@ -38,6 +38,7 @@ import NewsletterPage from './pages/NewsletterPage';
 import BlogIndexPage from './pages/BlogIndexPage';  
 import PfasBlogPage from './pages/PfasBlogPage';    
 import LeadBlogPage from './pages/LeadBlogPage';
+import ArsenicBlogPage from './pages/ArsenicBlogPage';
 import { useEffect } from 'react';
 
 export default function App() {
@@ -129,7 +130,7 @@ export default function App() {
             {/* Individual Blog Articles */}
             <Route path="/blog/pfas-in-canadian-water" element={<PfasBlogPage />} />
             <Route path="/blog/lead-in-canadian-water" element={<LeadBlogPage />} />
-
+            <Route path="/blog/arsenic-in-canadian-water" element={<ArsenicBlogPage />} />
 
             {/* PAYPAL TEST ROUTE - Add this temporarily */}
             {/* <Route path="/paypal-test" element={<PayPalTest />} /> */}
