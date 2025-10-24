@@ -880,7 +880,7 @@ function createNextStepsSection() {
         'If your water test results suggest contamination from road salt, there are important steps you should follow to assess and address the issue. For your convenience, the steps for addressing road salt contamination are accessible by clicking the button.'
       ),
       React.createElement(ReactPDF.Link, {
-        src: 'https://www.canadianwatercompliance.ca/blogs/toronto-legionella-disinfecting-bacteria-water-testing-blog/ontario-road-salt-drinking-water-impact',
+        src: 'https://www.canada.ca/en/environment-climate-change/services/pollutants/road-salts/frequently-asked-questions.html',
         style: styles.nextStepButtonCompact
       },
         React.createElement(ReactPDF.Text, { style: styles.buttonText }, 
