@@ -167,7 +167,7 @@ const hasColiformContamination = bacteriological.some(param => {
   return hasDetectedInDisplay || exceedsMAC || hasNumericContamination;
 });
 
-    const perfectWater = healthCWQI?.score === 100 && aoCWQI?.score === 100;
+    const perfectWater = healthCWQI?.score === 100 && (aoParameters.length === 0 || aoCWQI?.score === 100);
     
     // Determine if bacteriological results should be shown
     const ADVANCED_WATER_TEST_KIT_ID = 'a69fd2ca-232f-458e-a240-7e36f50ffa2b';
@@ -234,21 +234,22 @@ const hasColiformContamination = bacteriological.some(param => {
         hasColiformContamination ? createColiformWarning() : null,
         
         // Results Explanation Box - Show when there are concerns but no coliform contamination
-        ((healthConcerns.length > 0 || aoConcerns.length > 0) && !hasColiformContamination) ? 
-          createResultsExplanationBox(healthConcerns, aoConcerns) : null
+        // Only consider health concerns if AO parameters exist, otherwise just health
+((healthConcerns.length > 0 || (aoParameters.length > 0 && aoConcerns.length > 0)) && !hasColiformContamination) ? 
+  createResultsExplanationBox(healthConcerns, aoConcerns) : null
       ),
 
       // Page 2 - Health Score
-      React.createElement(ReactPDF.Page, { size: 'A4', style: styles.page },
-        createSectionTitle('YOUR DRINKING WATER QUALITY HEALTH SCORE'),
-        healthCWQI ? createCWQISection(healthCWQI, healthConcerns, 'health') : null,
-        healthCWQI ? createPotentialScoreSection(healthCWQI) : null
-      ),
+        healthParameters.length > 0 ? React.createElement(ReactPDF.Page, { size: 'A4', style: styles.page },
+    createSectionTitle('YOUR DRINKING WATER QUALITY HEALTH SCORE'),
+    healthCWQI ? createCWQISection(healthCWQI, healthConcerns, 'health') : null,
+    healthCWQI ? createPotentialScoreSection(healthCWQI) : null
+  ) : null,
 
       // Page 3 - Aesthetic Score and Road Salt
-      React.createElement(ReactPDF.Page, { size: 'A4', style: styles.page },
-        createSectionTitle('YOUR DRINKING WATER AESTHETIC & OPERATIONAL SCORE'),
-        aoCWQI ? createCWQISection(aoCWQI, aoConcerns, 'ao') : null,
+        aoParameters.length > 0 ? React.createElement(ReactPDF.Page, { size: 'A4', style: styles.page },
+    createSectionTitle('YOUR DRINKING WATER AESTHETIC & OPERATIONAL SCORE'),
+    aoCWQI ? createCWQISection(aoCWQI, aoConcerns, 'ao') : null,
         
         // Road Salt Assessment - Only show if BOTH chloride and bromide are present
         (() => {
@@ -269,7 +270,7 @@ const hasColiformContamination = bacteriological.some(param => {
             )
           ) : null;
         })()
-      ),
+      ): null,
 
       // Page 4 - Health Concerns (only if there are health concerns)
       healthConcerns.length > 0 ? createHealthConcernsPage(healthConcerns) : null,
@@ -277,37 +278,37 @@ const hasColiformContamination = bacteriological.some(param => {
       // Page 5 - Aesthetic Concerns (only if there are aesthetic concerns)  
       aoConcerns.length > 0 ? createAestheticConcernsPage(aoConcerns) : null,
 
-      // Page 6 - Health Results Table
-      React.createElement(ReactPDF.Page, { size: 'A4', style: styles.page },
-        createSectionTitle('DRINKING WATER QUALITY: HEALTH-RELATED RESULTS'),
-        healthParameters.length > 0 ? createParametersTable(healthParameters, 'health') : null
-      ),
+      // Page 6 - Health Results Table (only if health parameters exist)
+  healthParameters.length > 0 ? React.createElement(ReactPDF.Page, { size: 'A4', style: styles.page },
+    createSectionTitle('DRINKING WATER QUALITY: HEALTH-RELATED RESULTS'),
+    createParametersTable(healthParameters, 'health')
+  ) : null,
 
-      // Page 7 - Aesthetic Results Table
-      React.createElement(ReactPDF.Page, { size: 'A4', style: styles.page },
-        createSectionTitle('DRINKING WATER QUALITY: AESTHETIC/OPERATIONAL-RELATED RESULTS'),
-        aoParameters.length > 0 ? createParametersTable(aoParameters, 'ao') : null
-      ),
+  // Page 7 - Aesthetic Results Table (only if AO parameters exist)
+  aoParameters.length > 0 ? React.createElement(ReactPDF.Page, { size: 'A4', style: styles.page },
+    createSectionTitle('DRINKING WATER QUALITY: AESTHETIC/OPERATIONAL-RELATED RESULTS'),
+    createParametersTable(aoParameters, 'ao')
+  ) : null,
 
-      // Page 8 - General Results Table
-      React.createElement(ReactPDF.Page, { size: 'A4', style: styles.page },
-        createSectionTitle('DRINKING WATER QUALITY: GENERAL RESULTS'),
-        generalParameters.length > 0 ? createGeneralParametersTable(generalParameters) : null
-      ),
+      // Page 8 - General Results Table (only if general parameters exist)
+  generalParameters.length > 0 ? React.createElement(ReactPDF.Page, { size: 'A4', style: styles.page },
+    createSectionTitle('DRINKING WATER QUALITY: GENERAL RESULTS'),
+    createGeneralParametersTable(generalParameters)
+  ) : null,
 
-      // Page 9 - Next Steps
-      React.createElement(ReactPDF.Page, { size: 'A4', style: styles.page },
-        createSectionTitle('NEXT STEPS'),
-        createNextStepsSection(),
-        
-        // Footer
-        React.createElement(ReactPDF.View, { style: styles.footer },
-          React.createElement(ReactPDF.Text, { style: styles.footerText },
-            'This report is generated based on laboratory analysis results. For questions about your water quality or treatment options, please consult with a qualified water treatment professional.'
-          ),
-          React.createElement(ReactPDF.Text, { style: styles.footerText },
-            `Report generated on ${new Date().toLocaleDateString()} | My Water Quality`
-          )
+  // Page 9 - Next Steps (always show)
+  React.createElement(ReactPDF.Page, { size: 'A4', style: styles.page },
+    createSectionTitle('NEXT STEPS'),
+    createNextStepsSection(),
+    
+    // Footer
+    React.createElement(ReactPDF.View, { style: styles.footer },
+      React.createElement(ReactPDF.Text, { style: styles.footerText },
+        'This report is generated based on laboratory analysis results. For questions about your water quality or treatment options, please consult with a qualified water treatment professional.'
+      ),
+      React.createElement(ReactPDF.Text, { style: styles.footerText },
+        `Report generated on ${new Date().toLocaleDateString()} | My Water Quality`
+      )
         )
       )
     );
