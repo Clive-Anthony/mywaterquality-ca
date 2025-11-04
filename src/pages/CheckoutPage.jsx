@@ -1,12 +1,11 @@
 // src/pages/CheckoutPage.jsx - Updated with coupon support
 import React, { useState, useEffect, useMemo, useCallback } from 'react';
-import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../contexts/AuthContext';
 import { useCart } from '../contexts/CartContext';
 import PageLayout from '../components/PageLayout';
 import PayPalPayment from '../components/PayPalPayment';
 import { supabase } from '../lib/supabaseClient';
-import { trackCartEvent, trackPurchaseConversion } from '../utils/gtm';
+import { trackPurchaseConversion } from '../utils/gtm';
 
 const debugLog = (step, message, data = null) => {
   const timestamp = new Date().toISOString();
@@ -347,7 +346,6 @@ const PaymentStep = React.memo(({
 
 // Main Component
 export default function CheckoutPage() {
-  const navigate = useNavigate();
   const { user, session } = useAuth();
   const { cartItems, cartSummary, forceRefreshCart } = useCart();  
   const [currentStep, setCurrentStep] = useState(1);
@@ -461,10 +459,16 @@ export default function CheckoutPage() {
 
       if (result.valid) {
         setAppliedCoupon({
-          ...result.coupon,
+          coupon_id: result.coupon.coupon_id || result.coupon.id, // Store both
+          id: result.coupon.coupon_id || result.coupon.id,
+          code: result.coupon.code,
+          type: result.coupon.type,
+          value: result.coupon.value,
           discountAmount: result.discountAmount,
           finalTotal: result.finalTotal,
-          isFreeOrder: result.isFreeOrder
+          isFreeOrder: result.isFreeOrder,
+          actual_usage_count: result.coupon.actual_usage_count,
+          user_usage_count: result.coupon.user_usage_count
         });
         setCouponCode('');
         

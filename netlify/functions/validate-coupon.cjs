@@ -1,4 +1,4 @@
-// netlify/functions/validate-coupon.js
+// netlify/functions/validate-coupon.cjs - FIXED VERSION
 const { createClient } = require('@supabase/supabase-js');
 
 function log(level, message, data = null) {
@@ -108,110 +108,90 @@ exports.handler = async function(event, context) {
       orderTotal 
     });
 
-    // Get coupon from database
-    const { data: coupon, error: couponError } = await supabase
+    // CRITICAL: First, get the coupon_id from the code
+    const { data: couponLookup, error: lookupError } = await supabase
       .from('coupons')
-      .select('*')
+      .select('coupon_id, code')
       .eq('code', couponCode)
-      .eq('is_active', true)
       .single();
 
-    if (couponError || !coupon) {
+    if (lookupError || !couponLookup) {
+      log('warn', 'Coupon not found', { couponCode });
       return {
         statusCode: 400,
         headers,
         body: JSON.stringify({ 
-          error: 'Invalid or inactive coupon code',
+          error: 'Invalid coupon code',
           valid: false
         })
       };
     }
 
-    // Check if coupon is expired
-    const now = new Date();
-    if (coupon.valid_until && new Date(coupon.valid_until) < now) {
+    // CRITICAL: Use the proper database validation function
+    log('info', 'Calling database validation function', {
+      couponId: couponLookup.coupon_id,
+      userId: user.id,
+      orderTotal
+    });
+
+    const { data: validationResult, error: validationError } = await supabase
+      .rpc('validate_and_reserve_coupon', {
+        p_coupon_id: couponLookup.coupon_id,
+        p_user_id: user.id,
+        p_order_subtotal: orderTotal
+      });
+
+    if (validationError) {
+      log('error', 'Database validation function error', { 
+        error: validationError.message 
+      });
       return {
-        statusCode: 400,
+        statusCode: 500,
         headers,
         body: JSON.stringify({ 
-          error: 'Coupon has expired',
+          error: 'Error validating coupon',
           valid: false
         })
       };
     }
 
-    if (coupon.valid_from && new Date(coupon.valid_from) > now) {
+    if (!validationResult || validationResult.length === 0) {
+      log('error', 'No validation result returned');
       return {
-        statusCode: 400,
+        statusCode: 500,
         headers,
         body: JSON.stringify({ 
-          error: 'Coupon is not yet valid',
+          error: 'Coupon validation failed',
           valid: false
         })
       };
     }
 
-    // Check minimum order value
-    if (coupon.minimum_order_value && orderTotal < coupon.minimum_order_value) {
+    const result = validationResult[0];
+
+    log('info', 'Validation result', {
+      isValid: result.is_valid,
+      reason: result.reason,
+      couponCode: result.coupon_code
+    });
+
+    if (!result.is_valid) {
       return {
         statusCode: 400,
         headers,
         body: JSON.stringify({ 
-          error: `Minimum order value of ${coupon.minimum_order_value} required`,
+          error: result.reason,
           valid: false
         })
       };
-    }
-
-    // Check total usage limit
-    if (coupon.usage_limit && coupon.usage_count >= coupon.usage_limit) {
-      return {
-        statusCode: 400,
-        headers,
-        body: JSON.stringify({ 
-          error: 'Coupon usage limit reached',
-          valid: false
-        })
-      };
-    }
-
-    // Check per-user usage limit
-    if (coupon.per_user_limit) {
-      const { data: userUsage, error: usageError } = await supabase
-        .from('coupon_usage')
-        .select('usage_id')
-        .eq('coupon_id', coupon.coupon_id)
-        .eq('user_id', user.id);
-
-      if (usageError) {
-        log('error', 'Error checking user usage', { error: usageError });
-        return {
-          statusCode: 500,
-          headers,
-          body: JSON.stringify({ 
-            error: 'Error validating coupon usage'
-          })
-        };
-      }
-
-      if (userUsage && userUsage.length >= coupon.per_user_limit) {
-        return {
-          statusCode: 400,
-          headers,
-          body: JSON.stringify({ 
-            error: 'You have already used this coupon the maximum number of times',
-            valid: false
-          })
-        };
-      }
     }
 
     // Calculate discount amount
     let discountAmount = 0;
-    if (coupon.type === 'percentage') {
-      discountAmount = (orderTotal * coupon.value) / 100;
-    } else if (coupon.type === 'fixed_amount') {
-      discountAmount = Math.min(coupon.value, orderTotal);
+    if (result.coupon_type === 'percentage') {
+      discountAmount = (orderTotal * parseFloat(result.coupon_value)) / 100;
+    } else if (result.coupon_type === 'fixed_amount') {
+      discountAmount = Math.min(parseFloat(result.coupon_value), orderTotal);
     }
 
     // Ensure discount doesn't exceed order total
@@ -221,10 +201,13 @@ exports.handler = async function(event, context) {
     const isFreeOrder = finalTotal === 0;
 
     log('info', 'Coupon validation successful', {
-      couponId: coupon.coupon_id,
+      couponId: couponLookup.coupon_id,
+      couponCode: result.coupon_code,
       discountAmount,
       finalTotal,
-      isFreeOrder
+      isFreeOrder,
+      totalUsage: result.actual_usage_count,
+      userUsage: result.user_usage_count
     });
 
     return {
@@ -233,11 +216,13 @@ exports.handler = async function(event, context) {
       body: JSON.stringify({
         valid: true,
         coupon: {
-          id: coupon.coupon_id,
-          code: coupon.code,
-          type: coupon.type,
-          value: coupon.value,
-          description: coupon.description
+          coupon_id: couponLookup.coupon_id, // ✓ Return as coupon_id
+          id: couponLookup.coupon_id,         // ✓ Also return as id for compatibility
+          code: result.coupon_code,
+          type: result.coupon_type,
+          value: parseFloat(result.coupon_value),
+          actual_usage_count: result.actual_usage_count,
+          user_usage_count: result.user_usage_count
         },
         discountAmount,
         finalTotal,
