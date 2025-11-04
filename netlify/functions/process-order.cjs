@@ -442,12 +442,16 @@ function withFunctionTimeout(promise, timeoutMs = 25000) {
   ]);
 }
 
-// Validate coupon with race condition protection
+// Validate coupon with enhanced debugging
 async function validateCoupon(supabaseAdmin, couponId, userId, orderSubtotal, requestId) {
   try {
-    log('info', `🎫 Validating coupon ${couponId} for user ${userId} [${requestId}]`);
+    log('info', `🎫 Validating coupon ${couponId} for user ${userId} [${requestId}]`, {
+      couponId,
+      userId,
+      orderSubtotal
+    });
 
-    // Use the validation function with row locking
+    // Call validation function
     const { data: validationResult, error: validationError } = await supabaseAdmin
       .rpc('validate_and_reserve_coupon', {
         p_coupon_id: couponId,
@@ -455,30 +459,47 @@ async function validateCoupon(supabaseAdmin, couponId, userId, orderSubtotal, re
         p_order_subtotal: orderSubtotal
       });
 
+    // Log the raw response for debugging
+    log('info', '🔍 Raw validation response:', {
+      hasError: !!validationError,
+      errorMessage: validationError?.message,
+      resultCount: validationResult?.length,
+      result: validationResult
+    });
+
     if (validationError) {
-      log('error', `Coupon validation query failed: ${validationError.message}`, {
+      log('error', `❌ Coupon validation query failed: ${validationError.message}`, {
         couponId,
         userId,
         error: validationError
       });
       return { 
         valid: false, 
-        reason: 'Unable to validate coupon at this time' 
+        reason: 'Unable to validate coupon at this time',
+        debug: validationError.message
       };
     }
 
     if (!validationResult || validationResult.length === 0) {
-      log('warn', `No validation result returned for coupon: ${couponId}`);
+      log('error', '❌ No validation result returned from database function');
       return { 
         valid: false, 
-        reason: 'Unable to validate coupon' 
+        reason: 'Coupon validation failed - no result'
       };
     }
 
     const result = validationResult[0];
 
+    log('info', '📊 Validation result details:', {
+      isValid: result.is_valid,
+      reason: result.reason,
+      couponCode: result.coupon_code,
+      totalUsage: result.actual_usage_count,
+      userUsage: result.user_usage_count
+    });
+
     if (!result.is_valid) {
-      log('warn', `Coupon validation failed: ${result.reason}`, {
+      log('warn', `⚠️ Coupon validation FAILED: ${result.reason}`, {
         couponCode: result.coupon_code,
         totalUsage: result.actual_usage_count,
         userUsage: result.user_usage_count,
@@ -486,16 +507,20 @@ async function validateCoupon(supabaseAdmin, couponId, userId, orderSubtotal, re
       });
       return { 
         valid: false, 
-        reason: result.reason 
+        reason: result.reason,
+        couponCode: result.coupon_code,
+        usageData: {
+          totalUsage: result.actual_usage_count,
+          userUsage: result.user_usage_count
+        }
       };
     }
 
-    log('info', `✅ Coupon validation passed: ${result.coupon_code}`, {
+    log('info', `✅ Coupon validation PASSED: ${result.coupon_code}`, {
       type: result.coupon_type,
       value: result.coupon_value,
       totalUsage: result.actual_usage_count,
-      userUsage: result.user_usage_count,
-      usageRemaining: result.usage_limit ? (result.usage_limit - result.actual_usage_count) : 'unlimited'
+      userUsage: result.user_usage_count
     });
 
     return { 
@@ -510,14 +535,15 @@ async function validateCoupon(supabaseAdmin, couponId, userId, orderSubtotal, re
     };
 
   } catch (error) {
-    log('error', `Coupon validation error: ${error.message}`, {
+    log('error', `❌ Coupon validation exception: ${error.message}`, {
       couponId,
       userId,
-      error: error.message
+      stack: error.stack
     });
     return { 
       valid: false, 
-      reason: 'Unable to validate coupon at this time' 
+      reason: 'Unable to validate coupon at this time',
+      error: error.message
     };
   }
 }
@@ -636,8 +662,9 @@ exports.handler = async function(event, context) {
       isFreeOrder: orderData.is_free_order || false
     });
 
+    // CRITICAL: Validate coupon BEFORE creating order
     if (orderData.coupon_id) {
-      log('info', `🎫 Coupon provided, validating: ${orderData.coupon_code} [${requestId}]`);
+      log('info', `🎫 Coupon detected in order data: ${orderData.coupon_code} (ID: ${orderData.coupon_id}) [${requestId}]`);
       
       const couponValidation = await validateCoupon(
         supabaseAdmin,
@@ -647,10 +674,18 @@ exports.handler = async function(event, context) {
         requestId
       );
       
+      log('info', '🎫 Coupon validation complete:', {
+        valid: couponValidation.valid,
+        reason: couponValidation.reason,
+        couponCode: orderData.coupon_code
+      });
+      
       if (!couponValidation.valid) {
-        log('warn', `Coupon validation failed: ${couponValidation.reason}`, {
+        log('error', `❌ COUPON VALIDATION FAILED - BLOCKING ORDER`, {
           couponCode: orderData.coupon_code,
-          userId: user.id
+          reason: couponValidation.reason,
+          userId: user.id,
+          orderId: 'NOT_CREATED'
         });
         
         return {
@@ -660,13 +695,15 @@ exports.handler = async function(event, context) {
             error: 'Invalid coupon',
             message: couponValidation.reason,
             coupon_code: orderData.coupon_code,
-            request_id: requestId
+            request_id: requestId,
+            debug: couponValidation.usageData || {}
           })
         };
       }
       
-      log('info', `✅ Coupon validated successfully: ${orderData.coupon_code}`);
-
+      log('info', `✅ Coupon validation passed - proceeding with order creation [${requestId}]`);
+    } else {
+      log('info', `ℹ️ No coupon in order data [${requestId}]`);
     }
 
     // Create order with timeout
