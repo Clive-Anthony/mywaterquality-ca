@@ -442,14 +442,14 @@ function withFunctionTimeout(promise, timeoutMs = 25000) {
   ]);
 }
 
-// Validate coupon eligibility and limits using database function
+// Validate coupon with race condition protection
 async function validateCoupon(supabaseAdmin, couponId, userId, orderSubtotal, requestId) {
   try {
     log('info', `🎫 Validating coupon ${couponId} for user ${userId} [${requestId}]`);
 
-    // Call the comprehensive validation function
+    // Use the validation function with row locking
     const { data: validationResult, error: validationError } = await supabaseAdmin
-      .rpc('validate_coupon_for_order', {
+      .rpc('validate_and_reserve_coupon', {
         p_coupon_id: couponId,
         p_user_id: userId,
         p_order_subtotal: orderSubtotal
@@ -481,7 +481,8 @@ async function validateCoupon(supabaseAdmin, couponId, userId, orderSubtotal, re
       log('warn', `Coupon validation failed: ${result.reason}`, {
         couponCode: result.coupon_code,
         totalUsage: result.actual_usage_count,
-        userUsage: result.user_usage_count
+        userUsage: result.user_usage_count,
+        userId
       });
       return { 
         valid: false, 
@@ -493,7 +494,8 @@ async function validateCoupon(supabaseAdmin, couponId, userId, orderSubtotal, re
       type: result.coupon_type,
       value: result.coupon_value,
       totalUsage: result.actual_usage_count,
-      userUsage: result.user_usage_count
+      userUsage: result.user_usage_count,
+      usageRemaining: result.usage_limit ? (result.usage_limit - result.actual_usage_count) : 'unlimited'
     });
 
     return { 
@@ -516,7 +518,7 @@ async function validateCoupon(supabaseAdmin, couponId, userId, orderSubtotal, re
     return { 
       valid: false, 
       reason: 'Unable to validate coupon at this time' 
-      };
+    };
   }
 }
 
