@@ -147,7 +147,7 @@ Email: ${shippingAddress.email}${shippingAddress.phone ? `\nPhone: ${shippingAdd
     // Use the correct admin template ID
     const emailData = {
       transactionalId: 'cmbax4sey1n651h0it0rm6f8k', // Admin notification template ID
-      email: 'orders@mywaterquality.ca', //orders@mywaterquality.ca
+      email: 'david.phillips@bookerhq.ca', //orders@mywaterquality.ca
       dataVariables: {
         customerName: customerName,
         orderNumber: orderData.order_number,
@@ -439,6 +439,138 @@ function withFunctionTimeout(promise, timeoutMs = 25000) {
   ]);
 }
 
+// Validate coupon eligibility and limits
+async function validateCoupon(supabaseAdmin, couponId, userId, orderSubtotal, requestId) {
+  try {
+    log('info', `🎫 Validating coupon ${couponId} for user ${userId} [${requestId}]`);
+
+    // Get coupon details from validation view
+    const { data: coupon, error: couponError } = await supabaseAdmin
+      .from('coupon_validation_data')
+      .select('*')
+      .eq('coupon_id', couponId)
+      .single();
+
+    if (couponError || !coupon) {
+      log('warn', `Coupon not found: ${couponId}`, { error: couponError?.message });
+      return { 
+        valid: false, 
+        reason: 'Coupon not found or has been deleted' 
+      };
+    }
+
+    // Check if coupon is active
+    if (!coupon.is_active) {
+      log('warn', `Coupon is inactive: ${coupon.code}`);
+      return { 
+        valid: false, 
+        reason: 'This coupon is no longer active' 
+      };
+    }
+
+    // Check valid_from date
+    const now = new Date();
+    if (coupon.valid_from && new Date(coupon.valid_from) > now) {
+      log('warn', `Coupon not yet valid: ${coupon.code}`, {
+        validFrom: coupon.valid_from,
+        currentTime: now.toISOString()
+      });
+      return { 
+        valid: false, 
+        reason: `This coupon is not valid until ${new Date(coupon.valid_from).toLocaleDateString()}` 
+      };
+    }
+
+    // Check valid_until date
+    if (coupon.valid_until && new Date(coupon.valid_until) < now) {
+      log('warn', `Coupon expired: ${coupon.code}`, {
+        validUntil: coupon.valid_until,
+        currentTime: now.toISOString()
+      });
+      return { 
+        valid: false, 
+        reason: `This coupon expired on ${new Date(coupon.valid_until).toLocaleDateString()}` 
+      };
+    }
+
+    // Check overall usage limit
+    if (coupon.usage_limit !== null && coupon.usage_count >= coupon.usage_limit) {
+      log('warn', `Coupon usage limit reached: ${coupon.code}`, {
+        usageCount: coupon.usage_count,
+        usageLimit: coupon.usage_limit
+      });
+      return { 
+        valid: false, 
+        reason: 'This coupon has reached its maximum number of uses' 
+      };
+    }
+
+    // Check per-user usage limit
+    if (coupon.per_user_limit !== null) {
+      const { data: userUsageCount, error: usageError } = await supabaseAdmin
+        .rpc('get_user_coupon_usage_count', {
+          p_coupon_id: couponId,
+          p_user_id: userId
+        });
+
+      if (usageError) {
+        log('error', `Failed to check user coupon usage: ${usageError.message}`);
+        return { 
+          valid: false, 
+          reason: 'Unable to verify coupon eligibility' 
+        };
+      }
+
+      if (userUsageCount >= coupon.per_user_limit) {
+        log('warn', `User exceeded per-user limit for coupon: ${coupon.code}`, {
+          userUsageCount,
+          perUserLimit: coupon.per_user_limit,
+          userId
+        });
+        return { 
+          valid: false, 
+          reason: `You have already used this coupon the maximum number of times (${coupon.per_user_limit})` 
+        };
+      }
+    }
+
+    // Check minimum order value
+    if (coupon.minimum_order_value && orderSubtotal < Number(coupon.minimum_order_value)) {
+      log('warn', `Order below minimum value for coupon: ${coupon.code}`, {
+        orderSubtotal,
+        minimumOrderValue: coupon.minimum_order_value
+      });
+      return { 
+        valid: false, 
+        reason: `This coupon requires a minimum order value of $${Number(coupon.minimum_order_value).toFixed(2)}` 
+      };
+    }
+
+    log('info', `✅ Coupon validation passed: ${coupon.code}`, {
+      type: coupon.type,
+      value: coupon.value,
+      usageCount: coupon.usage_count,
+      usageLimit: coupon.usage_limit
+    });
+
+    return { 
+      valid: true, 
+      coupon: coupon 
+    };
+
+  } catch (error) {
+    log('error', `Coupon validation error: ${error.message}`, {
+      couponId,
+      userId,
+      error: error.message
+    });
+    return { 
+      valid: false, 
+      reason: 'Unable to validate coupon at this time' 
+    };
+  }
+}
+
 exports.handler = async function(event, context) {
   const startTime = Date.now();
   const requestId = Math.random().toString(36).substring(2, 8);
@@ -552,6 +684,39 @@ exports.handler = async function(event, context) {
       email: user.email,
       isFreeOrder: orderData.is_free_order || false
     });
+
+    if (orderData.coupon_id) {
+      log('info', `🎫 Coupon provided, validating: ${orderData.coupon_code} [${requestId}]`);
+      
+      const couponValidation = await validateCoupon(
+        supabaseAdmin,
+        orderData.coupon_id,
+        user.id,
+        orderData.subtotal || orderData.total_amount,
+        requestId
+      );
+      
+      if (!couponValidation.valid) {
+        log('warn', `Coupon validation failed: ${couponValidation.reason}`, {
+          couponCode: orderData.coupon_code,
+          userId: user.id
+        });
+        
+        return {
+          statusCode: 400,
+          headers,
+          body: JSON.stringify({
+            error: 'Invalid coupon',
+            message: couponValidation.reason,
+            coupon_code: orderData.coupon_code,
+            request_id: requestId
+          })
+        };
+      }
+      
+      log('info', `✅ Coupon validated successfully: ${orderData.coupon_code}`);
+
+    }
 
     // Create order with timeout
     const orderResult = await withFunctionTimeout(
@@ -717,6 +882,8 @@ try {
     } else {
       log('warn', '⚠️ Loops API key not configured, skipping all email notifications');
     }
+
+    
     
     return {
       statusCode: 200,
@@ -893,6 +1060,7 @@ async function createOrderWithRetry(supabaseAdmin, orderData, user, requestId, m
 }
 
 // Enhanced validation function
+// Enhanced validation function
 function validateOrderData(orderData) {
   const errors = [];
   
@@ -905,6 +1073,15 @@ function validateOrderData(orderData) {
   const isFreeOrder = orderData.is_free_order || orderData.total_amount === 0;
   if (!isFreeOrder && !orderData.payment_reference) {
     errors.push('payment_reference is required for paid orders');
+  }
+
+  // Validate coupon data consistency
+  if (orderData.coupon_code && !orderData.coupon_id) {
+    errors.push('coupon_id is required when coupon_code is provided');
+  }
+  
+  if (orderData.coupon_id && !orderData.coupon_code) {
+    errors.push('coupon_code is required when coupon_id is provided');
   }
 
   return { isValid: errors.length === 0, errors };
