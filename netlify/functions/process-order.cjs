@@ -256,6 +256,8 @@ async function sendPurchaseConversionData(orderData, orderItems, userId, request
 }
 
 // Record coupon usage in the database
+// Note: usage_count in coupons table is updated for convenience, 
+// but coupon_usage table is the source of truth
 async function recordCouponUsage(supabaseAdmin, couponId, userId, orderId, discountAmount, requestId) {
   try {
     log('info', `🎫 Recording coupon usage [${requestId}]`, {
@@ -265,7 +267,7 @@ async function recordCouponUsage(supabaseAdmin, couponId, userId, orderId, disco
       discountAmount
     });
 
-    // Insert coupon usage record
+    // Insert coupon usage record (source of truth)
     const { error: usageError } = await supabaseAdmin
       .from('coupon_usage')
       .insert([{
@@ -279,7 +281,8 @@ async function recordCouponUsage(supabaseAdmin, couponId, userId, orderId, disco
       throw usageError;
     }
 
-    // Update coupon usage count
+    // Update coupon usage count for convenience/analytics
+    // (actual validation uses coupon_usage table)
     const { error: updateError } = await supabaseAdmin
       .from('coupons')
       .update({ 
@@ -439,123 +442,69 @@ function withFunctionTimeout(promise, timeoutMs = 25000) {
   ]);
 }
 
-// Validate coupon eligibility and limits
+// Validate coupon eligibility and limits using database function
 async function validateCoupon(supabaseAdmin, couponId, userId, orderSubtotal, requestId) {
   try {
     log('info', `🎫 Validating coupon ${couponId} for user ${userId} [${requestId}]`);
 
-    // Get coupon details from validation view
-    const { data: coupon, error: couponError } = await supabaseAdmin
-      .from('coupon_validation_data')
-      .select('*')
-      .eq('coupon_id', couponId)
-      .single();
+    // Call the comprehensive validation function
+    const { data: validationResult, error: validationError } = await supabaseAdmin
+      .rpc('validate_coupon_for_order', {
+        p_coupon_id: couponId,
+        p_user_id: userId,
+        p_order_subtotal: orderSubtotal
+      });
 
-    if (couponError || !coupon) {
-      log('warn', `Coupon not found: ${couponId}`, { error: couponError?.message });
-      return { 
-        valid: false, 
-        reason: 'Coupon not found or has been deleted' 
-      };
-    }
-
-    // Check if coupon is active
-    if (!coupon.is_active) {
-      log('warn', `Coupon is inactive: ${coupon.code}`);
-      return { 
-        valid: false, 
-        reason: 'This coupon is no longer active' 
-      };
-    }
-
-    // Check valid_from date
-    const now = new Date();
-    if (coupon.valid_from && new Date(coupon.valid_from) > now) {
-      log('warn', `Coupon not yet valid: ${coupon.code}`, {
-        validFrom: coupon.valid_from,
-        currentTime: now.toISOString()
+    if (validationError) {
+      log('error', `Coupon validation query failed: ${validationError.message}`, {
+        couponId,
+        userId,
+        error: validationError
       });
       return { 
         valid: false, 
-        reason: `This coupon is not valid until ${new Date(coupon.valid_from).toLocaleDateString()}` 
+        reason: 'Unable to validate coupon at this time' 
       };
     }
 
-    // Check valid_until date
-    if (coupon.valid_until && new Date(coupon.valid_until) < now) {
-      log('warn', `Coupon expired: ${coupon.code}`, {
-        validUntil: coupon.valid_until,
-        currentTime: now.toISOString()
+    if (!validationResult || validationResult.length === 0) {
+      log('warn', `No validation result returned for coupon: ${couponId}`);
+      return { 
+        valid: false, 
+        reason: 'Unable to validate coupon' 
+      };
+    }
+
+    const result = validationResult[0];
+
+    if (!result.is_valid) {
+      log('warn', `Coupon validation failed: ${result.reason}`, {
+        couponCode: result.coupon_code,
+        totalUsage: result.actual_usage_count,
+        userUsage: result.user_usage_count
       });
       return { 
         valid: false, 
-        reason: `This coupon expired on ${new Date(coupon.valid_until).toLocaleDateString()}` 
+        reason: result.reason 
       };
     }
 
-    // Check overall usage limit
-    if (coupon.usage_limit !== null && coupon.usage_count >= coupon.usage_limit) {
-      log('warn', `Coupon usage limit reached: ${coupon.code}`, {
-        usageCount: coupon.usage_count,
-        usageLimit: coupon.usage_limit
-      });
-      return { 
-        valid: false, 
-        reason: 'This coupon has reached its maximum number of uses' 
-      };
-    }
-
-    // Check per-user usage limit
-    if (coupon.per_user_limit !== null) {
-      const { data: userUsageCount, error: usageError } = await supabaseAdmin
-        .rpc('get_user_coupon_usage_count', {
-          p_coupon_id: couponId,
-          p_user_id: userId
-        });
-
-      if (usageError) {
-        log('error', `Failed to check user coupon usage: ${usageError.message}`);
-        return { 
-          valid: false, 
-          reason: 'Unable to verify coupon eligibility' 
-        };
-      }
-
-      if (userUsageCount >= coupon.per_user_limit) {
-        log('warn', `User exceeded per-user limit for coupon: ${coupon.code}`, {
-          userUsageCount,
-          perUserLimit: coupon.per_user_limit,
-          userId
-        });
-        return { 
-          valid: false, 
-          reason: `You have already used this coupon the maximum number of times (${coupon.per_user_limit})` 
-        };
-      }
-    }
-
-    // Check minimum order value
-    if (coupon.minimum_order_value && orderSubtotal < Number(coupon.minimum_order_value)) {
-      log('warn', `Order below minimum value for coupon: ${coupon.code}`, {
-        orderSubtotal,
-        minimumOrderValue: coupon.minimum_order_value
-      });
-      return { 
-        valid: false, 
-        reason: `This coupon requires a minimum order value of $${Number(coupon.minimum_order_value).toFixed(2)}` 
-      };
-    }
-
-    log('info', `✅ Coupon validation passed: ${coupon.code}`, {
-      type: coupon.type,
-      value: coupon.value,
-      usageCount: coupon.usage_count,
-      usageLimit: coupon.usage_limit
+    log('info', `✅ Coupon validation passed: ${result.coupon_code}`, {
+      type: result.coupon_type,
+      value: result.coupon_value,
+      totalUsage: result.actual_usage_count,
+      userUsage: result.user_usage_count
     });
 
     return { 
       valid: true, 
-      coupon: coupon 
+      coupon: {
+        code: result.coupon_code,
+        type: result.coupon_type,
+        value: result.coupon_value,
+        actual_usage_count: result.actual_usage_count,
+        user_usage_count: result.user_usage_count
+      }
     };
 
   } catch (error) {
@@ -567,7 +516,7 @@ async function validateCoupon(supabaseAdmin, couponId, userId, orderSubtotal, re
     return { 
       valid: false, 
       reason: 'Unable to validate coupon at this time' 
-    };
+      };
   }
 }
 
