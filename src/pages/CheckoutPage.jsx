@@ -6,6 +6,7 @@ import PageLayout from '../components/PageLayout';
 import PayPalPayment from '../components/PayPalPayment';
 import { supabase } from '../lib/supabaseClient';
 import { trackPurchaseConversion } from '../utils/gtm';
+import { clearPartnerContext } from '../utils/partnerContext';
 
 const debugLog = (step, message, data = null) => {
   const timestamp = new Date().toISOString();
@@ -644,6 +645,9 @@ try {
 } catch (gtmError) {
   console.error('GTM purchase tracking error (non-critical):', gtmError);
 }
+
+    clearPartnerContext();
+console.log('Partner context cleared after successful purchase');
     
     // Refresh cart
     forceRefreshCart().catch(refreshError => {

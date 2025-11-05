@@ -19,12 +19,12 @@ export const CartProvider = ({ children }) => {
   const [loading, setLoading] = useState(false);
   const [error, setError] = useState(null);
   
-  const { user, session, loading: authLoading, isAuthenticated } = useAuth();
+  const { user, loading: authLoading, isAuthenticated } = useAuth();
 
-  // Debug logging function
-  const debugLog = (action, message, data = null) => {
-    console.log(`🛒 [${action}] ${message}`, data || '');
-  };
+  // // Debug logging function
+  // const debugLog = (action, message, data = null) => {
+  //   console.log(`🛒 [${action}] ${message}`, data || '');
+  // };
 
   // Get or create user cart - simplified version that handles loading states
   const getOrCreateUserCart = useCallback(async () => {
@@ -130,127 +130,103 @@ export const CartProvider = ({ children }) => {
   }, [user, isAuthenticated, authLoading]);
 
   const addToCart = useCallback(async (product, quantity = 1) => {
-    if (authLoading || !isAuthenticated || !user) {
-      setError('Please log in to add items to cart');
-      return { success: false, error: 'Please log in to add items to cart' };
+  if (authLoading || !isAuthenticated || !user) {
+    setError('Please log in to add items to cart');
+    return { success: false, error: 'Please log in to add items to cart' };
+  }
+
+  try {
+    setLoading(true);
+    setError(null);
+    
+    // Validate product object
+    if (!product || !product.id) {
+      throw new Error('Invalid product: missing product ID');
     }
-  
-    try {
-      setLoading(true);
-      setError(null);
-      
-      // debugLog('ADD', 'Adding to cart', { 
-      //   productId: product?.id, 
-      //   productName: product?.name,
-      //   quantity 
-      // });
-      
-      // Validate product object
-      if (!product || !product.id) {
-        throw new Error('Invalid product: missing product ID');
-      }
-      
-      // Get current user to ensure we're authenticated
-      const { data: { user: currentUser } } = await supabase.auth.getUser();
-      
-      if (!currentUser || currentUser.id !== user.id) {
-        throw new Error('Authentication required');
-      }
-  
-      // Get or create cart
-      const { data: carts } = await supabase
+    
+    // Get current user to ensure we're authenticated
+    const { data: { user: currentUser } } = await supabase.auth.getUser();
+    
+    if (!currentUser || currentUser.id !== user.id) {
+      throw new Error('Authentication required');
+    }
+
+    // Get or create cart
+    const { data: carts } = await supabase
+      .from('carts')
+      .select('cart_id')
+      .eq('user_id', user.id)
+      .limit(1);
+
+    let cartId;
+    if (carts && carts.length > 0) {
+      cartId = carts[0].cart_id;
+    } else {
+      const { data: newCart, error: createError } = await supabase
         .from('carts')
+        .insert([{ user_id: user.id }])
         .select('cart_id')
-        .eq('user_id', user.id)
-        .limit(1);
-  
-      let cartId;
-      if (carts && carts.length > 0) {
-        cartId = carts[0].cart_id;
-        // debugLog('ADD', 'Using existing cart', { cartId });
-      } else {
-        debugLog('ADD', 'Creating new cart');
-        const { data: newCart, error: createError } = await supabase
-          .from('carts')
-          .insert([{ user_id: user.id }])
-          .select('cart_id')
-          .single();
-        
-        if (createError) throw createError;
-        cartId = newCart.cart_id;
-      }
-  
-      // FIXED: Check if item already exists - use array response instead of single object
-      // debugLog('ADD', 'Checking for existing item', { cartId, testKitId: product.id });
+        .single();
       
-      const { data: existingItems, error: existingError } = await supabase
-        .from('cart_items')
-        .select('*')
-        .eq('cart_id', cartId)
-        .eq('test_kit_id', product.id);
-
-      if (existingError) {
-        debugLog('ADD', 'Error checking existing items', { error: existingError });
-        throw existingError;
-      }
-
-      // debugLog('ADD', 'Existing items found', { count: existingItems?.length || 0 });
-
-      const existingItem = existingItems && existingItems.length > 0 ? existingItems[0] : null;
-  
-      if (existingItem) {
-        // Update quantity
-        // debugLog('ADD', 'Updating existing item', { 
-        //   itemId: existingItem.item_id,
-        //   oldQuantity: existingItem.quantity,
-        //   newQuantity: existingItem.quantity + quantity
-        // });
-
-        const { error: updateError } = await supabase
-          .from('cart_items')
-          .update({ 
-            quantity: existingItem.quantity + quantity,
-            updated_at: new Date().toISOString()
-          })
-          .eq('item_id', existingItem.item_id);
-  
-        if (updateError) {
-          debugLog('ADD', 'Update error', { error: updateError });
-          throw updateError;
-        }
-      } else {
-        // Add new item to cart
-        // debugLog('ADD', 'Adding new item', { cartId, testKitId: product.id, quantity });
-
-        const { error: insertError } = await supabase
-          .from('cart_items')
-          .insert([{
-            cart_id: cartId,
-            test_kit_id: product.id,
-            quantity: quantity
-          }]);
-  
-        if (insertError) {
-          debugLog('ADD', 'Insert error', { error: insertError });
-          throw insertError;
-        }
-      }
-  
-      // Refresh cart
-      // debugLog('ADD', 'Refreshing cart after add');
-      await getOrCreateUserCart();
-      
-      // debugLog('ADD', 'Item added successfully');
-      return { success: true };
-      
-    } catch (error) {
-      console.error('Error adding to cart:', error);
-      setError(error.message);
-      return { success: false, error: error.message };
-    } finally {
-      setLoading(false);
+      if (createError) throw createError;
+      cartId = newCart.cart_id;
     }
-  }, [user, isAuthenticated, authLoading, getOrCreateUserCart]);
+
+    // Check if item already exists
+    const { data: existingItems, error: existingError } = await supabase
+      .from('cart_items')
+      .select('*')
+      .eq('cart_id', cartId)
+      .eq('test_kit_id', product.id);
+
+    if (existingError) {
+      throw existingError;
+    }
+
+    const existingItem = existingItems && existingItems.length > 0 ? existingItems[0] : null;
+
+    if (existingItem) {
+      // Update quantity
+      const { error: updateError } = await supabase
+        .from('cart_items')
+        .update({ 
+          quantity: existingItem.quantity + quantity,
+          updated_at: new Date().toISOString()
+        })
+        .eq('item_id', existingItem.item_id);
+
+      if (updateError) {
+        throw updateError;
+      }
+    } else {
+      // Add new item to cart WITH partner_id
+      const { error: insertError } = await supabase
+        .from('cart_items')
+        .insert([{
+          cart_id: cartId,
+          test_kit_id: product.id,
+          quantity: quantity,
+          partner_id: product.partner_id || null  // ← ADD THIS LINE
+        }]);
+
+      if (insertError) {
+        throw insertError;
+      }
+    }
+
+    // Refresh cart
+    await getOrCreateUserCart();
+    
+    return { success: true };
+    
+  } catch (error) {
+    console.error('Error adding to cart:', error);
+    setError(error.message);
+    return { success: false, error: error.message };
+  } finally {
+    setLoading(false);
+  }
+}, [user, isAuthenticated, authLoading, getOrCreateUserCart]);
 
   const updateCartItemQuantity = useCallback(async (itemId, newQuantity) => {
     if (authLoading || !isAuthenticated || !user) {
@@ -286,7 +262,7 @@ export const CartProvider = ({ children }) => {
     } finally {
       setLoading(false);
     }
-  }, [user, isAuthenticated, authLoading, getOrCreateUserCart]);
+  }, [user, isAuthenticated, authLoading, getOrCreateUserCart, removeFromCart]);
 
   const removeFromCart = useCallback(async (itemId) => {
     if (authLoading || !isAuthenticated || !user) {

@@ -109,12 +109,13 @@ export const getCartItems = async () => {
 };
 
 /**
- * Add item to cart - FIXED VERSION with proper header handling
+ * Add item to cart - FIXED VERSION with proper partner_id support
  * @param {string} testKitId - ID of the test kit to add
  * @param {number} quantity - Quantity to add (default: 1)
+ * @param {string} partnerId - Partner ID for attribution (optional)
  * @returns {Object} { success, error }
  */
-export const addToCart = async (testKitId, quantity = 1) => {
+export const addToCart = async (testKitId, quantity = 1, partnerId = null) => {
   try {
     const { data: { user } } = await supabase.auth.getUser();
     
@@ -122,7 +123,7 @@ export const addToCart = async (testKitId, quantity = 1) => {
       throw new Error('User must be authenticated to add items to cart');
     }
 
-    console.log('Adding item to cart:', { testKitId, quantity });
+    console.log('Adding item to cart:', { testKitId, quantity, partnerId });
 
     // Validate test kit exists and is in stock
     const { data: testKit, error: testKitError } = await supabase
@@ -145,7 +146,7 @@ export const addToCart = async (testKitId, quantity = 1) => {
       throw cartError || new Error('Failed to access cart');
     }
 
-    // FIXED: Check if item already exists - use array query instead of single
+    // Check if item already exists
     const { data: existingItems, error: existingError } = await supabase
       .from('cart_items')
       .select('*')
@@ -179,13 +180,14 @@ export const addToCart = async (testKitId, quantity = 1) => {
         throw updateError;
       }
     } else {
-      // Add new item to cart
+      // Add new item to cart WITH partner_id
       const { error: insertError } = await supabase
         .from('cart_items')
         .insert([{
           cart_id: cart.cart_id,
           test_kit_id: testKitId,
-          quantity: quantity
+          quantity: quantity,
+          partner_id: partnerId  // Partner attribution
         }]);
 
       if (insertError) {
@@ -197,6 +199,58 @@ export const addToCart = async (testKitId, quantity = 1) => {
     return { success: true, error: null };
   } catch (error) {
     console.error('Error adding to cart:', error);
+    return { success: false, error };
+  }
+};
+
+/**
+ * Remove item from cart - FIXED VERSION
+ * @param {string} itemId - Cart item ID
+ * @returns {Object} { success, error }
+ */
+export const removeFromCart = async (itemId) => {
+  try {
+    const { data: { user } } = await supabase.auth.getUser();
+    
+    if (!user) {
+      throw new Error('User must be authenticated');
+    }
+
+    // FIXED: Verify ownership before deletion - use array query
+    const { data: cartItemsData, error: itemError } = await supabase
+      .from('cart_items')
+      .select(`
+        *,
+        carts!inner(user_id)
+      `)
+      .eq('item_id', itemId);
+
+    if (itemError) {
+      throw new Error('Error fetching cart item');
+    }
+
+    if (!cartItemsData || cartItemsData.length === 0) {
+      throw new Error('Cart item not found');
+    }
+
+    const cartItem = cartItemsData[0];
+
+    if (cartItem.carts.user_id !== user.id) {
+      throw new Error('Unauthorized access to cart item');
+    }
+
+    const { error: deleteError } = await supabase
+      .from('cart_items')
+      .delete()
+      .eq('item_id', itemId);
+
+    if (deleteError) {
+      throw deleteError;
+    }
+
+    return { success: true, error: null };
+  } catch (error) {
+    console.error('Error removing from cart:', error);
     return { success: false, error };
   }
 };
@@ -268,57 +322,7 @@ export const updateCartItemQuantity = async (itemId, quantity) => {
   }
 };
 
-/**
- * Remove item from cart - FIXED VERSION
- * @param {string} itemId - Cart item ID
- * @returns {Object} { success, error }
- */
-export const removeFromCart = async (itemId) => {
-  try {
-    const { data: { user } } = await supabase.auth.getUser();
-    
-    if (!user) {
-      throw new Error('User must be authenticated');
-    }
 
-    // FIXED: Verify ownership before deletion - use array query
-    const { data: cartItemsData, error: itemError } = await supabase
-      .from('cart_items')
-      .select(`
-        *,
-        carts!inner(user_id)
-      `)
-      .eq('item_id', itemId);
-
-    if (itemError) {
-      throw new Error('Error fetching cart item');
-    }
-
-    if (!cartItemsData || cartItemsData.length === 0) {
-      throw new Error('Cart item not found');
-    }
-
-    const cartItem = cartItemsData[0];
-
-    if (cartItem.carts.user_id !== user.id) {
-      throw new Error('Unauthorized access to cart item');
-    }
-
-    const { error: deleteError } = await supabase
-      .from('cart_items')
-      .delete()
-      .eq('item_id', itemId);
-
-    if (deleteError) {
-      throw deleteError;
-    }
-
-    return { success: true, error: null };
-  } catch (error) {
-    console.error('Error removing from cart:', error);
-    return { success: false, error };
-  }
-};
 
 /**
  * Get cart summary (total items and total price) - FIXED VERSION

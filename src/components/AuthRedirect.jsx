@@ -2,6 +2,9 @@ import React, { useEffect, useState, useRef } from 'react';
 import { useNavigate, useSearchParams } from 'react-router-dom';
 import { supabase } from '../lib/supabaseClient';
 import { useAuth } from '../contexts/AuthContext';
+import { getPartnerContext } from '../utils/partnerContext';
+import { validatePartnerSlug } from '../utils/partnerHelpers';
+
 
 const AuthRedirect = () => {
   const [searchParams] = useSearchParams();
@@ -22,31 +25,49 @@ const AuthRedirect = () => {
 
   // Helper function to determine redirect path based on user role
   const getRedirectPath = async (user) => {
-    try {
-      // Check for a valid stored return path first
-      const { validateAndGetReturnPath } = await import('../utils/returnPath');
-      const storedPath = await validateAndGetReturnPath(user);
+  try {
+    // PRIORITY 1: Check for partner cookie (survives new tabs)
+    const partnerSlug = getPartnerContext();
+    if (partnerSlug) {
+      console.log('Partner context found in cookie:', partnerSlug);
       
-      if (storedPath) {
-        console.log('Using stored return path:', storedPath);
-        return storedPath;
+      // Validate partner exists and is active
+      const { isValid } = await validatePartnerSlug(partnerSlug);
+      if (isValid) {
+        console.log('Redirecting to partner shop:', partnerSlug);
+        return `/shop/${partnerSlug}`;
+      } else {
+        console.log('Partner slug invalid, clearing context');
+        // Clear invalid partner context
+        const { clearPartnerContext } = await import('../utils/partnerContext');
+        clearPartnerContext();
       }
-      
-      // Fall back to role-based redirection
-      const { data: userRole } = await supabase.rpc('get_user_role', {
-        user_uuid: user.id
-      });
-      
-      console.log('No valid return path, using role-based redirect. User role:', userRole);
-      
-      return (userRole === 'admin' || userRole === 'super_admin') 
-        ? '/admin-dashboard' 
-        : '/dashboard';
-    } catch (error) {
-      console.error('Error determining redirect path:', error);
-      return '/dashboard'; // Default fallback
     }
-  };
+    
+    // PRIORITY 2: Check for a valid stored return path
+    const { validateAndGetReturnPath } = await import('../utils/returnPath');
+    const storedPath = await validateAndGetReturnPath(user);
+    
+    if (storedPath) {
+      console.log('Using stored return path:', storedPath);
+      return storedPath;
+    }
+    
+    // PRIORITY 3: Fall back to role-based redirection
+    const { data: userRole } = await supabase.rpc('get_user_role', {
+      user_uuid: user.id
+    });
+    
+    console.log('No valid return path, using role-based redirect. User role:', userRole);
+    
+    return (userRole === 'admin' || userRole === 'super_admin') 
+      ? '/admin-dashboard' 
+      : '/dashboard';
+  } catch (error) {
+    console.error('Error determining redirect path:', error);
+    return '/dashboard'; // Default fallback
+  }
+};
 
   // Helper function to handle pending newsletter signups for OAuth users
   const handlePendingNewsletterSignup = async (user) => {

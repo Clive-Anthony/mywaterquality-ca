@@ -40,6 +40,9 @@ import PfasBlogPage from './pages/PfasBlogPage';
 import LeadBlogPage from './pages/LeadBlogPage';
 import ArsenicBlogPage from './pages/ArsenicBlogPage';
 import { useEffect } from 'react';
+import PartnerShopPage from './pages/PartnerShopPage';
+import PartnerPortalPage from './pages/PartnerPortalPage';
+import PartnerProtectedRoute from './components/PartnerProtectedRoute';
 
 export default function App() {
   // Add a state to check if Tailwind is loaded
@@ -124,8 +127,13 @@ export default function App() {
             {/* Public Water Sampling Instructions */}
             <Route path="/sampling-instructions" element={<WaterSamplingInstructionsPage />} />
 
+            {/* Partner shop route - Public */}
+            <Route path="/shop/:partnerSlug" element={<PartnerShopPage />} />
+
+
             {/* Public Blog Index page - Landing page for all blog articles */}
             <Route path="/blog" element={<BlogIndexPage />} />
+
 
             {/* Individual Blog Articles */}
             <Route path="/blog/pfas-in-canadian-water" element={<PfasBlogPage />} />
@@ -249,6 +257,16 @@ export default function App() {
                 <AdminProtectedRoute>
                   <AdminPage />
                 </AdminProtectedRoute>
+              } 
+            />
+
+            {/* Partner portal route - Protected */}
+            <Route 
+              path="/partner-portal" 
+              element={
+                <PartnerProtectedRoute>
+                  <PartnerPortalPage />
+                </PartnerProtectedRoute>
               } 
             />
             

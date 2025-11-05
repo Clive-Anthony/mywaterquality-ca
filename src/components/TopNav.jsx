@@ -21,6 +21,7 @@ export default function TopNav() {
   const learnDropdownRef = useRef(null);
   const mobileMenuRef = useRef(null);
   const [userRole, setUserRole] = useState(null);
+  const [isPartnerUser, setIsPartnerUser] = useState(false);
   
   // IMPROVEMENT: Stable cart items ordering to prevent jumping
   const stableCartItems = useMemo(() => {
@@ -80,24 +81,33 @@ export default function TopNav() {
   // In src/components/TopNav.jsx, replace the existing useEffect for fetching user role:
 
 useEffect(() => {
-  const fetchUserRole = async () => {
-    if (!user || !isReady) { // Add isReady check
+  const fetchUserRoleAndPartnerStatus = async () => {
+    if (!user || !isReady) {
       setUserRole(null);
+      setIsPartnerUser(false);
       return;
     }
     
     try {
-      const { data } = await supabase.rpc('get_user_role', {
+      // Fetch user role
+      const { data: role } = await supabase.rpc('get_user_role', {
         user_uuid: user.id
       });
-      setUserRole(data);
+      setUserRole(role);
+
+      // Check if user has partner associations
+      const { data: partnerAssociations } = await supabase
+        .rpc('get_user_partner_ids', { user_uuid: user.id });
+      
+      setIsPartnerUser(partnerAssociations && partnerAssociations.length > 0);
     } catch (error) {
-      console.error('Error fetching user role:', error);
-      setUserRole('user'); // Default to regular user
+      console.error('Error fetching user role and partner status:', error);
+      setUserRole('user');
+      setIsPartnerUser(false);
     }
   };
 
-  fetchUserRole();
+  fetchUserRoleAndPartnerStatus();
 }, [user, isReady]); 
 
 // Add this useEffect after the existing useEffects, around line 70-80
@@ -308,7 +318,19 @@ useEffect(() => {
               >
                 Dashboard
               </Link>
-)}
+            )}
+
+
+            {/* Partner Portal - Only show for partner users */}
+            {user && isPartnerUser && (
+              <Link 
+                to="/partner-portal" 
+                className={getLinkClassName('/partner-portal', true)}
+              >
+                Partner Portal
+              </Link>
+            )}
+
             {/* Learn Dropdown - Always visible */}
             <div className="relative" ref={learnDropdownRef}>
               <button
@@ -736,6 +758,18 @@ useEffect(() => {
                     )}
                   >
                     Dashboard
+                  </Link>
+                )}
+
+
+                {/* Partner Portal - Only show for partner users */}
+                {user && isPartnerUser && (
+                  <Link
+                    to="/partner-portal"
+                    onClick={() => handleMobileMenuClick()}
+                    className={getMobileLinkClassName('/partner-portal')}
+                  >
+                    Partner Portal
                   </Link>
                 )}
 

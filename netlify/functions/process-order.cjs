@@ -1008,7 +1008,8 @@ async function createOrderWithRetry(supabaseAdmin, orderData, user, requestId, m
           unit_price: Number(item.unit_price),
           total_price: Number(item.quantity) * Number(item.unit_price),
           product_name: item.product_name,
-          product_description: item.product_description || null
+          product_description: item.product_description || null,
+          partner_id: item.partner_id || null
         }));
 
         const { error: itemsError } = await withFunctionTimeout(
