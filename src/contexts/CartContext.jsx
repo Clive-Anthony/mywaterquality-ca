@@ -228,6 +228,35 @@ export const CartProvider = ({ children }) => {
   }
 }, [user, isAuthenticated, authLoading, getOrCreateUserCart]);
 
+const removeFromCart = useCallback(async (itemId) => {
+    if (authLoading || !isAuthenticated || !user) {
+      return;
+    }
+
+    try {
+      setLoading(true);
+      setError(null);
+
+      // debugLog('REMOVE', 'Removing item', { itemId });
+
+      const { error: deleteError } = await supabase
+        .from('cart_items')
+        .delete()
+        .eq('item_id', itemId);
+
+      if (deleteError) throw deleteError;
+
+      // Refresh cart
+      await getOrCreateUserCart();
+      
+    } catch (error) {
+      console.error('Error removing from cart:', error);
+      setError(error.message);
+    } finally {
+      setLoading(false);
+    }
+  }, [user, isAuthenticated, authLoading, getOrCreateUserCart]);
+
   const updateCartItemQuantity = useCallback(async (itemId, newQuantity) => {
     if (authLoading || !isAuthenticated || !user) {
       return;
@@ -264,34 +293,6 @@ export const CartProvider = ({ children }) => {
     }
   }, [user, isAuthenticated, authLoading, getOrCreateUserCart, removeFromCart]);
 
-  const removeFromCart = useCallback(async (itemId) => {
-    if (authLoading || !isAuthenticated || !user) {
-      return;
-    }
-
-    try {
-      setLoading(true);
-      setError(null);
-
-      // debugLog('REMOVE', 'Removing item', { itemId });
-
-      const { error: deleteError } = await supabase
-        .from('cart_items')
-        .delete()
-        .eq('item_id', itemId);
-
-      if (deleteError) throw deleteError;
-
-      // Refresh cart
-      await getOrCreateUserCart();
-      
-    } catch (error) {
-      console.error('Error removing from cart:', error);
-      setError(error.message);
-    } finally {
-      setLoading(false);
-    }
-  }, [user, isAuthenticated, authLoading, getOrCreateUserCart]);
 
   const clearCart = useCallback(async () => {
     if (authLoading || !isAuthenticated || !user) {

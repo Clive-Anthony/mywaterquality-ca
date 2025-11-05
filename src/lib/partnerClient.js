@@ -79,30 +79,21 @@ export const getUserPartnerAssociations = async (userId) => {
  */
 export const getPartnerOrderSummary = async (partnerId, filters = {}) => {
   try {
-    let query = supabase
-      .from('partner_order_summary')
-      .select('*')
-      .eq('partner_id', partnerId)
-      .order('order_date', { ascending: false });
-
-    // Apply date filters if provided
-    if (filters.startDate) {
-      query = query.gte('order_date', filters.startDate);
-    }
-    if (filters.endDate) {
-      query = query.lte('order_date', filters.endDate);
-    }
-
-    const { data, error } = await query;
+    // Use RPC function - bypasses RLS completely
+    const { data, error } = await supabase.rpc('get_partner_orders', {
+      p_partner_id: partnerId,
+      p_start_date: filters.startDate || null,
+      p_end_date: filters.endDate || null
+    });
 
     if (error) {
-      console.error('Error fetching partner order summary:', error);
+      console.error('Error fetching partner orders:', error);
       return { orders: [], error };
     }
 
     return { orders: data || [], error: null };
   } catch (error) {
-    console.error('Exception fetching partner order summary:', error);
+    console.error('Exception fetching partner orders:', error);
     return { orders: [], error };
   }
 };

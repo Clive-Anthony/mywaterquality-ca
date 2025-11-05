@@ -117,16 +117,48 @@ export default function PartnerPortalPage() {
     return new Date().toISOString().split('T')[0];
   };
 
-  // Hero section
-  const PortalHero = () => (
-    <div className="relative bg-gradient-to-r from-purple-600 to-purple-800 py-16">
+  const PortalHero = () => {
+  // Convert hex to RGB for gradient
+  const hexToRgb = (hex) => {
+    const result = /^#?([a-f\d]{2})([a-f\d]{2})([a-f\d]{2})$/i.exec(hex);
+    return result ? {
+      r: parseInt(result[1], 16),
+      g: parseInt(result[2], 16),
+      b: parseInt(result[3], 16)
+    } : null;
+  };
+
+  const getGradientStyle = () => {
+    if (!partner?.primary_color) {
+      return 'from-purple-600 to-purple-800'; // Default gradient classes
+    }
+
+    const rgb = hexToRgb(partner.primary_color);
+    if (!rgb) {
+      return 'from-purple-600 to-purple-800'; // Fallback
+    }
+
+    // Create gradient using inline styles instead of Tailwind classes
+    return {
+      background: `linear-gradient(to right, rgb(${rgb.r}, ${rgb.g}, ${rgb.b}), rgb(${Math.max(0, rgb.r - 40)}, ${Math.max(0, rgb.g - 40)}, ${Math.max(0, rgb.b - 40)}))`
+    };
+  };
+
+  const gradientStyle = getGradientStyle();
+  const isCustomColor = typeof gradientStyle === 'object';
+
+  return (
+    <div 
+      className={`relative py-16 ${!isCustomColor ? gradientStyle : ''}`}
+      style={isCustomColor ? gradientStyle : undefined}
+    >
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
         <div className="text-center">
           <h1 className="text-4xl font-bold text-white sm:text-5xl">
             Partner Portal
           </h1>
           {partner && (
-            <p className="mt-4 text-xl text-purple-100 max-w-3xl mx-auto">
+            <p className="mt-4 text-xl text-white opacity-90 max-w-3xl mx-auto">
               Welcome, {partner.partner_name}
             </p>
           )}
@@ -134,6 +166,7 @@ export default function PartnerPortalPage() {
       </div>
     </div>
   );
+};
 
   if (loading) {
     return (
@@ -205,6 +238,72 @@ export default function PartnerPortalPage() {
           </div>
         </div>
 
+        {/* Shop Link Banner - ADD THIS BEFORE STATS */}
+<div className="mb-8 bg-gradient-to-r from-blue-50 to-blue-100 border border-blue-200 rounded-lg p-6">
+  <div className="flex items-center justify-between">
+    <div>
+      <h3 className="text-lg font-semibold text-gray-900 mb-1">
+        Your Partner Shop
+      </h3>
+      <p className="text-gray-600">
+        Share this link with your customers to earn commissions on water test kit purchases
+      </p>
+      <div className="mt-3 flex items-center space-x-2">
+        <code className="px-3 py-1 bg-white border border-gray-300 rounded text-sm text-gray-700">
+          {window.location.origin}/shop/{partner.partner_slug}
+        </code>
+        <button
+          onClick={() => {
+            navigator.clipboard.writeText(`${window.location.origin}/shop/${partner.partner_slug}`);
+            alert('Shop link copied to clipboard!');
+          }}
+          className="text-blue-600 hover:text-blue-800 text-sm font-medium"
+        >
+          Copy Link
+        </button>
+      </div>
+    </div>
+    <a
+      href={`/shop/${partner.partner_slug}`}
+      target="_blank"
+      rel="noopener noreferrer"
+      style={{ 
+        backgroundColor: partner.primary_color || '#9333ea',
+        color: 'white'
+      }}
+      className="inline-flex items-center px-6 py-3 rounded-lg font-medium hover:opacity-90 transition-opacity duration-200 shadow-md"
+    >
+      <svg 
+        className="h-5 w-5 mr-2" 
+        fill="none" 
+        viewBox="0 0 24 24" 
+        stroke="currentColor"
+      >
+        <path 
+          strokeLinecap="round" 
+          strokeLinejoin="round" 
+          strokeWidth="2" 
+          d="M16 11V7a4 4 0 00-8 0v4M5 9h14l1 12H4L5 9z" 
+        />
+      </svg>
+      Visit Your Shop
+      <svg 
+        className="h-4 w-4 ml-2" 
+        fill="none" 
+        viewBox="0 0 24 24" 
+        stroke="currentColor"
+      >
+        <path 
+          strokeLinecap="round" 
+          strokeLinejoin="round" 
+          strokeWidth="2" 
+          d="M10 6H6a2 2 0 00-2 2v10a2 2 0 002 2h10a2 2 0 002-2v-4M14 4h6m0 0v6m0-6L10 14" 
+        />
+      </svg>
+    </a>
+  </div>
+</div>
+
         {/* Stats Section */}
         <div className="mb-8">
           <h2 className="text-xl font-bold text-gray-900 mb-4">Performance Overview</h2>
@@ -253,19 +352,23 @@ export default function PartnerPortalPage() {
             </div>
             <div className="flex items-end gap-2">
               <button
-                onClick={refreshOrders}
-                disabled={ordersLoading}
-                className="px-4 py-2 border border-gray-300 text-gray-700 rounded-md hover:bg-gray-50 font-medium transition-colors duration-200 disabled:opacity-50"
-              >
-                {ordersLoading ? 'Refreshing...' : 'Refresh'}
-              </button>
+  onClick={refreshOrders}
+  disabled={ordersLoading}
+  style={{ borderColor: partner?.primary_color || '#d1d5db' }}
+  className="px-4 py-2 border text-gray-700 rounded-md hover:bg-gray-50 font-medium transition-colors duration-200 disabled:opacity-50"
+>
+  {ordersLoading ? 'Refreshing...' : 'Refresh'}
+</button>
               <button
-                onClick={exportToCSV}
-                disabled={orders.length === 0}
-                className="px-4 py-2 bg-purple-600 text-white rounded-md hover:bg-purple-700 font-medium transition-colors duration-200 disabled:opacity-50 disabled:cursor-not-allowed"
-              >
-                Export CSV
-              </button>
+  onClick={exportToCSV}
+  disabled={orders.length === 0}
+  style={{
+    backgroundColor: partner?.primary_color || '#9333ea'
+  }}
+  className="px-4 py-2 text-white rounded-md hover:opacity-90 font-medium transition-opacity duration-200 disabled:opacity-50 disabled:cursor-not-allowed"
+>
+  Export CSV
+</button>
             </div>
           </div>
         </div>
@@ -287,7 +390,12 @@ export default function PartnerPortalPage() {
           <h2 className="text-xl font-bold text-gray-900 mb-4">Order Details</h2>
           {ordersLoading ? (
             <div className="flex justify-center items-center py-8">
-              <div className="animate-spin rounded-full h-8 w-8 border-t-2 border-b-2 border-purple-500"></div>
+              <div 
+                className="animate-spin rounded-full h-12 w-12 border-t-2 border-b-2"
+                style={{
+                    borderColor: partner?.primary_color || '#9333ea'
+                }}
+                ></div>
             </div>
           ) : (
             <PartnerOrdersTable orders={orders} partner={partner} />
