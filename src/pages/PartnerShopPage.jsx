@@ -218,7 +218,7 @@ export default function PartnerShopPage() {
               <p className="text-blue-800">
                 <button
                   onClick={() => {
-                    storeReturnPath(`/shop/${partnerSlug}`);
+                    storeReturnPath(`/shop/partner/${partnerSlug}`);
                     navigate('/login', { 
                       state: { 
                         message: 'Please log in to add items to your cart and checkout'
@@ -230,7 +230,7 @@ export default function PartnerShopPage() {
                   Log in
                 </button> or <button
                   onClick={() => {
-                    storeReturnPath(`/shop/${partnerSlug}`);
+                    storeReturnPath(`/shop/partner/${partnerSlug}`);
                     navigate('/signup', { 
                       state: { 
                         message: 'Create an account to add items to your cart and checkout'
@@ -335,7 +335,7 @@ export default function PartnerShopPage() {
                       {product.slug && (
                         <div className="mb-4">
                           <Link 
-                            to={`/shop/${product.slug}`}
+                            to={`/shop/partner/${product.slug}`}
                             className="text-blue-600 hover:text-blue-800 text-sm font-medium underline"
                           >
                             View Details & Parameters →
@@ -406,13 +406,13 @@ export default function PartnerShopPage() {
               
               <div className="flex space-x-3">
                 <button
-                  onClick={() => handleLoginRedirect(`/shop/${partnerSlug}`)}
+                  onClick={() => handleLoginRedirect(`/shop/partner/${partnerSlug}`)}
                   className="flex-1 bg-blue-600 text-white px-4 py-2 rounded-md hover:bg-blue-700 font-medium transition-colors duration-200"
                 >
                   Log In
                 </button>
                 <button
-                  onClick={() => handleSignupRedirect(`/shop/${partnerSlug}`)}
+                  onClick={() => handleSignupRedirect(`/shop/partner/${partnerSlug}`)}
                   className="flex-1 bg-gray-600 text-white px-4 py-2 rounded-md hover:bg-gray-700 font-medium transition-colors duration-200"
                 >
                   Sign Up

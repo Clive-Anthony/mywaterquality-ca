@@ -44,7 +44,7 @@ export const usePartnerContext = (currentPartnerSlug = null) => {
     // 3. Not already on a partner shop page
     if (cookiePartnerSlug && location.pathname === '/shop') {
       console.log('Redirecting to partner shop:', cookiePartnerSlug);
-      navigate(`/shop/${cookiePartnerSlug}`, { replace: true });
+      navigate(`/shop/partner/${cookiePartnerSlug}`, { replace: true });
     }
   }, [location.pathname, navigate]);
 

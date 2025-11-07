@@ -250,11 +250,11 @@ export default function PartnerPortalPage() {
       </p>
       <div className="mt-3 flex items-center space-x-2">
         <code className="px-3 py-1 bg-white border border-gray-300 rounded text-sm text-gray-700">
-          {window.location.origin}/shop/{partner.partner_slug}
+          {window.location.origin}/shop/partner/{partner.partner_slug}
         </code>
         <button
           onClick={() => {
-            navigator.clipboard.writeText(`${window.location.origin}/shop/${partner.partner_slug}`);
+            navigator.clipboard.writeText(`${window.location.origin}/shop/partner/${partner.partner_slug}`);
             alert('Shop link copied to clipboard!');
           }}
           className="text-blue-600 hover:text-blue-800 text-sm font-medium"
@@ -264,7 +264,7 @@ export default function PartnerPortalPage() {
       </div>
     </div>
     <a
-      href={`/shop/${partner.partner_slug}`}
+      href={`/shop/partner/${partner.partner_slug}`}
       target="_blank"
       rel="noopener noreferrer"
       style={{ 

@@ -35,7 +35,7 @@ const AuthRedirect = () => {
       const { isValid } = await validatePartnerSlug(partnerSlug);
       if (isValid) {
         console.log('Redirecting to partner shop:', partnerSlug);
-        return `/shop/${partnerSlug}`;
+        return `/shop/partner/${partnerSlug}`;
       } else {
         console.log('Partner slug invalid, clearing context');
         // Clear invalid partner context

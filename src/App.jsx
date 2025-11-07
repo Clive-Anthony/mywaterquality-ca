@@ -100,6 +100,9 @@ export default function App() {
             {/* Public test kits page */}
             <Route path="/shop" element={<TestKitsPage />} />
 
+            {/* Partner shop route - Public */}
+            <Route path="/shop/partner/:partnerSlug" element={<PartnerShopPage />} />
+
             {/* Individual test kit detail pages */}
             <Route path="/shop/:slug" element={<TestKitDetailPage />} />
             
@@ -127,8 +130,7 @@ export default function App() {
             {/* Public Water Sampling Instructions */}
             <Route path="/sampling-instructions" element={<WaterSamplingInstructionsPage />} />
 
-            {/* Partner shop route - Public */}
-            <Route path="/shop/:partnerSlug" element={<PartnerShopPage />} />
+            
 
 
             {/* Public Blog Index page - Landing page for all blog articles */}
