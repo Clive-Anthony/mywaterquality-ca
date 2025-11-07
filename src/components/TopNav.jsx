@@ -6,6 +6,8 @@ import { useCart } from '../contexts/CartContext';
 import { signOut } from '../lib/supabaseClient';
 import { supabase } from '../lib/supabaseClient';
 import { storeReturnPath } from '../utils/returnPath';
+import { getPartnerContext } from '../utils/partnerContext';
+import { getPartnerBySlug } from '../lib/partnerClient';
 
 export default function TopNav() {
   const navigate = useNavigate();
@@ -22,6 +24,7 @@ export default function TopNav() {
   const mobileMenuRef = useRef(null);
   const [userRole, setUserRole] = useState(null);
   const [isPartnerUser, setIsPartnerUser] = useState(false);
+  const [partnerSlug, setPartnerSlug] = useState(null);
   
   // IMPROVEMENT: Stable cart items ordering to prevent jumping
   const stableCartItems = useMemo(() => {
@@ -57,6 +60,21 @@ export default function TopNav() {
       document.removeEventListener('mousedown', handleClickOutside);
     };
   }, []);
+
+  useEffect(() => {
+  const loadPartnerContext = async () => {
+    const slug = getPartnerContext();
+    if (slug) {
+      // Verify partner exists
+      const { partner } = await getPartnerBySlug(slug);
+      if (partner) {
+        setPartnerSlug(slug);
+      }
+    }
+  };
+  
+  loadPartnerContext();
+}, []);
 
   // Close mobile menu when route changes
   useEffect(() => {
@@ -620,10 +638,10 @@ useEffect(() => {
                           </button>
                           
                           <Link
-                            to="/shop"
-                            onClick={() => setShowCartDropdown(false)}
-                            className="block w-full text-center text-blue-600 hover:text-blue-800 text-sm py-1"
-                          >
+  to={partnerSlug ? `/shop/partner/${partnerSlug}` : '/shop'}
+  onClick={() => setShowCartDropdown(false)}
+  className="block w-full text-center text-blue-600 hover:text-blue-800 text-sm py-1"
+>
                             Continue Shopping
                           </Link>
                         </div>

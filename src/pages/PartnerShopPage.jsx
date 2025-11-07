@@ -280,6 +280,11 @@ export default function PartnerShopPage() {
                     key={product.test_kit_id} 
                     className="bg-white rounded-lg shadow-md overflow-hidden hover:shadow-lg transition-shadow duration-300 flex flex-col h-full"
                   >
+
+                    <Link 
+          to={`/shop/${product.slug}`}
+          className="block p-2 pb-2 flex-1 hover:bg-gray-50 transition-colors duration-200"
+        >
                     {/* Card Header */}
                     <div className="p-6 pb-4">
                       <div className="mb-4">
@@ -328,14 +333,14 @@ export default function PartnerShopPage() {
                         </div>
                       )}
                     </div>
-
+                    </Link>
                     {/* Card Footer */}
                     <div className="px-6 pb-6 mt-auto">
                       {/* View Details Link */}
                       {product.slug && (
                         <div className="mb-4">
                           <Link 
-                            to={`/shop/partner/${product.slug}`}
+                            to={`/shop/${product.slug}`}
                             className="text-blue-600 hover:text-blue-800 text-sm font-medium underline"
                           >
                             View Details & Parameters →

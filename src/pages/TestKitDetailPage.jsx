@@ -5,6 +5,8 @@ import PageLayout from '../components/PageLayout';
 import QuantitySelector from '../components/QuantitySelector';
 import { useCartActions } from '../hooks/useCartActions';
 import { useShopPageTracking } from '../hooks/useGTM';
+import { getPartnerContext } from '../utils/partnerContext';
+import { getPartnerBySlug } from '../lib/partnerClient';
 import {
   getTestKitBySlug,
   getTestKitParameters,
@@ -31,6 +33,7 @@ export default function TestKitDetailPage() {
   const [quantity, setQuantity] = useState(1);
   const [showAllParameters, setShowAllParameters] = useState(false);
   const [imageError, setImageError] = useState(false);
+  const [partnerInfo, setPartnerInfo] = useState(null);
 
   // Cart actions
   const {
@@ -59,6 +62,18 @@ export default function TestKitDetailPage() {
       price: testKit.price
     } : null
   );
+
+  useEffect(() => {
+  const loadPartnerContext = async () => {
+    const partnerSlug = getPartnerContext();
+    if (partnerSlug) {
+      const { partner } = await getPartnerBySlug(partnerSlug);
+      setPartnerInfo(partner);
+    }
+  };
+  
+  loadPartnerContext();
+}, []);
 
   // Fetch test kit data
   useEffect(() => {
@@ -116,18 +131,25 @@ export default function TestKitDetailPage() {
     setImageError(true);
   };
 
-  // Handle add to cart
-  const onAddToCart = async () => {
-    if (!testKit) return;
-    
-    clearError();
-    const success = await handleAddToCart(testKit, quantity);
-    
-    if (success) {
-      // Reset quantity to 1 after successful add
-      setQuantity(1);
-    }
+  // Find this function and replace it:
+const onAddToCart = async () => {
+  if (!testKit) return;
+  
+  clearError();
+  
+  // Create product data with partner attribution
+  const productData = {
+    ...testKit,
+    partner_id: partnerInfo?.partner_id || null
   };
+  
+  const success = await handleAddToCart(productData, quantity);
+  
+  if (success) {
+    // Reset quantity to 1 after successful add
+    setQuantity(1);
+  }
+};
 
   // Format description with fallback
   const getDescription = () => {
@@ -244,10 +266,13 @@ export default function TestKitDetailPage() {
               </svg>
             </li>
             <li>
-              <Link to="/shop" className="text-gray-500 hover:text-gray-700">
-                Shop
-              </Link>
-            </li>
+  <Link 
+    to={partnerInfo ? `/shop/partner/${partnerInfo.partner_slug}` : '/shop'} 
+    className="text-gray-500 hover:text-gray-700"
+  >
+    {partnerInfo ? `${partnerInfo.partner_name} Shop` : 'Shop'}
+  </Link>
+</li>
             <li>
               <svg className="h-4 w-4 text-gray-400" fill="currentColor" viewBox="0 0 20 20">
                 <path fillRule="evenodd" d="M7.293 14.707a1 1 0 010-1.414L10.586 10 7.293 6.707a1 1 0 011.414-1.414l4 4a1 1 0 010 1.414l-4 4a1 1 0 01-1.414 0z" clipRule="evenodd" />
