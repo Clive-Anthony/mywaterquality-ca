@@ -591,7 +591,8 @@ export default function CheckoutPage() {
         quantity: item.quantity,
         unit_price: item.test_kits.price,
         product_name: item.test_kits.name,
-        product_description: item.test_kits.description
+        product_description: item.test_kits.description,
+        partner_id: item.partner_id || null 
       }))
     };
 
