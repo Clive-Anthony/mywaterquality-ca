@@ -317,61 +317,87 @@ export default function PartnerPortalPage() {
         </div>
 
         {/* Filters Section */}
-        <div className="mb-8 bg-white shadow rounded-lg p-6">
-          <div className="flex flex-col sm:flex-row sm:items-center sm:justify-between gap-4">
-            <div className="flex-1">
-              <h3 className="text-lg font-medium text-gray-900 mb-4">Filter Orders</h3>
-              <div className="flex flex-col sm:flex-row gap-4">
-                <div className="flex-1">
-                  <label htmlFor="start-date" className="block text-sm font-medium text-gray-700 mb-1">
-                    Start Date
-                  </label>
-                  <input
-                    type="date"
-                    id="start-date"
-                    value={filters.startDate}
-                    max={getMaxDate()}
-                    onChange={(e) => handleDateChange('startDate', e.target.value)}
-                    className="w-full px-3 py-2 border border-gray-300 rounded-md focus:ring-purple-500 focus:border-purple-500"
-                  />
-                </div>
-                <div className="flex-1">
-                  <label htmlFor="end-date" className="block text-sm font-medium text-gray-700 mb-1">
-                    End Date
-                  </label>
-                  <input
-                    type="date"
-                    id="end-date"
-                    value={filters.endDate}
-                    max={getMaxDate()}
-                    onChange={(e) => handleDateChange('endDate', e.target.value)}
-                    className="w-full px-3 py-2 border border-gray-300 rounded-md focus:ring-purple-500 focus:border-purple-500"
-                  />
-                </div>
-              </div>
-            </div>
-            <div className="flex items-end gap-2">
-              <button
-  onClick={refreshOrders}
-  disabled={ordersLoading}
-  style={{ borderColor: partner?.primary_color || '#d1d5db' }}
-  className="px-4 py-2 border text-gray-700 rounded-md hover:bg-gray-50 font-medium transition-colors duration-200 disabled:opacity-50"
->
-  {ordersLoading ? 'Refreshing...' : 'Refresh'}
-</button>
-              <button
-  onClick={exportToCSV}
-  disabled={orders.length === 0}
-  style={{
-    backgroundColor: partner?.primary_color || '#9333ea'
-  }}
-  className="px-4 py-2 text-white rounded-md hover:opacity-90 font-medium transition-opacity duration-200 disabled:opacity-50 disabled:cursor-not-allowed"
->
-  Export CSV
-</button>
-            </div>
-          </div>
-        </div>
+<div className="mb-8 bg-white shadow rounded-lg p-6">
+  <h3 className="text-lg font-medium text-gray-900 mb-4">Filter Orders</h3>
+  
+  <div className="space-y-4">
+    {/* Date Filters - Always Full Width */}
+    <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
+      <div>
+        <label htmlFor="start-date" className="block text-sm font-medium text-gray-700 mb-1">
+          Start Date
+        </label>
+        <input
+          type="date"
+          id="start-date"
+          value={filters.startDate}
+          max={getMaxDate()}
+          onChange={(e) => handleDateChange('startDate', e.target.value)}
+          className="w-full px-3 py-2 border border-gray-300 rounded-md focus:ring-purple-500 focus:border-purple-500"
+        />
+      </div>
+      <div>
+        <label htmlFor="end-date" className="block text-sm font-medium text-gray-700 mb-1">
+          End Date
+        </label>
+        <input
+          type="date"
+          id="end-date"
+          value={filters.endDate}
+          max={getMaxDate()}
+          onChange={(e) => handleDateChange('endDate', e.target.value)}
+          className="w-full px-3 py-2 border border-gray-300 rounded-md focus:ring-purple-500 focus:border-purple-500"
+        />
+      </div>
+    </div>
+    
+    {/* Action Buttons - Full Width on Mobile, Side by Side on Desktop */}
+    <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+      <button
+        onClick={refreshOrders}
+        disabled={ordersLoading}
+        className="inline-flex items-center justify-center px-4 py-2 border border-gray-300 text-gray-700 rounded-md hover:bg-gray-50 font-medium transition-colors duration-200 disabled:opacity-50 disabled:cursor-not-allowed"
+      >
+        <svg 
+          className={`h-4 w-4 mr-2 ${ordersLoading ? 'animate-spin' : ''}`} 
+          fill="none" 
+          viewBox="0 0 24 24" 
+          stroke="currentColor"
+        >
+          <path 
+            strokeLinecap="round" 
+            strokeLinejoin="round" 
+            strokeWidth="2" 
+            d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" 
+          />
+        </svg>
+        {ordersLoading ? 'Refreshing...' : 'Refresh'}
+      </button>
+      
+      <button
+        onClick={exportToCSV}
+        disabled={orders.length === 0}
+        style={{ backgroundColor: partner?.primary_color || '#9333ea' }}
+        className="inline-flex items-center justify-center px-4 py-2 text-white rounded-md hover:opacity-90 font-medium transition-opacity duration-200 disabled:opacity-50 disabled:cursor-not-allowed"
+      >
+        <svg 
+          className="h-4 w-4 mr-2" 
+          fill="none" 
+          viewBox="0 0 24 24" 
+          stroke="currentColor"
+        >
+          <path 
+            strokeLinecap="round" 
+            strokeLinejoin="round" 
+            strokeWidth="2" 
+            d="M12 10v6m0 0l-3-3m3 3l3-3m2 8H7a2 2 0 01-2-2V5a2 2 0 012-2h5.586a1 1 0 01.707.293l5.414 5.414a1 1 0 01.293.707V19a2 2 0 01-2 2z" 
+          />
+        </svg>
+        Export CSV
+      </button>
+    </div>
+  </div>
+</div>
 
         {/* Orders Error */}
         {ordersError && (

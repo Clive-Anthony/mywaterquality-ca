@@ -158,7 +158,7 @@ export default function PartnerShopPage() {
   return (
     <PageLayout hero={<PartnerShopHero />}>
       {/* Partner Header */}
-      <PartnerHeader partner={partner} />
+      {/* <PartnerHeader partner={partner} /> */}
 
       <div className="max-w-7xl mx-auto py-12 px-4 sm:px-6 lg:px-8">
         

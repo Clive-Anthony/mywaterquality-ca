@@ -26,6 +26,7 @@ export default function TopNav() {
   const [userRole, setUserRole] = useState(null);
   const [isPartnerUser, setIsPartnerUser] = useState(false);
   const [partnerSlug, setPartnerSlug] = useState(null);
+  const [partnerInfo, setPartnerInfo] = useState(null);
   
   // IMPROVEMENT: Stable cart items ordering to prevent jumping
   const stableCartItems = useMemo(() => {
@@ -76,6 +77,26 @@ export default function TopNav() {
   
   loadPartnerContext();
 }, []);
+
+// Load partner info when partner context exists
+useEffect(() => {
+  const loadPartnerInfo = async () => {
+    if (partnerSlug) {
+      try {
+        const { partner } = await getPartnerBySlug(partnerSlug);
+        if (partner) {
+          setPartnerInfo(partner);
+        }
+      } catch (error) {
+        console.error('Error loading partner info:', error);
+      }
+    } else {
+      setPartnerInfo(null);
+    }
+  };
+
+  loadPartnerInfo();
+}, [partnerSlug]);
 
   // Close mobile menu when route changes
   useEffect(() => {
@@ -297,16 +318,43 @@ useEffect(() => {
     <header className="bg-white shadow-sm sticky top-0 z-50">
       <div className="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
         <div className="flex justify-between items-center h-16">
-          {/* Logo */}
-          <div className="flex items-center">
-            <Link to="/" className="flex items-center">
-              <img 
-                src="/MWQ-logo-final.png" 
-                alt="My Water Quality Logo" 
-                className="h-8 w-auto sm:h-10"
-              />
-            </Link>
-          </div>
+          {/* Logo Section */}
+<div className="flex items-center">
+  {partnerSlug && partnerInfo ? (
+    // Partner context: Show both logos side-by-side
+    <Link to={`/shop/partner/${partnerSlug}`} className="flex items-center gap-3">
+      {/* Partner Logo */}
+      {partnerInfo.logo_url && (
+        <img 
+          src={partnerInfo.logo_url} 
+          alt={`${partnerInfo.partner_name} Logo`}
+          className="h-8 w-auto sm:h-10 object-contain"
+        />
+      )}
+      
+      {/* "in partnership with" text - hidden on small screens */}
+      <div className="hidden sm:flex items-center gap-2 text-xs text-gray-500">
+        <span>in partnership with</span>
+      </div>
+      
+      {/* MWQ Logo */}
+      <img 
+        src="/MWQ-logo-final.png" 
+        alt="My Water Quality Logo" 
+        className="h-6 w-auto sm:h-8 object-contain"
+      />
+    </Link>
+  ) : (
+    // No partner context: Show only MWQ logo
+    <Link to="/" className="flex items-center">
+      <img 
+        src="/MWQ-logo-final.png" 
+        alt="My Water Quality Logo" 
+        className="h-8 w-auto sm:h-10"
+      />
+    </Link>
+  )}
+</div>
           
           {/* Desktop Navigation Links - Hidden on mobile */}
           <div className="hidden lg:flex items-center space-x-4 ml-6">

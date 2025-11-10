@@ -109,41 +109,58 @@ export const getPartnerStats = async (partnerId, filters = {}) => {
     const { orders, error } = await getPartnerOrderSummary(partnerId, filters);
 
     if (error) {
-      return { stats: null, error };
+      return { stats: getEmptyStats(), error };
+    }
+
+    if (!orders || orders.length === 0) {
+      return { stats: getEmptyStats(), error: null };
     }
 
     // Aggregate statistics
-    const stats = {
-      totalOrders: 0,
-      totalRevenue: 0,
-      totalCommission: 0,
-      totalItemsSold: 0,
-      uniqueOrderCount: new Set(),
-    };
+    const uniqueOrderIds = new Set();
+    let totalRevenue = 0;
+    let totalCommission = 0;
+    let totalItemsSold = 0;
 
     orders.forEach(order => {
-      stats.uniqueOrderCount.add(order.order_date); // Simplified - should use order ID
-      stats.totalRevenue += parseFloat(order.total_revenue) || 0;
-      stats.totalCommission += parseFloat(order.commission_earned) || 0;
-      stats.totalItemsSold += parseInt(order.total_items_sold) || 0;
+      // Count unique orders
+      uniqueOrderIds.add(order.order_id);
+      
+      // Sum revenue
+      totalRevenue += Number(order.product_revenue) || 0;
+      
+      // Sum commission
+      totalCommission += Number(order.commission_earned) || 0;
+      
+      // Sum items sold
+      totalItemsSold += Number(order.product_quantity_sold) || 0;
     });
-
-    stats.totalOrders = orders.length;
 
     return { 
       stats: {
-        totalOrders: stats.totalOrders,
-        totalRevenue: stats.totalRevenue,
-        totalCommission: stats.totalCommission,
-        totalItemsSold: stats.totalItemsSold,
+        totalOrders: uniqueOrderIds.size, // ← Count of unique order IDs
+        totalRevenue: totalRevenue,
+        totalCommission: totalCommission,
+        totalItemsSold: totalItemsSold,
       }, 
       error: null 
     };
   } catch (error) {
     console.error('Exception calculating partner stats:', error);
-    return { stats: null, error };
+    return { stats: getEmptyStats(), error };
   }
 };
+
+/**
+ * Get empty stats object
+ * @returns {Object} Empty stats
+ */
+const getEmptyStats = () => ({
+  totalOrders: 0,
+  totalRevenue: 0,
+  totalCommission: 0,
+  totalItemsSold: 0,
+});
 
 export default {
   getPartnerBySlug,

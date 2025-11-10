@@ -3,7 +3,7 @@ import  { useState } from 'react';
 /**
  * Partner orders table component (PII-free)
  */
-export default function PartnerOrdersTable({ orders, partner }) {
+export default function PartnerOrdersTable({ orders}) {
   const [sortField, setSortField] = useState('order_date');
   const [sortDirection, setSortDirection] = useState('desc');
 
@@ -72,7 +72,7 @@ export default function PartnerOrdersTable({ orders, partner }) {
     );
   };
 
-  const hasCommission = partner?.commission_rate && partner.commission_rate > 0;
+  // const hasCommission = partner?.commission_rate && partner.commission_rate > 0;
 
   if (orders.length === 0) {
     return (
@@ -139,18 +139,6 @@ export default function PartnerOrdersTable({ orders, partner }) {
                   <SortIcon field="product_revenue" />
                 </div>
               </th>
-              {hasCommission && (
-                <th
-                  scope="col"
-                  className="px-6 py-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wider cursor-pointer hover:bg-gray-100"
-                  onClick={() => handleSort('commission_earned')}
-                >
-                  <div className="flex items-center justify-end space-x-1">
-                    <span>Commission</span>
-                    <SortIcon field="commission_earned" />
-                  </div>
-                </th>
-              )}
             </tr>
           </thead>
           <tbody className="bg-white divide-y divide-gray-200">
@@ -168,11 +156,6 @@ export default function PartnerOrdersTable({ orders, partner }) {
                 <td className="px-6 py-4 whitespace-nowrap text-sm text-gray-900 text-right">
                   {formatCurrency(order.product_revenue)}
                 </td>
-                {hasCommission && (
-                  <td className="px-6 py-4 whitespace-nowrap text-sm font-medium text-green-600 text-right">
-                    {formatCurrency(order.commission_earned)}
-                  </td>
-                )}
               </tr>
             ))}
           </tbody>
