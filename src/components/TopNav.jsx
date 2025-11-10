@@ -9,11 +9,12 @@ import { storeReturnPath } from '../utils/returnPath';
 import { getPartnerContext } from '../utils/partnerContext';
 import { getPartnerBySlug } from '../lib/partnerClient';
 
+
 export default function TopNav() {
   const navigate = useNavigate();
   const location = useLocation();
   const { user, isReady } = useAuth();
-  const { cartSummary, cartItems, updateCartItemQuantity, removeFromCart } = useCart();
+  const { cartSummary, cartItems, updateCartItemQuantity, removeFromCart, cartPartnerInfo } = useCart();
   const [loading, setLoading] = useState(false);
   const [showCartDropdown, setShowCartDropdown] = useState(false);
   const [showLearnDropdown, setShowLearnDropdown] = useState(false);
@@ -96,7 +97,7 @@ export default function TopNav() {
     };
   }, [showMobileMenu]);
 
-  // In src/components/TopNav.jsx, replace the existing useEffect for fetching user role:
+
 
 useEffect(() => {
   const fetchUserRoleAndPartnerStatus = async () => {
@@ -250,7 +251,7 @@ useEffect(() => {
   }
 
   if (cartSummary.totalItems === 0) {
-    navigate('/shop');
+    navigate(partnerSlug ? `/shop/partner/${partnerSlug}` : '/shop');
     return;
   }
 
@@ -273,7 +274,7 @@ useEffect(() => {
   }
 
   if (cartSummary.totalItems === 0) {
-    navigate('/shop');
+    navigate(partnerSlug ? `/shop/partner/${partnerSlug}` : '/shop');
     return;
   }
 
@@ -309,13 +310,15 @@ useEffect(() => {
           
           {/* Desktop Navigation Links - Hidden on mobile */}
           <div className="hidden lg:flex items-center space-x-4 ml-6">
-            {/* Test Kits - Always visible */}
-            <Link 
-              to="/shop" 
-              className={getLinkClassName('/shop')}
-            >
-              Shop Test Kits
-            </Link>
+  {/* Test Kits - Use partner context if available */}
+  <Link 
+    to={partnerSlug ? `/shop/partner/${partnerSlug}` : '/shop'}
+    className={getLinkClassName(
+      partnerSlug ? `/shop/partner/${partnerSlug}` : '/shop'
+    )}
+  >
+    Shop Test Kits
+  </Link>
 
             {/* Demo Report - Always visible */}
             {/* <Link 
@@ -489,168 +492,182 @@ useEffect(() => {
           
           {/* Right section */}
           <div className="flex items-center space-x-4">
-            {/* Cart Icon */}
-            <div className="relative">
-              <button
-                onClick={handleCartClick}
-                className="p-2 text-gray-600 hover:text-blue-600 transition-colors duration-200 relative"
-                title={user ? 
-                  (cartSummary.totalItems > 0 ? `Cart (${cartSummary.totalItems} items)` : 'Cart (empty)') :
-                  'Login to view cart'
-                }
-              >
-                <svg className="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                  <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M3 3h2l.4 2M7 13h10l4-8H5.4M7 13L5.4 5M7 13l-2.293 2.293c-.63.63-.184 1.707.707 1.707H17m0 0a2 2 0 100 4 2 2 0 000-4zm-8 2a2 2 0 11-4 0 2 2 0 014 0z" />
-                </svg>
-                
-                {/* Cart Badge */}
-                {user && cartSummary.totalItems > 0 && (
-                  <span className="absolute -top-1 -right-1 bg-blue-600 text-white text-xs rounded-full h-5 w-5 flex items-center justify-center">
-                    {cartSummary.totalItems > 99 ? '99+' : cartSummary.totalItems}
-                  </span>
-                )}
-              </button>
+            {/* Cart Icon and Dropdown */}
+<div className="relative">
+  <button
+    onClick={handleCartClick}
+    className="p-2 text-gray-600 hover:text-blue-600 transition-colors duration-200 relative"
+    title={user ? 
+      (cartSummary.totalItems > 0 ? `Cart (${cartSummary.totalItems} items)` : 'Cart (empty)') :
+      'Login to view cart'
+    }
+  >
+    <svg className="h-6 w-6" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M3 3h2l.4 2M7 13h10l4-8H5.4M7 13L5.4 5M7 13l-2.293 2.293c-.63.63-.184 1.707.707 1.707H17m0 0a2 2 0 100 4 2 2 0 000-4zm-8 2a2 2 0 11-4 0 2 2 0 014 0z" />
+    </svg>
+    
+    {/* Cart Badge */}
+    {user && cartSummary.totalItems > 0 && (
+      <span className="absolute -top-1 -right-1 bg-blue-600 text-white text-xs rounded-full h-5 w-5 flex items-center justify-center">
+        {cartSummary.totalItems > 99 ? '99+' : cartSummary.totalItems}
+      </span>
+    )}
+  </button>
 
-              {/* IMPROVED: Enhanced Cart Dropdown with stable item ordering */}
-              {showCartDropdown && user && (
-                <div className="absolute right-0 mt-2 w-64 sm:right-0 sm:w-96 bg-white rounded-lg shadow-lg border border-gray-200 z-50">
-                  <div className="p-3 sm:p-4">
-                    <div className="flex items-center justify-between mb-4">
-                      <h3 className="text-base sm:text-lg font-medium text-gray-900">Shopping Cart</h3>
-                      <button
-                        onClick={() => setShowCartDropdown(false)}
-                        className="text-gray-400 hover:text-gray-600"
-                      >
-                        <svg className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M6 18L18 6M6 6l12 12" />
-                        </svg>
-                      </button>
-                    </div>
+  {/* Cart Dropdown */}
+  {showCartDropdown && user && (
+    <div className="absolute right-0 mt-2 w-64 sm:right-0 sm:w-96 bg-white rounded-lg shadow-lg border border-gray-200 z-50">
+      <div className="p-3 sm:p-4">
+        <div className="flex items-center justify-between mb-4">
+          <h3 className="text-base sm:text-lg font-medium text-gray-900">Shopping Cart</h3>
+          <button
+            onClick={() => setShowCartDropdown(false)}
+            className="text-gray-400 hover:text-gray-600"
+          >
+            <svg className="h-5 w-5" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M6 18L18 6M6 6l12 12" />
+            </svg>
+          </button>
+        </div>
 
-                    {stableCartItems.length === 0 ? (
-                      <div className="text-center py-6">
-                        <svg className="h-12 w-12 text-gray-300 mx-auto mb-3" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                          <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="1" d="M3 3h2l.4 2M7 13h10l4-8H5.4M7 13L5.4 5M7 13l-2.293 2.293c-.63.63-.184 1.707.707 1.707H17m0 0a2 2 0 100 4 2 2 0 000-4zm-8 2a2 2 0 11-4 0 2 2 0 014 0z" />
-                        </svg>
-                        <p className="text-gray-500 text-sm mb-3">Your cart is empty</p>
-                        <Link
-                          to="/shop"
-                          onClick={() => setShowCartDropdown(false)}
-                          className="inline-flex items-center px-3 py-2 border border-transparent text-sm font-medium rounded-md text-blue-700 bg-blue-100 hover:bg-blue-200 transition-colors duration-200"
-                        >
-                          Shop Test Kits
-                        </Link>
-                      </div>
-                    ) : (
-                      <>
-                        {/* IMPROVED: Cart Items with stable ordering and smooth transitions */}
-                        <div className="max-h-64 sm:max-h-80 overflow-y-auto">
-                          {stableCartItems.map((item) => {
-                            const isUpdating = updatingItems[item.item_id];
-                            
-                            return (
-                              <div 
-                                key={item.item_id} 
-                                className={`flex items-start py-3 sm:py-4 border-b border-gray-100 last:border-b-0 gap-3 transition-opacity duration-200 ${
-                                  isUpdating ? 'opacity-60' : 'opacity-100'
-                                }`}
-                              >
-                                <div className="flex-1 min-w-0">
-                                  <p className="text-sm font-medium text-gray-900 line-clamp-2 leading-tight">
-                                    {item.test_kits.name}
-                                  </p>
-                                  <p className="text-xs text-gray-500 mt-1">
-                                    {formatPrice(item.test_kits.price)} each
-                                  </p>
-                                  
-                                  {/* Quantity Controls with improved UX */}
-                                  <div className="flex items-center mt-2 space-x-1 sm:space-x-2">
-                                    <button
-                                      onClick={() => handleCartItemUpdate(item.item_id, item.quantity - 1)}
-                                      disabled={isUpdating || item.quantity <= 1}
-                                      className="w-6 h-6 rounded-full border border-gray-300 bg-gray-50 flex items-center justify-center hover:bg-gray-100 disabled:opacity-50 disabled:cursor-not-allowed text-xs transition-colors duration-150"
-                                    >
-                                      −
-                                    </button>
-                                    
-                                    <span className="w-8 text-center text-sm font-medium min-h-[1.25rem] flex items-center justify-center">
-                                      {isUpdating ? (
-                                        <div className="w-3 h-3 border border-gray-400 border-t-transparent rounded-full animate-spin"></div>
-                                      ) : (
-                                        item.quantity
-                                      )}
-                                    </span>
-                                    
-                                    <button
-                                      onClick={() => handleCartItemUpdate(item.item_id, item.quantity + 1)}
-                                      disabled={isUpdating || item.quantity >= item.test_kits.quantity}
-                                      className="w-6 h-6 rounded-full border border-gray-300 bg-gray-50 flex items-center justify-center hover:bg-gray-100 disabled:opacity-50 disabled:cursor-not-allowed text-xs transition-colors duration-150"
-                                    >
-                                      +
-                                    </button>
-                                    
-                                    {/* Remove Button */}
-                                    <button
-                                      onClick={() => handleCartItemRemove(item.item_id)}
-                                      disabled={isUpdating}
-                                      className="ml-1 sm:ml-2 text-red-600 hover:text-red-800 disabled:opacity-50 disabled:cursor-not-allowed transition-colors duration-150"
-                                      title="Remove item"
-                                    >
-                                      <svg className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
-                                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
-                                      </svg>
-                                    </button>
-                                  </div>
-                                  
-                                  {/* Stock Warning */}
-                                  {item.quantity >= item.test_kits.quantity && (
-                                    <p className="text-xs text-orange-600 mt-1">
-                                      Max quantity reached ({item.test_kits.quantity} available)
-                                    </p>
-                                  )}
-                                </div>
-                                
-                                {/* Item Total */}
-                                <div className="text-right flex-shrink-0">
-                                  <p className="text-sm font-medium text-gray-900">
-                                    {formatPrice(item.quantity * item.test_kits.price)}
-                                  </p>
-                                </div>
-                              </div>
-                            );
-                          })}
-                        </div>
-
-                        {/* Cart Summary */}
-                        <div className="mt-3 sm:mt-4 pt-3 sm:pt-4 border-t border-gray-200">
-                          <div className="flex justify-between items-center mb-3">
-                            <span className="text-base font-medium text-gray-900">Total:</span>
-                            <span className="text-lg font-bold text-blue-600">
-                              {formatPrice(cartSummary.totalPrice)}
-                            </span>
-                          </div>
-                          
-                          <button
-                            onClick={handleCheckout}
-                            className="w-full bg-blue-600 text-white py-2 px-4 rounded-md hover:bg-blue-700 font-medium transition-colors duration-200 mb-2 text-sm sm:text-base"
-                          >
-                            Proceed to Checkout ({cartSummary.totalItems} items)
-                          </button>
-                          
-                          <Link
-  to={partnerSlug ? `/shop/partner/${partnerSlug}` : '/shop'}
-  onClick={() => setShowCartDropdown(false)}
-  className="block w-full text-center text-blue-600 hover:text-blue-800 text-sm py-1"
->
-                            Continue Shopping
-                          </Link>
-                        </div>
-                      </>
-                    )}
-                  </div>
-                </div>
-              )}
+        {/* Partner Badge */}
+        {cartPartnerInfo && (
+          <div className="mb-3 p-2 bg-blue-50 border border-blue-200 rounded-md">
+            <div className="flex items-center text-sm">
+              <svg className="h-4 w-4 text-blue-600 mr-2 flex-shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M16 11V7a4 4 0 00-8 0v4M5 9h14l1 12H4L5 9z" />
+              </svg>
+              <span className="text-blue-900 font-medium truncate">
+                {cartPartnerInfo.partnerName} Shop
+              </span>
             </div>
+          </div>
+        )}
+
+        {stableCartItems.length === 0 ? (
+          <div className="text-center py-6">
+            <svg className="h-12 w-12 text-gray-300 mx-auto mb-3" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="1" d="M3 3h2l.4 2M7 13h10l4-8H5.4M7 13L5.4 5M7 13l-2.293 2.293c-.63.63-.184 1.707.707 1.707H17m0 0a2 2 0 100 4 2 2 0 000-4zm-8 2a2 2 0 11-4 0 2 2 0 014 0z" />
+            </svg>
+            <p className="text-gray-500 text-sm mb-3">Your cart is empty</p>
+            <Link
+              to={partnerSlug ? `/shop/partner/${partnerSlug}` : '/shop'}
+              onClick={() => setShowCartDropdown(false)}
+              className="inline-flex items-center px-3 py-2 border border-transparent text-sm font-medium rounded-md text-blue-700 bg-blue-100 hover:bg-blue-200 transition-colors duration-200"
+            >
+              Shop Test Kits
+            </Link>
+          </div>
+        ) : (
+          <>
+            {/* Cart Items */}
+            <div className="max-h-64 sm:max-h-80 overflow-y-auto">
+              {stableCartItems.map((item) => {
+                const isUpdating = updatingItems[item.item_id];
+                
+                return (
+                  <div 
+                    key={item.item_id} 
+                    className={`flex items-start py-3 sm:py-4 border-b border-gray-100 last:border-b-0 gap-3 transition-opacity duration-200 ${
+                      isUpdating ? 'opacity-60' : 'opacity-100'
+                    }`}
+                  >
+                    <div className="flex-1 min-w-0">
+                      <p className="text-sm font-medium text-gray-900 line-clamp-2 leading-tight">
+                        {item.test_kits.name}
+                      </p>
+                      <p className="text-xs text-gray-500 mt-1">
+                        {formatPrice(item.test_kits.price)} each
+                      </p>
+                      
+                      {/* Quantity Controls */}
+                      <div className="flex items-center mt-2 space-x-1 sm:space-x-2">
+                        <button
+                          onClick={() => handleCartItemUpdate(item.item_id, item.quantity - 1)}
+                          disabled={isUpdating || item.quantity <= 1}
+                          className="w-6 h-6 rounded-full border border-gray-300 bg-gray-50 flex items-center justify-center hover:bg-gray-100 disabled:opacity-50 disabled:cursor-not-allowed text-xs transition-colors duration-150"
+                        >
+                          −
+                        </button>
+                        
+                        <span className="w-8 text-center text-sm font-medium min-h-[1.25rem] flex items-center justify-center">
+                          {isUpdating ? (
+                            <div className="w-3 h-3 border border-gray-400 border-t-transparent rounded-full animate-spin"></div>
+                          ) : (
+                            item.quantity
+                          )}
+                        </span>
+                        
+                        <button
+                          onClick={() => handleCartItemUpdate(item.item_id, item.quantity + 1)}
+                          disabled={isUpdating || item.quantity >= item.test_kits.quantity}
+                          className="w-6 h-6 rounded-full border border-gray-300 bg-gray-50 flex items-center justify-center hover:bg-gray-100 disabled:opacity-50 disabled:cursor-not-allowed text-xs transition-colors duration-150"
+                        >
+                          +
+                        </button>
+                        
+                        {/* Remove Button */}
+                        <button
+                          onClick={() => handleCartItemRemove(item.item_id)}
+                          disabled={isUpdating}
+                          className="ml-1 sm:ml-2 text-red-600 hover:text-red-800 disabled:opacity-50 disabled:cursor-not-allowed transition-colors duration-150"
+                          title="Remove item"
+                        >
+                          <svg className="h-4 w-4" fill="none" viewBox="0 0 24 24" stroke="currentColor">
+                            <path strokeLinecap="round" strokeLinejoin="round" strokeWidth="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16" />
+                          </svg>
+                        </button>
+                      </div>
+                      
+                      {/* Stock Warning */}
+                      {item.quantity >= item.test_kits.quantity && (
+                        <p className="text-xs text-orange-600 mt-1">
+                          Max quantity reached ({item.test_kits.quantity} available)
+                        </p>
+                      )}
+                    </div>
+                    
+                    {/* Item Total */}
+                    <div className="text-right flex-shrink-0">
+                      <p className="text-sm font-medium text-gray-900">
+                        {formatPrice(item.quantity * item.test_kits.price)}
+                      </p>
+                    </div>
+                  </div>
+                );
+              })}
+            </div>
+
+            {/* Cart Summary */}
+            <div className="mt-3 sm:mt-4 pt-3 sm:pt-4 border-t border-gray-200">
+              <div className="flex justify-between items-center mb-3">
+                <span className="text-base font-medium text-gray-900">Total:</span>
+                <span className="text-lg font-bold text-blue-600">
+                  {formatPrice(cartSummary.totalPrice)}
+                </span>
+              </div>
+              
+              <button
+                onClick={handleCheckout}
+                className="w-full bg-blue-600 text-white py-2 px-4 rounded-md hover:bg-blue-700 font-medium transition-colors duration-200 mb-2 text-sm sm:text-base"
+              >
+                Proceed to Checkout ({cartSummary.totalItems} items)
+              </button>
+              
+              <Link
+                to={cartPartnerInfo ? `/shop/partner/${cartPartnerInfo.partnerSlug}` : '/shop'}
+                onClick={() => setShowCartDropdown(false)}
+                className="block w-full text-center text-blue-600 hover:text-blue-800 text-sm py-1"
+              >
+                Continue Shopping
+              </Link>
+            </div>
+          </>
+        )}
+      </div>
+    </div>
+  )}
+</div>
             
             {/* User info if authenticated - Hidden on mobile */}
             {user && (
@@ -747,15 +764,17 @@ useEffect(() => {
             </div>
 
             {/* Mobile Menu Content */}
-            <div className="py-2">
-              {/* Browse Test Kits */}
-              <Link
-                to="/shop"
-                onClick={() => handleMobileMenuClick()}
-                className={getMobileLinkClassName('/shop')}
-              >
-                Shop Test Kits
-              </Link>
+<div className="py-2">
+  {/* Browse Test Kits - Use partner context if available */}
+  <Link
+    to={partnerSlug ? `/shop/partner/${partnerSlug}` : '/shop'}
+    onClick={() => handleMobileMenuClick()}
+    className={getMobileLinkClassName(
+      partnerSlug ? `/shop/partner/${partnerSlug}` : '/shop'
+    )}
+  >
+    Shop Test Kits
+  </Link>
 
               {/* Demo Report */}
               {/* <Link

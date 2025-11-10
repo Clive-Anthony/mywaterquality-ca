@@ -1,4 +1,4 @@
-// src/hooks/useCartActions.js
+// src/hooks/useCartActions.js - WITH CONFLICT HANDLING
 import { useState } from 'react';
 import { useNavigate } from 'react-router-dom';
 import { useAuth } from '../contexts/AuthContext';
@@ -15,6 +15,8 @@ export const useCartActions = () => {
   const [successMessage, setSuccessMessage] = useState(null);
   const [showLoginPrompt, setShowLoginPrompt] = useState(false);
   const [selectedKit, setSelectedKit] = useState(null);
+  const [showConflictModal, setShowConflictModal] = useState(false);
+  const [conflictInfo, setConflictInfo] = useState(null);
 
   /**
    * Handle adding item to cart with all necessary checks
@@ -45,10 +47,21 @@ export const useCartActions = () => {
     setError(null);
 
     try {
-      const { success, error: cartError } = await addToCart(testKit, quantity);
+      const result = await addToCart(testKit, quantity);
       
-      if (!success) {
-        throw cartError;
+      if (!result.success) {
+        // Check if it's a conflict error
+        if (result.conflictType) {
+          setConflictInfo({
+            type: result.conflictType,
+            message: result.error,
+            product: testKit
+          });
+          setShowConflictModal(true);
+          return false;
+        } else {
+          throw new Error(result.error);
+        }
       }
 
       const quantityText = quantity === 1 ? '' : `${quantity} x `;
@@ -79,34 +92,28 @@ export const useCartActions = () => {
    * @param {string} returnPath - Path to return to after login
    */
   const handleLoginRedirect = (returnPath = '/shop') => {
-  setShowLoginPrompt(false);
-  
-  // Store the return path for after login
-  storeReturnPath(returnPath);
-  
-  navigate('/login', { 
-    state: { 
-      message: 'Please log in to add items to your cart'
-    }
-  });
-};
+    setShowLoginPrompt(false);
+    storeReturnPath(returnPath);
+    navigate('/login', { 
+      state: { 
+        message: 'Please log in to add items to your cart'
+      }
+    });
+  };
 
   /**
    * Handle signup redirect from auth prompt
    * @param {string} returnPath - Path to return to after signup
    */
   const handleSignupRedirect = (returnPath = '/shop') => {
-  setShowLoginPrompt(false);
-  
-  // Store the return path for after signup/login
-  storeReturnPath(returnPath);
-  
-  navigate('/signup', { 
-    state: { 
-      message: 'Create an account to start shopping'
-    }
-  });
-};
+    setShowLoginPrompt(false);
+    storeReturnPath(returnPath);
+    navigate('/signup', { 
+      state: { 
+        message: 'Create an account to start shopping'
+      }
+    });
+  };
 
   /**
    * Close login prompt
@@ -114,6 +121,14 @@ export const useCartActions = () => {
   const closeLoginPrompt = () => {
     setShowLoginPrompt(false);
     setSelectedKit(null);
+  };
+
+  /**
+   * Close conflict modal
+   */
+  const closeConflictModal = () => {
+    setShowConflictModal(false);
+    setConflictInfo(null);
   };
 
   /**
@@ -191,6 +206,7 @@ export const useCartActions = () => {
     handleLoginRedirect,
     handleSignupRedirect,
     closeLoginPrompt,
+    closeConflictModal,
     clearError,
     clearSuccessMessage,
     
@@ -200,6 +216,8 @@ export const useCartActions = () => {
     successMessage,
     showLoginPrompt,
     selectedKit,
+    showConflictModal,
+    conflictInfo,
     
     // Utilities
     getAddToCartButtonProps,

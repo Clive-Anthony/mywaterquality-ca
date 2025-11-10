@@ -1,28 +1,30 @@
 // src/pages/TestKitDetailPage.jsx
 import { useState, useEffect } from 'react';
-import { useParams, useNavigate, Link } from 'react-router-dom';
+import { useParams, Link } from 'react-router-dom';
 import PageLayout from '../components/PageLayout';
 import QuantitySelector from '../components/QuantitySelector';
 import { useCartActions } from '../hooks/useCartActions';
 import { useShopPageTracking } from '../hooks/useGTM';
 import { getPartnerContext } from '../utils/partnerContext';
 import { getPartnerBySlug } from '../lib/partnerClient';
+import CartConflictModal from '../components/CartConflictModal';
+import { useCart } from '../contexts/CartContext';
 import {
   getTestKitBySlug,
   getTestKitParameters,
   getTestKitImageUrl,
   formatPrice,
   getStockStatus,
-  getParameterTypeBadge,
+  // getParameterTypeBadge,
   getDefaultDescription,
   sortParametersAlphabetically,
-  groupParametersByType,
+  // groupParametersByType,
   generateMetaTags
 } from '../utils/testKitHelpers';
 
 export default function TestKitDetailPage() {
   const { slug } = useParams();
-  const navigate = useNavigate();
+  // const navigate = useNavigate();
   
   // State management
   const [testKit, setTestKit] = useState(null);
@@ -34,6 +36,7 @@ export default function TestKitDetailPage() {
   const [showAllParameters, setShowAllParameters] = useState(false);
   const [imageError, setImageError] = useState(false);
   const [partnerInfo, setPartnerInfo] = useState(null);
+  const { cartPartnerInfo, clearCart } = useCart();
 
   // Cart actions
   const {
@@ -50,7 +53,10 @@ export default function TestKitDetailPage() {
     selectedKit,
     getAddToCartButtonProps,
     getItemQuantity,
-    isInCart
+    isInCart,
+     showConflictModal,
+      conflictInfo,
+      closeConflictModal,
   } = useCartActions();
 
   // Add GTM tracking for individual product page views
@@ -154,13 +160,6 @@ const onAddToCart = async () => {
   // Format description with fallback
   const getDescription = () => {
     return testKit?.description || getDefaultDescription();
-  };
-
-  // Group non-featured parameters for "View More" section
-  const getNonFeaturedParameters = () => {
-    const featuredIds = new Set(featuredParameters.map(p => p.id));
-    const nonFeatured = parameters.filter(p => !featuredIds.has(p.id));
-    return groupParametersByType(nonFeatured);
   };
 
   // Loading state
@@ -583,6 +582,14 @@ const onAddToCart = async () => {
           </div>
         )}
       </div>
+      <CartConflictModal
+  isOpen={showConflictModal}
+  onClose={closeConflictModal}
+  conflictType={conflictInfo?.type}
+  message={conflictInfo?.message}
+  cartPartnerInfo={cartPartnerInfo}
+  onClearCart={clearCart}
+/>
     </PageLayout>
   );
 }

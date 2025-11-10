@@ -10,6 +10,8 @@ import { usePartnerProducts } from '../hooks/usePartnerProducts';
 import { usePartnerContext } from '../hooks/usePartnerContext';
 import { useCartActions } from '../hooks/useCartActions';
 import { storeReturnPath } from '../utils/returnPath';
+import CartConflictModal from '../components/CartConflictModal';
+import { useCart } from '../contexts/CartContext';
 import { 
   formatPrice,
   isInStock,
@@ -19,6 +21,7 @@ export default function PartnerShopPage() {
   const { partnerSlug } = useParams();
   const navigate = useNavigate();
   const { user } = useAuth();
+  const { cartPartnerInfo, clearCart } = useCart();
   
   // Load partner data
   const { partner, loading: partnerLoading, error: partnerError } = usePartner(partnerSlug);
@@ -45,7 +48,10 @@ export default function PartnerShopPage() {
     showLoginPrompt,
     selectedKit,
     getAddToCartButtonProps,
-    isAddingToCart
+    isAddingToCart,
+    showConflictModal,
+    conflictInfo,
+    closeConflictModal,
   } = useCartActions();
 
   // Initialize quantities when products load
@@ -433,6 +439,14 @@ export default function PartnerShopPage() {
           </div>
         )}
       </div>
+      <CartConflictModal
+  isOpen={showConflictModal}
+  onClose={closeConflictModal}
+  conflictType={conflictInfo?.type}
+  message={conflictInfo?.message}
+  cartPartnerInfo={cartPartnerInfo}
+  onClearCart={clearCart}
+/>
     </PageLayout>
   );
 }

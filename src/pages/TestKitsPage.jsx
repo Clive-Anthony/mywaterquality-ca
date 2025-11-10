@@ -8,6 +8,8 @@ import { useAuth } from '../contexts/AuthContext';
 import { useCartActions } from '../hooks/useCartActions';
 import { storeReturnPath } from '../utils/returnPath';
 import { useShopPageTracking } from '../hooks/useGTM';
+import CartConflictModal from '../components/CartConflictModal';
+import { useCart } from '../contexts/CartContext';
 import { 
   formatPrice,
   isInStock,
@@ -25,6 +27,7 @@ export default function TestKitsPage() {
   const [searchTerm, setSearchTerm] = useState('');
   const [searchResults, setSearchResults] = useState([]);
   const [isSearching, setIsSearching] = useState(false);
+  const { cartPartnerInfo, clearCart } = useCart();
   
   // State to track quantities for each kit
   const [quantities, setQuantities] = useState({});
@@ -42,7 +45,10 @@ export default function TestKitsPage() {
     showLoginPrompt,
     selectedKit,
     getAddToCartButtonProps,
-    isAddingToCart
+    isAddingToCart,
+    showConflictModal,
+    conflictInfo,
+    closeConflictModal
   } = useCartActions();
 
   // Add GTM tracking for shop page view
@@ -590,6 +596,14 @@ export default function TestKitsPage() {
           </div>
         </div>
       </div>
+      <CartConflictModal
+  isOpen={showConflictModal}
+  onClose={closeConflictModal}
+  conflictType={conflictInfo?.type}
+  message={conflictInfo?.message}
+  cartPartnerInfo={cartPartnerInfo}
+  onClearCart={clearCart}
+/>
     </PageLayout>
   );
 }
