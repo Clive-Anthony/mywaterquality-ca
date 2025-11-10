@@ -1,9 +1,8 @@
-
 const PARTNER_COOKIE_NAME = 'mwq_partner_context';
 const COOKIE_EXPIRY_DAYS = 30;
 
 /**
- * Set partner context cookie
+ * Set partner context cookie and notify listeners
  * @param {string} partnerSlug - Partner slug to store
  */
 export const setPartnerContext = (partnerSlug) => {
@@ -15,6 +14,11 @@ export const setPartnerContext = (partnerSlug) => {
   document.cookie = `${PARTNER_COOKIE_NAME}=${partnerSlug}; path=/; expires=${expiryDate.toUTCString()}; SameSite=Lax; Secure`;
   
   console.log('Partner context set:', partnerSlug);
+  
+  // Dispatch event to notify components (like TopNav)
+  window.dispatchEvent(new CustomEvent('partnerContextChanged', { 
+    detail: { partnerSlug } 
+  }));
 };
 
 /**
@@ -34,11 +38,16 @@ export const getPartnerContext = () => {
 };
 
 /**
- * Clear partner context cookie
+ * Clear partner context cookie and notify listeners
  */
 export const clearPartnerContext = () => {
   document.cookie = `${PARTNER_COOKIE_NAME}=; path=/; expires=Thu, 01 Jan 1970 00:00:00 UTC; SameSite=Lax; Secure`;
   console.log('Partner context cleared');
+  
+  // Dispatch event to notify components
+  window.dispatchEvent(new CustomEvent('partnerContextChanged', { 
+    detail: { partnerSlug: null } 
+  }));
 };
 
 /**

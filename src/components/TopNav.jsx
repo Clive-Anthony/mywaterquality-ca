@@ -7,6 +7,7 @@ import { signOut } from '../lib/supabaseClient';
 import { supabase } from '../lib/supabaseClient';
 import { storeReturnPath } from '../utils/returnPath';
 import { getPartnerContext } from '../utils/partnerContext';
+
 import { getPartnerBySlug } from '../lib/partnerClient';
 
 
@@ -63,20 +64,45 @@ export default function TopNav() {
     };
   }, []);
 
-  useEffect(() => {
+  // Load partner context and listen for changes
+useEffect(() => {
   const loadPartnerContext = async () => {
     const slug = getPartnerContext();
+    setPartnerSlug(slug);
+    
     if (slug) {
-      // Verify partner exists
-      const { partner } = await getPartnerBySlug(slug);
-      if (partner) {
-        setPartnerSlug(slug);
+      try {
+        const { partner } = await getPartnerBySlug(slug);
+        if (partner) {
+          setPartnerInfo(partner);
+        } else {
+          setPartnerInfo(null);
+        }
+      } catch (error) {
+        console.error('Error loading partner info:', error);
+        setPartnerInfo(null);
       }
+    } else {
+      setPartnerInfo(null);
     }
   };
-  
+
+  // Load immediately on mount
   loadPartnerContext();
-}, []);
+
+  // Listen for partner context changes
+  const handlePartnerContextChange = (event) => {
+    console.log('Partner context changed event received:', event.detail);
+    loadPartnerContext();
+  };
+
+  window.addEventListener('partnerContextChanged', handlePartnerContextChange);
+
+  // Cleanup
+  return () => {
+    window.removeEventListener('partnerContextChanged', handlePartnerContextChange);
+  };
+}, []); // Empty dependency array - only run on mount and listen for events
 
 // Load partner info when partner context exists
 useEffect(() => {
