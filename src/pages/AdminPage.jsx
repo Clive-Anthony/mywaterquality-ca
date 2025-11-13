@@ -10,6 +10,7 @@ import AdminReportTesting from '../components/AdminReportTesting';
 import AdminKitRegistration from '../components/AdminKitRegistration';
 import AdminWaterQualityResults from '../components/AdminWaterQualityResults';
 import AdminInsights from '../components/AdminInsights';
+import AdminCouponManagement from '../components/AdminCouponManagement';
 import { UnregisteredLegacyKitsCard, QuickLinksCard } from '../components/AdminDashboardCards';
 
 
@@ -21,7 +22,7 @@ export default function AdminPage() {
   // Handle URL fragments for direct tab navigation
   useEffect(() => {
     const hash = location.hash.replace('#', '');
-    if (hash && ['dashboard', 'orders', 'reports', 'report-testing', 'inventory', 'kit-registration','results','insights'].includes(hash)) {
+    if (hash && ['dashboard', 'orders', 'reports', 'report-testing', 'inventory', 'kit-registration','results','insights', 'coupons'].includes(hash)) {
       setActiveTab(hash);
     }
   }, [location.hash]);
@@ -68,6 +69,8 @@ export default function AdminPage() {
   return <AdminWaterQualityResults />;
       case 'insights':
   return <AdminInsights />;
+  case 'coupons':
+  return <AdminCouponManagement />;
       default:
         return <AdminDashboardContent setActiveTab={handleTabChange} />;
     }
@@ -318,6 +321,36 @@ export default function AdminPage() {
       />
     </svg>
     <span className="truncate">Insights</span>
+  </button>
+</li>
+
+{/* Coupons */}
+<li>
+  <button
+    onClick={() => handleTabChange('coupons')}
+    className={`w-full text-left px-4 sm:px-6 py-3 flex items-center text-sm sm:text-base ${
+      activeTab === 'coupons'
+        ? 'bg-blue-50 text-blue-600 border-l-4 border-blue-600'
+        : 'text-gray-600 hover:bg-gray-50'
+    }`}
+  >
+    <svg
+      className={`mr-2 sm:mr-3 h-4 w-4 sm:h-5 sm:w-5 flex-shrink-0 ${
+        activeTab === 'coupons' ? 'text-blue-600' : 'text-gray-400'
+      }`}
+      xmlns="http://www.w3.org/2000/svg"
+      fill="none"
+      viewBox="0 0 24 24"
+      stroke="currentColor"
+    >
+      <path
+        strokeLinecap="round"
+        strokeLinejoin="round"
+        strokeWidth="2"
+        d="M7 7h.01M7 3h5c.512 0 1.024.195 1.414.586l7 7a2 2 0 010 2.828l-7 7a2 2 0 01-2.828 0l-7-7A1.994 1.994 0 013 12V7a4 4 0 014-4z"
+      />
+    </svg>
+    <span className="truncate">Coupons</span>
   </button>
 </li>
 
