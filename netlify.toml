@@ -9,12 +9,6 @@
   port = 3000
   autoLaunch = true
 
-# Handle SPA routing - MUST be first and most specific
-[[redirects]]
-  from = "/*"
-  to = "/index.html"
-  status = 200
-
 # Special handling for hash fragments in URLs containing access_token
 # This is a critical fix for Supabase authentication redirects
 [[redirects]]
@@ -49,6 +43,12 @@
   to = "/index.html"
   status = 200
   force = true
+
+  # Handle SPA routing
+  [[redirects]]
+  from = "/*"
+  to = "/index.html"
+  status = 200
 
 # Make environment variables available to Netlify Functions
 [build.environment]
