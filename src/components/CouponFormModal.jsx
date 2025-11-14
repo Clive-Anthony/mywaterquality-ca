@@ -73,15 +73,15 @@ export default function CouponFormModal({
     const newErrors = {};
 
     // Code validation
-    if (!formData.code.trim()) {
-      newErrors.code = 'Coupon code is required';
-    } else if (formData.code.trim().length < 3) {
-      newErrors.code = 'Code must be at least 3 characters';
-    } else if (formData.code.trim().length > 50) {
-      newErrors.code = 'Code must be less than 50 characters';
-    } else if (!/^[A-Z0-9_-]+$/i.test(formData.code.trim())) {
-      newErrors.code = 'Code can only contain letters, numbers, hyphens, and underscores';
-    }
+if (!formData.code.trim()) {
+  newErrors.code = 'Coupon code is required';
+} else if (formData.code.trim().length < 3) {
+  newErrors.code = 'Code must be at least 3 characters';
+} else if (formData.code.trim().length > 50) {
+  newErrors.code = 'Code must be less than 50 characters';
+} else if (!/^[A-Z0-9_!-]+$/i.test(formData.code.trim())) {
+  newErrors.code = 'Code can only contain letters, numbers, hyphens, underscores, and exclamation marks';
+}
 
     // Value validation
     if (!formData.value) {
