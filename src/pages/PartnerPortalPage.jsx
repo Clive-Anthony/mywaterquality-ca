@@ -246,7 +246,7 @@ export default function PartnerPortalPage() {
         Your Partner Shop
       </h3>
       <p className="text-gray-600">
-        Share this link with your customers to earn commissions on water test kit purchases
+        Share this link with your customers to generate more sales through your shop
       </p>
       <div className="mt-3 flex items-center space-x-2">
         <code className="px-3 py-1 bg-white border border-gray-300 rounded text-sm text-gray-700">
