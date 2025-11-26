@@ -127,7 +127,11 @@ exports.handler = async function(event, context) {
       };
     }
     
-    const userExists = existingUsers.users.some(user => user.email === email);
+    // Normalize email for comparison (case-insensitive, trimmed)
+    const normalizedEmail = email.toLowerCase().trim();
+    const userExists = existingUsers.users.some(
+      user => user.email?.toLowerCase().trim() === normalizedEmail
+    );
     
     if (!userExists) {
       console.log(`No user found with email: ${email}`);
