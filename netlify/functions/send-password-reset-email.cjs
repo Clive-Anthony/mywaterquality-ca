@@ -114,39 +114,9 @@ exports.handler = async function(event, context) {
       process.env.VITE_SUPABASE_SERVICE_KEY
     );
     
-    // Check if user exists
-    console.log('Checking if user exists...');
-    const { data: existingUsers, error: userError } = await supabaseAdmin.auth.admin.listUsers();
-    
-    if (userError) {
-      console.error('Error checking users:', userError);
-      return {
-        statusCode: 500,
-        headers,
-        body: JSON.stringify({ error: 'Failed to verify user' })
-      };
-    }
-    
-    // Normalize email for comparison (case-insensitive, trimmed)
+    // Normalize email
     const normalizedEmail = email.toLowerCase().trim();
-    const userExists = existingUsers.users.some(
-      user => user.email?.toLowerCase().trim() === normalizedEmail
-    );
-    
-    if (!userExists) {
-      console.log(`No user found with email: ${email}`);
-      // Return success anyway for security (prevent email enumeration)
-      return {
-        statusCode: 200,
-        headers,
-        body: JSON.stringify({
-          success: true,
-          message: 'If an account with that email exists, you will receive a password reset email.'
-        })
-      };
-    }
-    
-    console.log(`User found with email: ${email}`);
+    console.log('Processing password reset for normalized email:', normalizedEmail);
     
     // FIXED: Use the correct site URL with callback path
     const baseUrl = process.env.VITE_APP_URL || 'https://mywaterqualityca.netlify.app';
@@ -157,16 +127,30 @@ exports.handler = async function(event, context) {
     // Generate password reset link with proper configuration
     const { data, error } = await supabaseAdmin.auth.admin.generateLink({
       type: 'recovery',
-      email,
+      email: normalizedEmail,  // Use normalized email
       options: {
         redirectTo: redirectUrl,
-        // Set a longer expiration time to avoid timeout issues
-        expiresIn: 3600 // 1 hour in seconds
+        expiresIn: 3600
       }
     });
     
     if (error) {
       console.error('Supabase generateLink error:', error);
+      
+      // If user doesn't exist, Supabase will return an error
+      // Return success anyway to prevent email enumeration
+      if (error.message?.includes('User not found') || error.message?.includes('No user found')) {
+        console.log('User not found, returning success for security');
+        return {
+          statusCode: 200,
+          headers,
+          body: JSON.stringify({
+            success: true,
+            message: 'If an account with that email exists, you will receive a password reset email.'
+          })
+        };
+      }
+      
       return {
         statusCode: 500,
         headers,
