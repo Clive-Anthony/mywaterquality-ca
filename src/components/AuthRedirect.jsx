@@ -221,34 +221,44 @@ const AuthRedirect = () => {
       processingRef.current = true;
 
       try {
-
-        // If this is a recovery flow, don't process as regular OAuth
-        // Let the recovery-specific useEffect handle it
+        // Check for recovery flow first - this takes priority
         if (checkForRecoveryFlow()) {
-          // console.log('🔑 Recovery flow detected in handleRedirect, setting state and returning');
+          console.log('🔑 Recovery flow detected in handleRedirect');
           setIsRecoveryFlow(true);
           setStatus('success');
           return; // Let the recovery useEffect handle navigation
         }
 
-        const accessToken = searchParams.get('access_token');
-        const refreshToken = searchParams.get('refresh_token');
+        // Check for errors in URL (both query params and hash)
         const errorParam = searchParams.get('error');
         const errorDescription = searchParams.get('error_description');
+        
+        // Also check hash for errors
+        let hashError = null;
+        let hashErrorDescription = null;
+        if (window.location.hash) {
+          try {
+            const hashParams = new URLSearchParams(window.location.hash.substring(1));
+            hashError = hashParams.get('error');
+            hashErrorDescription = hashParams.get('error_description');
+          } catch {
+            // Ignore parsing errors
+          }
+        }
 
-        // Handle OAuth errors
-        if (errorParam) {
-          console.error('OAuth error:', errorParam, errorDescription);
-          setError(errorDescription || errorParam);
+        const finalError = errorParam || hashError;
+        const finalErrorDescription = errorDescription || hashErrorDescription;
+
+        // Handle OAuth/auth errors
+        if (finalError) {
+          console.error('Auth error:', finalError, finalErrorDescription);
+          setError(finalErrorDescription || finalError);
           setStatus('error');
           
-          // Navigate to login with error after delay
           setTimeout(() => {
             if (mountedRef.current) {
               navigate('/login', { 
-                state: { 
-                  error: errorDescription || 'Authentication failed' 
-                },
+                state: { error: finalErrorDescription || 'Authentication failed' },
                 replace: true 
               });
             }
@@ -256,76 +266,67 @@ const AuthRedirect = () => {
           return;
         }
 
-        // Check for password recovery flow in hash fragment
-        // (tokens may be in hash, not query params for recovery)
-        if (checkForRecoveryFlow()) {
-          // console.log('Password recovery flow detected from hash');
-          setStatus('success');
-          
-          // Let Supabase client handle the token processing from hash
-          // Then redirect to update password page
-          setTimeout(() => {
-            if (mountedRef.current) {
-              navigate('/update-password', { replace: true });
-            }
-          }, 500);
-          return;
-        }
-
-        // Regular OAuth login flow
-        // Validate required tokens
-        if (!accessToken || !refreshToken) {
-          console.error('Missing tokens in redirect');
-          setError('Invalid authentication response');
-          setStatus('error');
-          
-          setTimeout(() => {
-            if (mountedRef.current) {
-              navigate('/login', { 
-                state: { 
-                  error: 'Authentication failed - missing tokens' 
-                },
-                replace: true 
-              });
-            }
-          }, 2000);
-          return;
-        }
-
-        // Set session with OAuth tokens
-        // console.log('Setting session with OAuth tokens...');
+        // For all other cases (OAuth, email verification, etc.):
+        // Supabase's client automatically processes tokens from both query params and hash.
+        // We just need to wait for the auth state to update.
+        
+        console.log('Waiting for Supabase to process authentication...');
         setStatus('setting_session');
 
-        const { data, error: sessionError } = await supabase.auth.setSession({
-          access_token: accessToken,
-          refresh_token: refreshToken
-        });
+        // Give Supabase a moment to process the tokens
+        // The auth state listener in AuthContext will update isAuthenticated
+        await new Promise(resolve => setTimeout(resolve, 500));
 
-        if (sessionError) {
-          console.error('Session error:', sessionError);
-          throw sessionError;
-        }
+        // Check if we're now authenticated
+        const { data: { session } } = await supabase.auth.getSession();
+        const { data: { user } } = await supabase.auth.getUser();
 
-        if (!data?.user) {
-          throw new Error('No user data returned from session');
-        }
+        if (session && user) {
+          console.log('Authentication successful for:', user.email);
+          
+          // Handle pending newsletter signup for OAuth users
+          await handlePendingNewsletterSignup(user);
 
-        // console.log('OAuth session set successfully for user:', data.user.email);
+          setStatus('success');
 
-        // Handle pending newsletter signup for OAuth users
-        await handlePendingNewsletterSignup(data.user);
-
-        setStatus('success');
-
-        // Get redirect path and navigate
-        const redirectPath = await getRedirectPath(data.user);
-        // console.log('Redirecting OAuth user to:', redirectPath);
-        
-        setTimeout(() => {
-          if (mountedRef.current) {
+          // Get redirect path and navigate
+          const redirectPath = await getRedirectPath(user);
+          console.log('Redirecting to:', redirectPath);
+          
+          setTimeout(() => {
+            if (mountedRef.current) {
+              navigate(redirectPath, { replace: true });
+            }
+          }, 500);
+        } else {
+          // No session established - tokens may have been invalid or expired
+          console.log('No session established after processing');
+          
+          // Check if this might be a delayed auth state update
+          // Wait a bit more and check again
+          await new Promise(resolve => setTimeout(resolve, 1000));
+          
+          const { data: { session: retrySession } } = await supabase.auth.getSession();
+          
+          if (retrySession) {
+            console.log('Session found on retry');
+            setStatus('success');
+            const redirectPath = await getRedirectPath(retrySession.user);
             navigate(redirectPath, { replace: true });
+          } else {
+            setError('Authentication could not be completed. Please try again.');
+            setStatus('error');
+            
+            setTimeout(() => {
+              if (mountedRef.current) {
+                navigate('/login', { 
+                  state: { error: 'Authentication failed. Please try again.' },
+                  replace: true 
+                });
+              }
+            }, 2000);
           }
-        }, 1000);
+        }
 
       } catch (error) {
         console.error('Auth redirect error:', error);
@@ -375,9 +376,25 @@ const AuthRedirect = () => {
       );
     }
     
-    // Regular authenticated user - redirect to appropriate dashboard
-    // This needs to be in a useEffect to avoid the render warning too
-    // For now, return null and let existing useEffect handle it
+    const handleAuthenticatedRedirect = async () => {
+      try {
+        console.log('Handling authenticated redirect for non-recovery flow');
+        const { data: { user } } = await supabase.auth.getUser();
+        if (user) {
+          const redirectPath = await getRedirectPath(user);
+          console.log('Redirecting authenticated user to:', redirectPath);
+          navigate(redirectPath, { replace: true });
+        } else {
+          console.log('No user found, redirecting to dashboard');
+          navigate('/dashboard', { replace: true });
+        }
+      } catch (error) {
+        console.error('Error handling authenticated redirect:', error);
+        navigate('/dashboard', { replace: true });
+      }
+    };
+    
+    handleAuthenticatedRedirect();
     return null;
   }
 
